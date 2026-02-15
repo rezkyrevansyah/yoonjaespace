@@ -1,0 +1,987 @@
+{
+	"info": {
+		"_postman_id": "yoonjaespace-api-collection",
+		"name": "Yoonjaespace API v1 (Complete)",
+		"description": "Collection lengkap untuk testing API Yoonjaespace Project.\n\n**Setup:**\n1. Import collection ini ke Postman.\n2. Pastikan variable `baseUrl` sudah di-set ke `http://localhost:3000/api` (atau edit di Collection Variables).",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:3000/api",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "1. Auth",
+			"item": [
+				{
+					"name": "Login (Owner)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"owner@yoonjaespace.com\",\n    \"password\": \"owner123456\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "login"]
+						}
+					}
+				},
+				{
+					"name": "Me (Check Session)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/auth/me",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "me"]
+						}
+					}
+				},
+				{
+					"name": "Logout",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/auth/logout",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "logout"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "2. Users (Staff)",
+			"item": [
+				{
+					"name": "List Users",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/users",
+							"host": ["{{baseUrl}}"],
+							"path": ["users"]
+						}
+					}
+				},
+				{
+					"name": "Create User",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"staff2@yoonjaespace.com\",\n    \"password\": \"staff123\",\n    \"name\": \"Staff Dua\",\n    \"role\": \"PHOTOGRAPHER\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/users",
+							"host": ["{{baseUrl}}"],
+							"path": ["users"]
+						}
+					}
+				},
+				{
+					"name": "Get User Detail",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/users/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["users", ":id"],
+							"variable": [
+								{ "key": "id", "value": "REPLACE_WITH_USER_ID" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Update User",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Staff Dua Updated\",\n    \"role\": \"ADMIN\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/users/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["users", ":id"],
+							"variable": [
+								{ "key": "id", "value": "REPLACE_WITH_USER_ID" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Delete User",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/users/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["users", ":id"],
+							"variable": [
+								{ "key": "id", "value": "REPLACE_WITH_USER_ID" }
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "3. Clients",
+			"item": [
+				{
+					"name": "List Clients",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/clients?search=",
+							"host": ["{{baseUrl}}"],
+							"path": ["clients"],
+							"query": [
+								{ "key": "search", "value": "" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Create Client",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Budi Santoso\",\n    \"phone\": \"081234567890\",\n    \"email\": \"budi@example.com\",\n    \"address\": \"Jl. Merdeka No. 1\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/clients",
+							"host": ["{{baseUrl}}"],
+							"path": ["clients"]
+						}
+					}
+				},
+				{
+					"name": "Get Client Detail",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/clients/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["clients", ":id"],
+							"variable": [
+								{ "key": "id", "value": "REPLACE_WITH_CLIENT_ID" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Update Client",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Budi Santoso Edit\",\n    \"notes\": \"VIP Member\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/clients/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["clients", ":id"],
+							"variable": [
+								{ "key": "id", "value": "REPLACE_WITH_CLIENT_ID" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Delete Client",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/clients/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["clients", ":id"],
+							"variable": [
+								{ "key": "id", "value": "REPLACE_WITH_CLIENT_ID" }
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "4. Bookings",
+			"item": [
+				{
+					"name": "List Bookings",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/bookings?status=BOOKED",
+							"host": ["{{baseUrl}}"],
+							"path": ["bookings"],
+							"query": [
+								{ "key": "status", "value": "BOOKED" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Create Booking",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"clientName\": \"Test Client\",\n    \"clientPhone\": \"08123456789\",\n    \"clientEmail\": \"test@example.com\",\n    \"date\": \"2026-02-20\",\n    \"startTime\": \"2026-02-20T10:00:00\",\n    \"endTime\": \"2026-02-20T11:00:00\",\n    \"packageId\": \"cmlnbkw8400052prpiyicrget\",\n    \"totalAmount\": 150000,\n    \"dpAmount\": 50000,\n    \"notes\": \"Testing via Postman\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/bookings",
+							"host": ["{{baseUrl}}"],
+							"path": ["bookings"]
+						}
+					}
+				},
+				{
+					"name": "Get Booking Detail",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/bookings/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["bookings", ":id"],
+							"variable": [
+								{ "key": "id", "value": "REPLACE_WITH_REAL_ID" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Update Booking (Full)",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"notes\": \"Updated Notes\",\n    \"status\": \"SHOOT_DONE\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/bookings/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["bookings", ":id"],
+							"variable": [
+								{ "key": "id", "value": "REPLACE_WITH_REAL_ID" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Update Status (Quick)",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"PHOTOS_DELIVERED\",\n    \"photoLink\": \"http://drive.google.com/xyz\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/bookings/:id/status",
+							"host": ["{{baseUrl}}"],
+							"path": ["bookings", ":id", "status"],
+							"variable": [
+								{ "key": "id", "value": "REPLACE_WITH_REAL_ID" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Create Print Order",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"shippingAddress\": \"Jl. Kenangan No. 5\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/bookings/:id/print",
+							"host": ["{{baseUrl}}"],
+							"path": ["bookings", ":id", "print"],
+							"variable": [
+								{ "key": "id", "value": "REPLACE_WITH_REAL_ID" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Delete Booking",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/bookings/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["bookings", ":id"],
+							"variable": [
+								{ "key": "id", "value": "REPLACE_WITH_REAL_ID" }
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "5. Invoices",
+			"item": [
+				{
+					"name": "Generate Invoice",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/invoices/:bookingId",
+							"host": ["{{baseUrl}}"],
+							"path": ["invoices", ":bookingId"],
+							"variable": [
+								{ "key": "bookingId", "value": "REPLACE_WITH_BOOKING_ID" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Invoice Detail",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/invoices/:bookingId",
+							"host": ["{{baseUrl}}"],
+							"path": ["invoices", ":bookingId"],
+							"variable": [
+								{ "key": "bookingId", "value": "REPLACE_WITH_BOOKING_ID" }
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "6. Finance",
+			"item": [
+				{
+					"name": "Get Summary",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/finance/summary?month=2026-02",
+							"host": ["{{baseUrl}}"],
+							"path": ["finance", "summary"],
+							"query": [
+								{ "key": "month", "value": "2026-02" }
+							]
+						}
+					}
+				},
+				{
+					"name": "List Expenses",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/finance/expenses",
+							"host": ["{{baseUrl}}"],
+							"path": ["finance", "expenses"]
+						}
+					}
+				},
+				{
+					"name": "Create Expense",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"description\": \"Beli Kopi\",\n    \"amount\": 25000,\n    \"category\": \"OPERATIONAL\",\n    \"date\": \"2026-02-15\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/finance/expenses",
+							"host": ["{{baseUrl}}"],
+							"path": ["finance", "expenses"]
+						}
+					}
+				},
+				{
+					"name": "Update Expense",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"amount\": 30000,\n    \"description\": \"Beli Kopi Large\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/finance/expenses/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["finance", "expenses", ":id"],
+							"variable": [
+								{ "key": "id", "value": "REPLACE_WITH_EXPENSE_ID" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Delete Expense",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/finance/expenses/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["finance", "expenses", ":id"],
+							"variable": [
+								{ "key": "id", "value": "REPLACE_WITH_EXPENSE_ID" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Export Data",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/finance/export?month=2026-02",
+							"host": ["{{baseUrl}}"],
+							"path": ["finance", "export"],
+							"query": [
+								{ "key": "month", "value": "2026-02" }
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "7. Master Data",
+			"item": [
+				{
+					"name": "Packages",
+					"item": [
+						{
+							"name": "List Packages",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/packages",
+									"host": ["{{baseUrl}}"],
+									"path": ["packages"]
+								}
+							}
+						},
+						{
+							"name": "Create Package",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"Paket Baru\",\n    \"price\": 500000,\n    \"duration\": 60,\n    \"maxPeople\": 2,\n    \"description\": \"Deskripsi paket\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/packages",
+									"host": ["{{baseUrl}}"],
+									"path": ["packages"]
+								}
+							}
+						},
+						{
+							"name": "Update Package",
+							"request": {
+								"method": "PATCH",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"price\": 550000\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/packages/:id",
+									"host": ["{{baseUrl}}"],
+									"path": ["packages", ":id"],
+									"variable": [
+										{ "key": "id", "value": "REPLACE_WITH_PACKAGE_ID" }
+									]
+								}
+							}
+						},
+						{
+							"name": "Delete Package",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/packages/:id",
+									"host": ["{{baseUrl}}"],
+									"path": ["packages", ":id"],
+									"variable": [
+										{ "key": "id", "value": "REPLACE_WITH_PACKAGE_ID" }
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Backgrounds",
+					"item": [
+						{
+							"name": "List Backgrounds",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/backgrounds",
+									"host": ["{{baseUrl}}"],
+									"path": ["backgrounds"]
+								}
+							}
+						},
+						{
+							"name": "Create Background",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"Abstract Blue\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/backgrounds",
+									"host": ["{{baseUrl}}"],
+									"path": ["backgrounds"]
+								}
+							}
+						},
+						{
+							"name": "Delete Background",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/backgrounds/:id",
+									"host": ["{{baseUrl}}"],
+									"path": ["backgrounds", ":id"],
+									"variable": [
+										{ "key": "id", "value": "REPLACE_WITH_BG_ID" }
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Add-ons",
+					"item": [
+						{
+							"name": "List Add-ons",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/addon-templates",
+									"host": ["{{baseUrl}}"],
+									"path": ["addon-templates"]
+								}
+							}
+						},
+						{
+							"name": "Create Add-on",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"Extra 1 Person\",\n    \"defaultPrice\": 50000\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/addon-templates",
+									"host": ["{{baseUrl}}"],
+									"path": ["addon-templates"]
+								}
+							}
+						},
+						{
+							"name": "Update Add-on",
+							"request": {
+								"method": "PATCH",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"defaultPrice\": 60000\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/addon-templates/:id",
+									"host": ["{{baseUrl}}"],
+									"path": ["addon-templates", ":id"],
+									"variable": [
+										{ "key": "id", "value": "REPLACE_WITH_ADDON_ID" }
+									]
+								}
+							}
+						},
+						{
+							"name": "Delete Add-on",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/addon-templates/:id",
+									"host": ["{{baseUrl}}"],
+									"path": ["addon-templates", ":id"],
+									"variable": [
+										{ "key": "id", "value": "REPLACE_WITH_ADDON_ID" }
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Vouchers",
+					"item": [
+						{
+							"name": "List Vouchers",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/vouchers",
+									"host": ["{{baseUrl}}"],
+									"path": ["vouchers"]
+								}
+							}
+						},
+						{
+							"name": "Create Voucher",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"code\": \"DISKON50\",\n    \"discountType\": \"fixed\",\n    \"discountValue\": 50000,\n    \"minPurchase\": 100000,\n    \"maxUsage\": 100\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/vouchers",
+									"host": ["{{baseUrl}}"],
+									"path": ["vouchers"]
+								}
+							}
+						},
+						{
+							"name": "Validate Voucher",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"code\": \"DISKON50\",\n    \"totalAmount\": 150000\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/vouchers/validate",
+									"host": ["{{baseUrl}}"],
+									"path": ["vouchers", "validate"]
+								}
+							}
+						},
+						{
+							"name": "Delete Voucher",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/vouchers/:id",
+									"host": ["{{baseUrl}}"],
+									"path": ["vouchers", ":id"],
+									"variable": [
+										{ "key": "id", "value": "REPLACE_WITH_VOUCHER_ID" }
+									]
+								}
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "8. Settings & Tools",
+			"item": [
+				{
+					"name": "Get Settings",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/settings",
+							"host": ["{{baseUrl}}"],
+							"path": ["settings"]
+						}
+					}
+				},
+				{
+					"name": "Update Settings",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"studio_name\": \"Yoonjaespace Jakarta\",\n    \"operating_hours\": { \"open\": \"09:00\", \"close\": \"21:00\" }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/settings",
+							"host": ["{{baseUrl}}"],
+							"path": ["settings"]
+						}
+					}
+				},
+				{
+					"name": "List Custom Fields",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/custom-fields",
+							"host": ["{{baseUrl}}"],
+							"path": ["custom-fields"]
+						}
+					}
+				},
+				{
+					"name": "Create Custom Field",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"fieldName\": \"Warna Background\",\n    \"fieldType\": \"text\",\n    \"isRequired\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/custom-fields",
+							"host": ["{{baseUrl}}"],
+							"path": ["custom-fields"]
+						}
+					}
+				},
+				{
+					"name": "Get Reminders",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/reminders",
+							"host": ["{{baseUrl}}"],
+							"path": ["reminders"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "9. Commissions",
+			"item": [
+				{
+					"name": "List Commissions",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/commissions?month=2&year=2026",
+							"host": ["{{baseUrl}}"],
+							"path": ["commissions"],
+							"query": [
+								{ "key": "month", "value": "2" },
+								{ "key": "year", "value": "2026" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Set Manual Commission",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": \"REPLACE_WITH_USER_ID\",\n    \"month\": 2,\n    \"year\": 2026,\n    \"amount\": 500000,\n    \"notes\": \"Bonus Target\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/commissions",
+							"host": ["{{baseUrl}}"],
+							"path": ["commissions"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "10. Dashboard",
+			"item": [
+				{
+					"name": "Get Dashboard Data",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/dashboard",
+							"host": ["{{baseUrl}}"],
+							"path": ["dashboard"]
+						}
+					}
+				}
+			]
+		},
+        {
+			"name": "11. Public Status",
+			"item": [
+				{
+					"name": "Check Status (Public)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/status/:slug",
+							"host": ["{{baseUrl}}"],
+							"path": ["status", ":slug"],
+                            "variable": [
+								{ "key": "slug", "value": "REPLACE_WITH_SLUG" }
+							]
+						}
+					}
+				}
+			]
+		}
+	]
+}
