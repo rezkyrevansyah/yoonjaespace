@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npm cache clean:*)",
+      "Bash(npx prisma:*)",
+      "Bash(test:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(DATABASE_URL=\"$DIRECT_URL\" npx prisma migrate:*)"
+    ]
+  }
+}
