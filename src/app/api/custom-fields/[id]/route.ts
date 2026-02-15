@@ -1,67 +1,65 @@
-import { createClient } from '@/utils/supabase/server'
 import { prisma } from '@/lib/prisma'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
+import {
+  withAdmin,
+  withErrorHandler,
+  validateRequest,
+  validateParams,
+} from '@/lib/api-middleware'
+import { ApiResponse } from '@/lib/api-response'
+import { updateCustomFieldDefinitionSchema, idParamSchema } from '@/schemas'
+import { apiLogger } from '@/lib/logger'
 
 // PATCH — Update custom field
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+export const PATCH = withAdmin(
+  withErrorHandler(async (request: NextRequest, { user }, params) => {
+    // Validate params
+    const paramValidation = validateParams(params, idParamSchema)
+    if (!paramValidation.success) return paramValidation.error
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+    const { id } = paramValidation.data
 
-  const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
+    // Validate request body
+    const validation = await validateRequest(request, updateCustomFieldDefinitionSchema, 'body')
+    if (!validation.success) return validation.error
 
-  if (!dbUser || !['OWNER', 'ADMIN'].includes(dbUser.role)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+    // Update custom field definition
+    const field = await prisma.customFieldDefinition.update({
+      where: { id },
+      data: validation.data,
+    })
 
-  const body = await request.json()
-  const { fieldName, fieldType, options, isRequired, isActive, sortOrder } = body
+    apiLogger.info({
+      msg: 'Custom field definition updated',
+      fieldId: id,
+      updatedBy: user.id,
+    })
 
-  const updated = await prisma.customFieldDefinition.update({
-    where: { id },
-    data: {
-      ...(fieldName && { fieldName }),
-      ...(fieldType && { fieldType }),
-      ...(options !== undefined && { options: options ? JSON.stringify(options) : null }),
-      ...(isRequired !== undefined && { isRequired }),
-      ...(isActive !== undefined && { isActive }),
-      ...(sortOrder !== undefined && { sortOrder }),
-    },
+    return ApiResponse.success(field)
   })
-
-  return NextResponse.json(updated)
-}
+)
 
 // DELETE — Soft delete custom field
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+export const DELETE = withAdmin(
+  withErrorHandler(async (request: NextRequest, { user }, params) => {
+    // Validate params
+    const paramValidation = validateParams(params, idParamSchema)
+    if (!paramValidation.success) return paramValidation.error
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+    const { id } = paramValidation.data
 
-  const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
+    // Soft delete by setting isActive to false
+    const field = await prisma.customFieldDefinition.update({
+      where: { id },
+      data: { isActive: false },
+    })
 
-  if (!dbUser || !['OWNER', 'ADMIN'].includes(dbUser.role)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+    apiLogger.info({
+      msg: 'Custom field definition deleted',
+      fieldId: id,
+      deletedBy: user.id,
+    })
 
-  const updated = await prisma.customFieldDefinition.update({
-    where: { id },
-    data: { isActive: false },
+    return ApiResponse.success(field)
   })
-
-  return NextResponse.json(updated)
-}
+)

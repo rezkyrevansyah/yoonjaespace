@@ -1,27 +1,13 @@
-import { createClient } from '@/utils/supabase/server'
-import { prisma } from '@/lib/prisma'
-import { NextResponse } from 'next/server'
+import { withAuth, withErrorHandler } from '@/lib/api-middleware'
+import { ApiResponse } from '@/lib/api-response'
 
-export async function GET() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const dbUser = await prisma.user.findUnique({
-    where: { id: user.id },
+export const GET = withAuth(
+  withErrorHandler(async (_request, { user }) => {
+    return ApiResponse.success({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+    })
   })
-
-  if (!dbUser || !dbUser.isActive) {
-    return NextResponse.json({ error: 'User tidak ditemukan atau tidak aktif' }, { status: 403 })
-  }
-
-  return NextResponse.json({
-    id: dbUser.id,
-    name: dbUser.name,
-    email: dbUser.email,
-    role: dbUser.role,
-  })
-}
+)

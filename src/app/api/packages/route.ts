@@ -1,65 +1,74 @@
-import { createClient } from '@/utils/supabase/server'
 import { prisma } from '@/lib/prisma'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
+import {
+  withAuth,
+  withAdmin,
+  withErrorHandler,
+  validateRequest,
+} from '@/lib/api-middleware'
+import { ApiResponse } from '@/lib/api-response'
+import { createPackageSchema, packageQuerySchema } from '@/schemas'
+import { apiLogger } from '@/lib/logger'
+import { Prisma } from '@prisma/client'
 
 // GET — List packages
-export async function GET(request: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+export const GET = withAuth(
+  withErrorHandler(async (request: NextRequest, { user }) => {
+    // Validate query parameters
+    const validation = await validateRequest(request, packageQuerySchema, 'query')
+    if (!validation.success) return validation.error
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+    const { isActive } = validation.data
 
-  const { searchParams } = new URL(request.url)
-  const activeOnly = searchParams.get('active') === 'true'
+    // Build where clause
+    const where: Prisma.PackageWhereInput = {}
+    if (isActive !== undefined) {
+      where.isActive = isActive
+    }
 
-  const where: any = {}
-  if (activeOnly) {
-    where.isActive = true
-  }
+    // Fetch packages
+    const packages = await prisma.package.findMany({
+      where,
+      orderBy: { name: 'asc' },
+    })
 
-  const packages = await prisma.package.findMany({
-    where,
-    orderBy: { name: 'asc' },
+    apiLogger.info({
+      msg: 'Packages fetched',
+      userId: user.id,
+      count: packages.length,
+    })
+
+    return ApiResponse.success(packages)
   })
-
-  return NextResponse.json(packages)
-}
+)
 
 // POST — Create package
-export async function POST(request: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+export const POST = withAdmin(
+  withErrorHandler(async (request: NextRequest, { user }) => {
+    // Validate request body
+    const validation = await validateRequest(request, createPackageSchema, 'body')
+    if (!validation.success) return validation.error
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+    const { name, description, price, duration, maxPeople, isActive } = validation.data
 
-  const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
+    // Create package
+    const pkg = await prisma.package.create({
+      data: {
+        name,
+        description: description || null,
+        price,
+        duration,
+        maxPeople,
+        isActive,
+      },
+    })
 
-  if (!dbUser || !['OWNER', 'ADMIN'].includes(dbUser.role)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+    apiLogger.info({
+      msg: 'Package created',
+      packageId: pkg.id,
+      createdBy: user.id,
+    })
 
-  const { name, description, price, duration, maxPeople } = await request.json()
-
-  if (!name || price === undefined || !duration) {
-    return NextResponse.json(
-      { error: 'Nama, harga, dan durasi harus diisi' },
-      { status: 400 }
-    )
-  }
-
-  const pkg = await prisma.package.create({
-    data: {
-      name,
-      description: description || null,
-      price,
-      duration,
-      maxPeople: maxPeople || 1,
-    },
+    return ApiResponse.created(pkg)
   })
-
-  return NextResponse.json(pkg, { status: 201 })
-}
+)

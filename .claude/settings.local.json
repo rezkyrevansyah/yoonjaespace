@@ -6,7 +6,11 @@
       "Bash(npx prisma:*)",
       "Bash(test:*)",
       "Bash(npm uninstall:*)",
-      "Bash(DATABASE_URL=\"$DIRECT_URL\" npx prisma migrate:*)"
+      "Bash(DATABASE_URL=\"$DIRECT_URL\" npx prisma migrate:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm audit:*)",
+      "Bash(ls:*)",
+      "Bash(grep:*)"
     ]
   }
 }

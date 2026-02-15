@@ -1,56 +1,54 @@
-import { createClient } from '@/utils/supabase/server'
 import { prisma } from '@/lib/prisma'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
+import { Prisma } from '@prisma/client'
+import {
+  withAuth,
+  withAdmin,
+  withErrorHandler,
+  validateRequest,
+} from '@/lib/api-middleware'
+import { ApiResponse } from '@/lib/api-response'
+import { backgroundQuerySchema, createBackgroundSchema } from '@/schemas'
+import { apiLogger } from '@/lib/logger'
 
 // GET — List backgrounds
-export async function GET(request: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+export const GET = withAuth(
+  withErrorHandler(async (request: NextRequest) => {
+    const validation = await validateRequest(request, backgroundQuerySchema, 'query')
+    if (!validation.success) return validation.error
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+    const { isActive } = validation.data
 
-  const { searchParams } = new URL(request.url)
-  const activeOnly = searchParams.get('active') === 'true'
+    const where: Prisma.BackgroundWhereInput =
+      isActive !== undefined ? { isActive } : {}
 
-  const where: any = {}
-  if (activeOnly) {
-    where.isActive = true
-  }
+    const backgrounds = await prisma.background.findMany({
+      where,
+      orderBy: { name: 'asc' },
+    })
 
-  const backgrounds = await prisma.background.findMany({
-    where,
-    orderBy: { name: 'asc' },
+    return ApiResponse.success(backgrounds)
   })
-
-  return NextResponse.json(backgrounds)
-}
+)
 
 // POST — Create background
-export async function POST(request: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+export const POST = withAdmin(
+  withErrorHandler(async (request: NextRequest, { user }) => {
+    const validation = await validateRequest(request, createBackgroundSchema, 'body')
+    if (!validation.success) return validation.error
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+    const { name, isActive } = validation.data
 
-  const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
+    const background = await prisma.background.create({
+      data: { name, isActive },
+    })
 
-  if (!dbUser || !['OWNER', 'ADMIN'].includes(dbUser.role)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+    apiLogger.info({
+      msg: 'Background created',
+      backgroundId: background.id,
+      createdBy: user.id,
+    })
 
-  const { name } = await request.json()
-
-  if (!name) {
-    return NextResponse.json({ error: 'Nama harus diisi' }, { status: 400 })
-  }
-
-  const background = await prisma.background.create({
-    data: { name },
+    return ApiResponse.created(background)
   })
-
-  return NextResponse.json(background, { status: 201 })
-}
+)

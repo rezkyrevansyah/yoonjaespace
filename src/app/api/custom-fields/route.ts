@@ -1,54 +1,74 @@
-import { createClient } from '@/utils/supabase/server'
 import { prisma } from '@/lib/prisma'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
+import {
+  withAuth,
+  withAdmin,
+  withErrorHandler,
+  validateRequest,
+} from '@/lib/api-middleware'
+import { ApiResponse } from '@/lib/api-response'
+import { createCustomFieldDefinitionSchema, customFieldQuerySchema } from '@/schemas'
+import { apiLogger } from '@/lib/logger'
+import { Prisma } from '@prisma/client'
 
 // GET — List custom field definitions
-export async function GET() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+export const GET = withAuth(
+  withErrorHandler(async (request: NextRequest, { user }) => {
+    // Validate query parameters
+    const validation = await validateRequest(request, customFieldQuerySchema, 'query')
+    if (!validation.success) return validation.error
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+    const { isActive } = validation.data
 
-  const fields = await prisma.customFieldDefinition.findMany({
-    where: { isActive: true },
-    orderBy: { sortOrder: 'asc' },
+    // Build where clause
+    const where: Prisma.CustomFieldDefinitionWhereInput = {}
+    if (isActive !== undefined) {
+      where.isActive = isActive
+    }
+
+    // Fetch custom field definitions
+    const fields = await prisma.customFieldDefinition.findMany({
+      where,
+      orderBy: { sortOrder: 'asc' },
+    })
+
+    apiLogger.info({
+      msg: 'Custom field definitions fetched',
+      userId: user.id,
+      count: fields.length,
+    })
+
+    return ApiResponse.success(fields)
   })
-
-  return NextResponse.json(fields)
-}
+)
 
 // POST — Create custom field
-export async function POST(request: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+export const POST = withAdmin(
+  withErrorHandler(async (request: NextRequest, { user }) => {
+    // Validate request body
+    const validation = await validateRequest(request, createCustomFieldDefinitionSchema, 'body')
+    if (!validation.success) return validation.error
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+    const { fieldName, fieldType, options, isRequired, isActive, sortOrder } = validation.data
 
-  const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
+    // Create custom field definition
+    const field = await prisma.customFieldDefinition.create({
+      data: {
+        fieldName,
+        fieldType,
+        options: options || null,
+        isRequired,
+        isActive,
+        sortOrder,
+      },
+    })
 
-  if (!dbUser || !['OWNER', 'ADMIN'].includes(dbUser.role)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+    apiLogger.info({
+      msg: 'Custom field definition created',
+      fieldId: field.id,
+      createdBy: user.id,
+    })
 
-  const { fieldName, fieldType, options, isRequired, sortOrder } = await request.json()
-
-  if (!fieldName) {
-    return NextResponse.json({ error: 'Nama field harus diisi' }, { status: 400 })
-  }
-
-  const field = await prisma.customFieldDefinition.create({
-    data: {
-      fieldName,
-      fieldType: fieldType || 'text',
-      options: options ? JSON.stringify(options) : null,
-      isRequired: isRequired || false,
-      sortOrder: sortOrder || 0,
-    },
+    return ApiResponse.created(field)
   })
-
-  return NextResponse.json(field, { status: 201 })
-}
+)

@@ -1,81 +1,88 @@
-import { createClient } from '@/utils/supabase/server'
 import { prisma } from '@/lib/prisma'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
+import {
+  withAdmin,
+  withErrorHandler,
+  validateRequest,
+} from '@/lib/api-middleware'
+import { ApiResponse } from '@/lib/api-response'
+import { createVoucherSchema, voucherQuerySchema } from '@/schemas'
+import { apiLogger } from '@/lib/logger'
+import { Prisma } from '@prisma/client'
 
 // GET — List vouchers
-export async function GET(request: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+export const GET = withAdmin(
+  withErrorHandler(async (request: NextRequest, { user }) => {
+    // Validate query parameters
+    const validation = await validateRequest(request, voucherQuerySchema, 'query')
+    if (!validation.success) return validation.error
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+    const { isActive, code } = validation.data
 
-  const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
+    // Build where clause
+    const where: Prisma.VoucherWhereInput = {}
 
-  if (!dbUser || !['OWNER', 'ADMIN'].includes(dbUser.role)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+    if (isActive !== undefined) {
+      where.isActive = isActive
+    }
 
-  const { searchParams } = new URL(request.url)
-  const activeOnly = searchParams.get('active') === 'true'
+    if (code) {
+      where.code = { contains: code, mode: 'insensitive' }
+    }
 
-  const where: any = {}
-  if (activeOnly) {
-    where.isActive = true
-  }
+    // Fetch vouchers
+    const vouchers = await prisma.voucher.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+    })
 
-  const vouchers = await prisma.voucher.findMany({
-    where,
-    orderBy: { createdAt: 'desc' },
+    apiLogger.info({
+      msg: 'Vouchers fetched',
+      userId: user.id,
+      count: vouchers.length,
+    })
+
+    return ApiResponse.success(vouchers)
   })
-
-  return NextResponse.json(vouchers)
-}
+)
 
 // POST — Create voucher
-export async function POST(request: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+export const POST = withAdmin(
+  withErrorHandler(async (request: NextRequest, { user }) => {
+    // Validate request body
+    const validation = await validateRequest(request, createVoucherSchema, 'body')
+    if (!validation.success) return validation.error
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+    const { code, description, discountType, discountValue, minPurchase, maxUsage, isActive, validFrom, validUntil } = validation.data
 
-  const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
+    // Check unique code
+    const existing = await prisma.voucher.findUnique({ where: { code } })
+    if (existing) {
+      return ApiResponse.conflict('Voucher code already exists')
+    }
 
-  if (!dbUser || !['OWNER', 'ADMIN'].includes(dbUser.role)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+    // Create voucher
+    const voucher = await prisma.voucher.create({
+      data: {
+        code,
+        description: description || null,
+        discountType,
+        discountValue,
+        minPurchase: minPurchase || null,
+        maxUsage: maxUsage || null,
+        isActive,
+        validFrom: validFrom || null,
+        validUntil: validUntil || null,
+      },
+    })
 
-  const body = await request.json()
-  const { code, description, discountType, discountValue, minPurchase, maxUsage, validFrom, validUntil } = body
+    apiLogger.info({
+      msg: 'Voucher created',
+      voucherId: voucher.id,
+      code: voucher.code,
+      createdBy: user.id,
+    })
 
-  if (!code || !discountValue) {
-    return NextResponse.json(
-      { error: 'Kode voucher dan nilai diskon harus diisi' },
-      { status: 400 }
-    )
-  }
-
-  // Cek kode unik
-  const existing = await prisma.voucher.findUnique({ where: { code } })
-  if (existing) {
-    return NextResponse.json({ error: 'Kode voucher sudah digunakan' }, { status: 400 })
-  }
-
-  const voucher = await prisma.voucher.create({
-    data: {
-      code: code.toUpperCase(),
-      description: description || null,
-      discountType: discountType || 'fixed',
-      discountValue,
-      minPurchase: minPurchase || null,
-      maxUsage: maxUsage || null,
-      validFrom: validFrom ? new Date(validFrom) : null,
-      validUntil: validUntil ? new Date(validUntil) : null,
-    },
+    return ApiResponse.created(voucher)
   })
-
-  return NextResponse.json(voucher, { status: 201 })
-}
+)

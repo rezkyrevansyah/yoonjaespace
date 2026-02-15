@@ -1,13 +1,25 @@
 import { prisma } from '@/lib/prisma'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
+import {
+  withErrorHandler,
+  validateParams,
+} from '@/lib/api-middleware'
+import { ApiResponse } from '@/lib/api-response'
+import { slugParamSchema } from '@/schemas'
+import { apiLogger } from '@/lib/logger'
 
 // GET — Public status page (NO AUTH REQUIRED)
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ slug: string }> }
-) {
-  const { slug } = await params
+export const GET = withErrorHandler(async (request: NextRequest, routeContext?: { params: Promise<{ slug: string }> }) => {
+  // Resolve params
+  const params = routeContext?.params ? await routeContext.params : undefined
 
+  // Validate params
+  const paramValidation = validateParams(params, slugParamSchema)
+  if (!paramValidation.success) return paramValidation.error
+
+  const { slug } = paramValidation.data
+
+  // Fetch booking by public slug
   const booking = await prisma.booking.findUnique({
     where: { publicSlug: slug },
     include: {
@@ -25,12 +37,12 @@ export async function GET(
   })
 
   if (!booking) {
-    return NextResponse.json({ error: 'Order tidak ditemukan' }, { status: 404 })
+    return ApiResponse.notFound('Order')
   }
 
   // Get studio settings
   const settings = await prisma.studioSetting.findMany()
-  const settingsMap: Record<string, any> = {}
+  const settingsMap: Record<string, string | number | boolean | object> = {}
   settings.forEach((s) => {
     try {
       settingsMap[s.key] = JSON.parse(s.value)
@@ -39,8 +51,14 @@ export async function GET(
     }
   })
 
-  // Hanya return data yang aman untuk publik
-  return NextResponse.json({
+  apiLogger.info({
+    msg: 'Public status page accessed',
+    slug,
+    bookingId: booking.id,
+  })
+
+  // Return only public-safe data
+  return ApiResponse.success({
     bookingCode: booking.bookingCode,
     clientName: booking.client.name,
     date: booking.date,
@@ -60,9 +78,9 @@ export async function GET(
         }
       : null,
     studio: {
-      name: settingsMap['studio_name'] || 'Yoonjaespace',
-      instagram: settingsMap['studio_instagram'] || '',
+      name: (settingsMap['studio_name'] as string) || 'Yoonjaespace',
+      instagram: (settingsMap['studio_instagram'] as string) || '',
       operatingHours: settingsMap['operating_hours'] || { open: '08:00', close: '20:00' },
     },
   })
-}
+})

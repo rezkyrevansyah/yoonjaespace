@@ -1,71 +1,100 @@
-import { createClient } from '@/utils/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { supabaseAdmin } from '@/utils/supabase/admin'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
+import {
+  withOwner,
+  withErrorHandler,
+  validateRequest,
+} from '@/lib/api-middleware'
+import { ApiResponse } from '@/lib/api-response'
+import { createUserSchema, userQuerySchema } from '@/schemas'
+import { apiLogger } from '@/lib/logger'
+import { Prisma } from '@prisma/client'
 
 // GET — List all users
-export async function GET() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+export const GET = withOwner(
+  withErrorHandler(async (request: NextRequest, { user }) => {
+    // Validate query parameters
+    const validation = await validateRequest(request, userQuerySchema, 'query')
+    if (!validation.success) return validation.error
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+    const { search, isActive, role } = validation.data
 
-  const currentUser = await prisma.user.findUnique({ where: { id: user.id } })
+    // Build where clause
+    const where: Prisma.UserWhereInput = {}
 
-  if (!currentUser || currentUser.role !== 'OWNER') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ]
+    }
 
-  const users = await prisma.user.findMany({
-    orderBy: { createdAt: 'desc' },
+    if (isActive !== undefined) {
+      where.isActive = isActive
+    }
+
+    if (role) {
+      where.role = role
+    }
+
+    // Fetch users
+    const users = await prisma.user.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+    })
+
+    apiLogger.info({
+      msg: 'Users fetched',
+      userId: user.id,
+      count: users.length,
+    })
+
+    return ApiResponse.success(users)
   })
-
-  return NextResponse.json(users)
-}
+)
 
 // POST — Create new user
-export async function POST(request: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+export const POST = withOwner(
+  withErrorHandler(async (request: NextRequest, { user }) => {
+    // Validate request body
+    const validation = await validateRequest(request, createUserSchema, 'body')
+    if (!validation.success) return validation.error
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+    const { name, email, password, role, isActive } = validation.data
 
-  const currentUser = await prisma.user.findUnique({ where: { id: user.id } })
-
-  if (!currentUser || currentUser.role !== 'OWNER') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
-
-  const { name, email, password, role } = await request.json()
-
-  if (!name || !email || !password || !role) {
-    return NextResponse.json({ error: 'Semua field harus diisi' }, { status: 400 })
-  }
-
-  // Create di Supabase Auth
-  const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-  })
-
-  if (authError) {
-    return NextResponse.json({ error: authError.message }, { status: 400 })
-  }
-
-  // Create di database
-  const newUser = await prisma.user.create({
-    data: {
-      id: authUser.user.id,
-      name,
+    // Create in Supabase Auth
+    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
-      role,
-    },
-  })
+      password,
+      email_confirm: true,
+    })
 
-  return NextResponse.json(newUser, { status: 201 })
-}
+    if (authError) {
+      apiLogger.error({
+        msg: 'Failed to create user in Supabase Auth',
+        error: authError.message,
+      })
+      return ApiResponse.error(authError.message, 400)
+    }
+
+    // Create in database
+    const newUser = await prisma.user.create({
+      data: {
+        id: authUser.user.id,
+        name,
+        email,
+        role,
+        isActive,
+      },
+    })
+
+    apiLogger.info({
+      msg: 'User created',
+      newUserId: newUser.id,
+      createdBy: user.id,
+    })
+
+    return ApiResponse.created(newUser)
+  })
+)

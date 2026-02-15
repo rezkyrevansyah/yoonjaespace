@@ -1,77 +1,77 @@
-import { createClient } from '@/utils/supabase/server'
 import { prisma } from '@/lib/prisma'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
+import {
+  withAdmin,
+  withErrorHandler,
+  validateRequest,
+  validateParams,
+} from '@/lib/api-middleware'
+import { ApiResponse } from '@/lib/api-response'
+import { updateVoucherSchema, idParamSchema } from '@/schemas'
+import { apiLogger } from '@/lib/logger'
 
 // PATCH — Update voucher
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+export const PATCH = withAdmin(
+  withErrorHandler(async (request: NextRequest, { user }, params) => {
+    // Validate params
+    const paramValidation = validateParams(params, idParamSchema)
+    if (!paramValidation.success) return paramValidation.error
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+    const { id } = paramValidation.data
 
-  const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
+    // Validate request body
+    const validation = await validateRequest(request, updateVoucherSchema, 'body')
+    if (!validation.success) return validation.error
 
-  if (!dbUser || !['OWNER', 'ADMIN'].includes(dbUser.role)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+    const { code, ...otherData } = validation.data
 
-  const body = await request.json()
-  const { code, description, discountType, discountValue, minPurchase, maxUsage, isActive, validFrom, validUntil } = body
-
-  // Cek kode unik jika berubah
-  if (code) {
-    const existing = await prisma.voucher.findFirst({
-      where: { code: code.toUpperCase(), NOT: { id } },
-    })
-    if (existing) {
-      return NextResponse.json({ error: 'Kode voucher sudah digunakan' }, { status: 400 })
+    // Check unique code if changed
+    if (code) {
+      const existing = await prisma.voucher.findFirst({
+        where: { code, NOT: { id } },
+      })
+      if (existing) {
+        return ApiResponse.conflict('Voucher code already exists')
+      }
     }
-  }
 
-  const updated = await prisma.voucher.update({
-    where: { id },
-    data: {
-      ...(code && { code: code.toUpperCase() }),
-      ...(description !== undefined && { description: description || null }),
-      ...(discountType && { discountType }),
-      ...(discountValue !== undefined && { discountValue }),
-      ...(minPurchase !== undefined && { minPurchase: minPurchase || null }),
-      ...(maxUsage !== undefined && { maxUsage: maxUsage || null }),
-      ...(isActive !== undefined && { isActive }),
-      ...(validFrom !== undefined && { validFrom: validFrom ? new Date(validFrom) : null }),
-      ...(validUntil !== undefined && { validUntil: validUntil ? new Date(validUntil) : null }),
-    },
+    // Update voucher
+    const voucher = await prisma.voucher.update({
+      where: { id },
+      data: {
+        ...(code && { code }),
+        ...otherData,
+      },
+    })
+
+    apiLogger.info({
+      msg: 'Voucher updated',
+      voucherId: id,
+      updatedBy: user.id,
+    })
+
+    return ApiResponse.success(voucher)
   })
-
-  return NextResponse.json(updated)
-}
+)
 
 // DELETE — Delete voucher
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+export const DELETE = withAdmin(
+  withErrorHandler(async (request: NextRequest, { user }, params) => {
+    // Validate params
+    const paramValidation = validateParams(params, idParamSchema)
+    if (!paramValidation.success) return paramValidation.error
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+    const { id } = paramValidation.data
 
-  const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
+    // Delete voucher
+    await prisma.voucher.delete({ where: { id } })
 
-  if (!dbUser || !['OWNER', 'ADMIN'].includes(dbUser.role)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+    apiLogger.info({
+      msg: 'Voucher deleted',
+      voucherId: id,
+      deletedBy: user.id,
+    })
 
-  await prisma.voucher.delete({ where: { id } })
-
-  return NextResponse.json({ success: true })
-}
+    return ApiResponse.success({ success: true })
+  })
+)

@@ -1,63 +1,65 @@
-import { createClient } from '@/utils/supabase/server'
 import { prisma } from '@/lib/prisma'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
+import {
+  withAdmin,
+  withErrorHandler,
+  validateRequest,
+  validateParams,
+} from '@/lib/api-middleware'
+import { ApiResponse } from '@/lib/api-response'
+import { updateAddOnTemplateSchema, idParamSchema } from '@/schemas'
+import { apiLogger } from '@/lib/logger'
 
 // PATCH — Update add-on template
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+export const PATCH = withAdmin(
+  withErrorHandler(async (request: NextRequest, { user }, params) => {
+    // Validate params
+    const paramValidation = validateParams(params, idParamSchema)
+    if (!paramValidation.success) return paramValidation.error
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+    const { id } = paramValidation.data
 
-  const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
+    // Validate request body
+    const validation = await validateRequest(request, updateAddOnTemplateSchema, 'body')
+    if (!validation.success) return validation.error
 
-  if (!dbUser || !['OWNER', 'ADMIN'].includes(dbUser.role)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+    // Update add-on template
+    const addOnTemplate = await prisma.addOnTemplate.update({
+      where: { id },
+      data: validation.data,
+    })
 
-  const { name, defaultPrice, isActive } = await request.json()
+    apiLogger.info({
+      msg: 'Add-on template updated',
+      addOnTemplateId: id,
+      updatedBy: user.id,
+    })
 
-  const updated = await prisma.addOnTemplate.update({
-    where: { id },
-    data: {
-      ...(name && { name }),
-      ...(defaultPrice !== undefined && { defaultPrice }),
-      ...(isActive !== undefined && { isActive }),
-    },
+    return ApiResponse.success(addOnTemplate)
   })
-
-  return NextResponse.json(updated)
-}
+)
 
 // DELETE — Soft delete
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+export const DELETE = withAdmin(
+  withErrorHandler(async (request: NextRequest, { user }, params) => {
+    // Validate params
+    const paramValidation = validateParams(params, idParamSchema)
+    if (!paramValidation.success) return paramValidation.error
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+    const { id } = paramValidation.data
 
-  const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
+    // Soft delete by setting isActive to false
+    const addOnTemplate = await prisma.addOnTemplate.update({
+      where: { id },
+      data: { isActive: false },
+    })
 
-  if (!dbUser || !['OWNER', 'ADMIN'].includes(dbUser.role)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+    apiLogger.info({
+      msg: 'Add-on template deleted',
+      addOnTemplateId: id,
+      deletedBy: user.id,
+    })
 
-  const updated = await prisma.addOnTemplate.update({
-    where: { id },
-    data: { isActive: false },
+    return ApiResponse.success(addOnTemplate)
   })
-
-  return NextResponse.json(updated)
-}
+)
