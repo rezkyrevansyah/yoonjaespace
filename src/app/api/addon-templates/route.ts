@@ -1,54 +1,59 @@
+import { createClient } from '@/utils/supabase/server'
 import { prisma } from '@/lib/prisma'
-import { NextRequest } from 'next/server'
-import { Prisma } from '@prisma/client'
-import {
-  withAuth,
-  withAdmin,
-  withErrorHandler,
-  validateRequest,
-} from '@/lib/api-middleware'
-import { ApiResponse } from '@/lib/api-response'
-import { addOnTemplateQuerySchema, createAddOnTemplateSchema } from '@/schemas'
-import { apiLogger } from '@/lib/logger'
+import { NextRequest, NextResponse } from 'next/server'
 
 // GET — List add-on templates
-export const GET = withAuth(
-  withErrorHandler(async (request: NextRequest) => {
-    const validation = await validateRequest(request, addOnTemplateQuerySchema, 'query')
-    if (!validation.success) return validation.error
+export async function GET(request: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-    const { isActive } = validation.data
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
-    const where: Prisma.AddOnTemplateWhereInput =
-      isActive !== undefined ? { isActive } : {}
+  const { searchParams } = new URL(request.url)
+  const activeOnly = searchParams.get('active') === 'true'
 
-    const templates = await prisma.addOnTemplate.findMany({
-      where,
-      orderBy: { name: 'asc' },
-    })
+  const where: any = {}
+  if (activeOnly) {
+    where.isActive = true
+  }
 
-    return ApiResponse.success(templates)
+  const templates = await prisma.addOnTemplate.findMany({
+    where,
+    orderBy: { name: 'asc' },
   })
-)
+
+  return NextResponse.json(templates)
+}
 
 // POST — Create add-on template
-export const POST = withAdmin(
-  withErrorHandler(async (request: NextRequest, { user }) => {
-    const validation = await validateRequest(request, createAddOnTemplateSchema, 'body')
-    if (!validation.success) return validation.error
+export async function POST(request: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-    const { name, defaultPrice, isActive } = validation.data
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
-    const template = await prisma.addOnTemplate.create({
-      data: { name, defaultPrice, isActive },
-    })
+  const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
 
-    apiLogger.info({
-      msg: 'Add-on template created',
-      templateId: template.id,
-      createdBy: user.id,
-    })
+  if (!dbUser || !['OWNER', 'ADMIN'].includes(dbUser.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
-    return ApiResponse.created(template)
+  const { name, defaultPrice } = await request.json()
+
+  if (!name || defaultPrice === undefined) {
+    return NextResponse.json(
+      { error: 'Nama dan harga default harus diisi' },
+      { status: 400 }
+    )
+  }
+
+  const template = await prisma.addOnTemplate.create({
+    data: { name, defaultPrice },
   })
-)
+
+  return NextResponse.json(template, { status: 201 })
+}

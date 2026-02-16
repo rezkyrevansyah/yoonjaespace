@@ -1,65 +1,62 @@
+import { createClient } from '@/utils/supabase/server'
 import { prisma } from '@/lib/prisma'
-import { NextRequest } from 'next/server'
-import {
-  withAdmin,
-  withErrorHandler,
-  validateRequest,
-  validateParams,
-} from '@/lib/api-middleware'
-import { ApiResponse } from '@/lib/api-response'
-import { updateBackgroundSchema, idParamSchema } from '@/schemas'
-import { apiLogger } from '@/lib/logger'
+import { NextRequest, NextResponse } from 'next/server'
 
 // PATCH — Update background
-export const PATCH = withAdmin(
-  withErrorHandler(async (request: NextRequest, { user }, params) => {
-    // Validate params
-    const paramValidation = validateParams(params, idParamSchema)
-    if (!paramValidation.success) return paramValidation.error
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-    const { id } = paramValidation.data
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
-    // Validate request body
-    const validation = await validateRequest(request, updateBackgroundSchema, 'body')
-    if (!validation.success) return validation.error
+  const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
 
-    // Update background
-    const background = await prisma.background.update({
-      where: { id },
-      data: validation.data,
-    })
+  if (!dbUser || !['OWNER', 'ADMIN'].includes(dbUser.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
-    apiLogger.info({
-      msg: 'Background updated',
-      backgroundId: id,
-      updatedBy: user.id,
-    })
+  const { name, isActive } = await request.json()
 
-    return ApiResponse.success(background)
+  const updated = await prisma.background.update({
+    where: { id },
+    data: {
+      ...(name && { name }),
+      ...(isActive !== undefined && { isActive }),
+    },
   })
-)
+
+  return NextResponse.json(updated)
+}
 
 // DELETE — Soft delete background
-export const DELETE = withAdmin(
-  withErrorHandler(async (request: NextRequest, { user }, params) => {
-    // Validate params
-    const paramValidation = validateParams(params, idParamSchema)
-    if (!paramValidation.success) return paramValidation.error
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-    const { id } = paramValidation.data
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
-    // Soft delete by setting isActive to false
-    const background = await prisma.background.update({
-      where: { id },
-      data: { isActive: false },
-    })
+  const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
 
-    apiLogger.info({
-      msg: 'Background deleted',
-      backgroundId: id,
-      deletedBy: user.id,
-    })
+  if (!dbUser || !['OWNER', 'ADMIN'].includes(dbUser.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
-    return ApiResponse.success(background)
+  const updated = await prisma.background.update({
+    where: { id },
+    data: { isActive: false },
   })
-)
+
+  return NextResponse.json(updated)
+}

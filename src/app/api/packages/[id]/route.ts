@@ -1,65 +1,68 @@
+import { createClient } from '@/utils/supabase/server'
 import { prisma } from '@/lib/prisma'
-import { NextRequest } from 'next/server'
-import {
-  withAdmin,
-  withErrorHandler,
-  validateRequest,
-  validateParams,
-} from '@/lib/api-middleware'
-import { ApiResponse } from '@/lib/api-response'
-import { updatePackageSchema, idParamSchema } from '@/schemas'
-import { apiLogger } from '@/lib/logger'
+import { NextRequest, NextResponse } from 'next/server'
 
 // PATCH — Update package
-export const PATCH = withAdmin(
-  withErrorHandler(async (request: NextRequest, { user }, params) => {
-    // Validate params
-    const paramValidation = validateParams(params, idParamSchema)
-    if (!paramValidation.success) return paramValidation.error
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-    const { id } = paramValidation.data
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
-    // Validate request body
-    const validation = await validateRequest(request, updatePackageSchema, 'body')
-    if (!validation.success) return validation.error
+  const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
 
-    // Update package
-    const pkg = await prisma.package.update({
-      where: { id },
-      data: validation.data,
-    })
+  if (!dbUser || !['OWNER', 'ADMIN'].includes(dbUser.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
-    apiLogger.info({
-      msg: 'Package updated',
-      packageId: id,
-      updatedBy: user.id,
-    })
+  const body = await request.json()
+  const { name, description, price, duration, maxPeople, isActive } = body
 
-    return ApiResponse.success(pkg)
+  const updated = await prisma.package.update({
+    where: { id },
+    data: {
+      ...(name && { name }),
+      ...(description !== undefined && { description: description || null }),
+      ...(price !== undefined && { price }),
+      ...(duration !== undefined && { duration }),
+      ...(maxPeople !== undefined && { maxPeople }),
+      ...(isActive !== undefined && { isActive }),
+    },
   })
-)
 
-// DELETE — Soft delete package
-export const DELETE = withAdmin(
-  withErrorHandler(async (request: NextRequest, { user }, params) => {
-    // Validate params
-    const paramValidation = validateParams(params, idParamSchema)
-    if (!paramValidation.success) return paramValidation.error
+  return NextResponse.json(updated)
+}
 
-    const { id } = paramValidation.data
+// DELETE — Delete package (soft delete via isActive)
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-    // Soft delete by setting isActive to false
-    const pkg = await prisma.package.update({
-      where: { id },
-      data: { isActive: false },
-    })
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
-    apiLogger.info({
-      msg: 'Package deleted',
-      packageId: id,
-      deletedBy: user.id,
-    })
+  const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
 
-    return ApiResponse.success(pkg)
+  if (!dbUser || !['OWNER', 'ADMIN'].includes(dbUser.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  // Soft delete — set isActive false (karena booking lama masih reference ke package ini)
+  const updated = await prisma.package.update({
+    where: { id },
+    data: { isActive: false },
   })
-)
+
+  return NextResponse.json(updated)
+}

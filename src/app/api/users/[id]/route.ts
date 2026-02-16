@@ -1,117 +1,108 @@
+import { createClient } from '@/utils/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { supabaseAdmin } from '@/utils/supabase/admin'
-import { NextRequest } from 'next/server'
-import {
-  withOwner,
-  withErrorHandler,
-  validateRequest,
-  validateParams,
-} from '@/lib/api-middleware'
-import { ApiResponse } from '@/lib/api-response'
-import { updateUserSchema, idParamSchema } from '@/schemas'
-import { apiLogger } from '@/lib/logger'
-import { z } from 'zod'
-
-// Schema for password update
-const updateUserWithPasswordSchema = updateUserSchema.extend({
-  password: z.string().min(8, 'Password must be at least 8 characters').optional(),
-})
+import { NextRequest, NextResponse } from 'next/server'
 
 // GET — Get single user
-export const GET = withOwner(
-  withErrorHandler(async (request: NextRequest, { user }, params) => {
-    // Validate params
-    const paramValidation = validateParams(params, idParamSchema)
-    if (!paramValidation.success) return paramValidation.error
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-    const { id } = paramValidation.data
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
-    // Fetch user
-    const targetUser = await prisma.user.findUnique({ where: { id } })
+  const currentUser = await prisma.user.findUnique({ where: { id: user.id } })
 
-    if (!targetUser) {
-      return ApiResponse.notFound('User')
-    }
+  if (!currentUser || currentUser.role !== 'OWNER') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
-    apiLogger.info({
-      msg: 'User fetched',
-      userId: user.id,
-      targetUserId: id,
-    })
+  const targetUser = await prisma.user.findUnique({ where: { id } })
 
-    return ApiResponse.success(targetUser)
-  })
-)
+  if (!targetUser) {
+    return NextResponse.json({ error: 'User tidak ditemukan' }, { status: 404 })
+  }
+
+  return NextResponse.json(targetUser)
+}
 
 // PATCH — Update user
-export const PATCH = withOwner(
-  withErrorHandler(async (request: NextRequest, { user }, params) => {
-    // Validate params
-    const paramValidation = validateParams(params, idParamSchema)
-    if (!paramValidation.success) return paramValidation.error
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-    const { id } = paramValidation.data
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
-    // Validate request body
-    const validation = await validateRequest(request, updateUserWithPasswordSchema, 'body')
-    if (!validation.success) return validation.error
+  const currentUser = await prisma.user.findUnique({ where: { id: user.id } })
 
-    const { password, ...updateData } = validation.data
+  if (!currentUser || currentUser.role !== 'OWNER') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
-    // Update password in Supabase Auth if provided
-    if (password) {
-      const { error } = await supabaseAdmin.auth.admin.updateUserById(id, { password })
-      if (error) {
-        apiLogger.error({
-          msg: 'Failed to update password in Supabase Auth',
-          error: error.message,
-        })
-        return ApiResponse.error(error.message, 400)
-      }
+  const body = await request.json()
+  const { name, role, isActive, password } = body
+
+  // Update password di Supabase Auth jika ada
+  if (password) {
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(id, { password })
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
     }
+  }
 
-    // Update in database
-    const updatedUser = await prisma.user.update({
-      where: { id },
-      data: updateData,
-    })
-
-    apiLogger.info({
-      msg: 'User updated',
-      targetUserId: id,
-      updatedBy: user.id,
-    })
-
-    return ApiResponse.success(updatedUser)
+  // Update di database
+  const updated = await prisma.user.update({
+    where: { id },
+    data: {
+      ...(name && { name }),
+      ...(role && { role }),
+      ...(isActive !== undefined && { isActive }),
+    },
   })
-)
+
+  return NextResponse.json(updated)
+}
 
 // DELETE — Delete user
-export const DELETE = withOwner(
-  withErrorHandler(async (request: NextRequest, { user }, params) => {
-    // Validate params
-    const paramValidation = validateParams(params, idParamSchema)
-    if (!paramValidation.success) return paramValidation.error
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-    const { id } = paramValidation.data
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
-    // Prevent self-deletion
-    if (id === user.id) {
-      return ApiResponse.error('Cannot delete your own account', 400)
-    }
+  const currentUser = await prisma.user.findUnique({ where: { id: user.id } })
 
-    // Delete from Supabase Auth
-    await supabaseAdmin.auth.admin.deleteUser(id)
+  if (!currentUser || currentUser.role !== 'OWNER') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
-    // Delete from database
-    await prisma.user.delete({ where: { id } })
+  // Jangan hapus diri sendiri
+  if (id === user.id) {
+    return NextResponse.json({ error: 'Tidak bisa menghapus akun sendiri' }, { status: 400 })
+  }
 
-    apiLogger.info({
-      msg: 'User deleted',
-      deletedUserId: id,
-      deletedBy: user.id,
-    })
+  // Hapus dari Supabase Auth
+  await supabaseAdmin.auth.admin.deleteUser(id)
 
-    return ApiResponse.success({ success: true })
-  })
-)
+  // Hapus dari database
+  await prisma.user.delete({ where: { id } })
+
+  return NextResponse.json({ success: true })
+}

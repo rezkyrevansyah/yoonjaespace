@@ -1,133 +1,135 @@
+import { createClient } from '@/utils/supabase/server'
 import { prisma } from '@/lib/prisma'
-import { NextRequest } from 'next/server'
-import {
-  withAuth,
-  withAdmin,
-  withOwner,
-  withErrorHandler,
-  validateRequest,
-  validateParams,
-} from '@/lib/api-middleware'
-import { ApiResponse } from '@/lib/api-response'
-import { updateClientSchema, idParamSchema } from '@/schemas'
-import { apiLogger } from '@/lib/logger'
+import { NextRequest, NextResponse } from 'next/server'
 
 // GET — Get single client with booking history
-export const GET = withAuth(
-  withErrorHandler(async (request: NextRequest, { user }, params) => {
-    // Validate params
-    const paramValidation = validateParams(params, idParamSchema)
-    if (!paramValidation.success) return paramValidation.error
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-    const { id } = paramValidation.data
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
-    // Fetch client with bookings
-    const client = await prisma.client.findUnique({
-      where: { id },
-      include: {
-        bookings: {
-          include: {
-            package: true,
-            handledBy: { select: { id: true, name: true } },
-            printOrder: true,
-          },
-          orderBy: { date: 'desc' },
+  const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
+
+  if (!dbUser || !dbUser.isActive) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const client = await prisma.client.findUnique({
+    where: { id },
+    include: {
+      bookings: {
+        include: {
+          package: true,
+          handledBy: { select: { id: true, name: true } },
+          printOrder: true,
         },
+        orderBy: { date: 'desc' },
       },
-    })
-
-    if (!client) {
-      return ApiResponse.notFound('Client')
-    }
-
-    // Calculate summary
-    const totalBookings = client.bookings.length
-    const totalSpent = client.bookings
-      .filter((b) => b.paymentStatus === 'PAID')
-      .reduce((sum, b) => sum + b.totalAmount, 0)
-    const lastVisit = client.bookings.length > 0 ? client.bookings[0].date : null
-
-    apiLogger.info({
-      msg: 'Client fetched',
-      clientId: id,
-      userId: user.id,
-    })
-
-    return ApiResponse.success({
-      ...client,
-      summary: {
-        totalBookings,
-        totalSpent,
-        lastVisit,
-      },
-    })
+    },
   })
-)
+
+  if (!client) {
+    return NextResponse.json({ error: 'Client tidak ditemukan' }, { status: 404 })
+  }
+
+  // Hitung summary
+  const totalBookings = client.bookings.length
+  const totalSpent = client.bookings
+    .filter((b) => b.paymentStatus === 'PAID')
+    .reduce((sum, b) => sum + b.totalAmount, 0)
+  const lastVisit = client.bookings.length > 0 ? client.bookings[0].date : null
+
+  return NextResponse.json({
+    ...client,
+    summary: {
+      totalBookings,
+      totalSpent,
+      lastVisit,
+    },
+  })
+}
 
 // PATCH — Update client
-export const PATCH = withAdmin(
-  withErrorHandler(async (request: NextRequest, { user }, params) => {
-    // Validate params
-    const paramValidation = validateParams(params, idParamSchema)
-    if (!paramValidation.success) return paramValidation.error
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-    const { id } = paramValidation.data
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
-    // Validate request body
-    const validation = await validateRequest(request, updateClientSchema, 'body')
-    if (!validation.success) return validation.error
+  const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
 
-    // Check if client exists
-    const existing = await prisma.client.findUnique({ where: { id } })
-    if (!existing) {
-      return ApiResponse.notFound('Client')
-    }
+  if (!dbUser || !['OWNER', 'ADMIN'].includes(dbUser.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
-    // Update client
-    const client = await prisma.client.update({
-      where: { id },
-      data: validation.data,
-    })
+  const body = await request.json()
+  const { name, phone, email, address, notes } = body
 
-    apiLogger.info({
-      msg: 'Client updated',
-      clientId: id,
-      updatedBy: user.id,
-    })
+  const existing = await prisma.client.findUnique({ where: { id } })
 
-    return ApiResponse.success(client)
+  if (!existing) {
+    return NextResponse.json({ error: 'Client tidak ditemukan' }, { status: 404 })
+  }
+
+  const updated = await prisma.client.update({
+    where: { id },
+    data: {
+      ...(name && { name }),
+      ...(phone && { phone }),
+      ...(email !== undefined && { email: email || null }),
+      ...(address !== undefined && { address: address || null }),
+      ...(notes !== undefined && { notes: notes || null }),
+    },
   })
-)
 
-// DELETE — Delete client (Owner only, only if no bookings exist)
-export const DELETE = withOwner(
-  withErrorHandler(async (request: NextRequest, { user }, params) => {
-    // Validate params
-    const paramValidation = validateParams(params, idParamSchema)
-    if (!paramValidation.success) return paramValidation.error
+  return NextResponse.json(updated)
+}
 
-    const { id } = paramValidation.data
+// DELETE — Delete client (Owner only, hanya jika tidak ada booking)
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-    // Check if client has bookings
-    const bookingCount = await prisma.booking.count({
-      where: { clientId: id },
-    })
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
-    if (bookingCount > 0) {
-      return ApiResponse.validationError(
-        `Cannot delete client with ${bookingCount} existing bookings. Please delete all bookings first.`
-      )
-    }
+  const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
 
-    // Delete client
-    await prisma.client.delete({ where: { id } })
+  if (!dbUser || dbUser.role !== 'OWNER') {
+    return NextResponse.json({ error: 'Hanya Owner yang bisa menghapus client' }, { status: 403 })
+  }
 
-    apiLogger.info({
-      msg: 'Client deleted',
-      clientId: id,
-      deletedBy: user.id,
-    })
-
-    return ApiResponse.success({ success: true })
+  // Cek apakah client punya booking
+  const bookingCount = await prisma.booking.count({
+    where: { clientId: id },
   })
-)
+
+  if (bookingCount > 0) {
+    return NextResponse.json(
+      { error: `Client tidak bisa dihapus karena memiliki ${bookingCount} booking. Hapus semua booking terlebih dahulu.` },
+      { status: 400 }
+    )
+  }
+
+  await prisma.client.delete({ where: { id } })
+
+  return NextResponse.json({ success: true })
+}

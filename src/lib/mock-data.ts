@@ -1,0 +1,790 @@
+import type {
+  StaffUser,
+  Client,
+  Package,
+  Background,
+  AddOn,
+  Voucher,
+  Booking,
+  Expense,
+  Commission,
+  Reminder,
+  ChartDataPoint,
+  FinanceSummary,
+  PrintOrder,
+} from "./types"
+
+// ============================================================
+// Staff Users
+// ============================================================
+
+export const mockStaff: StaffUser[] = [
+  {
+    id: "usr-001",
+    name: "Owner Yoonjaespace",
+    email: "owner@yoonjaespace.com",
+    phone: "08123456789",
+    role: "OWNER",
+    isActive: true,
+    createdAt: "2026-01-01T08:00:00Z",
+  },
+  {
+    id: "usr-002",
+    name: "Admin",
+    email: "admin@yoonjaespace.com",
+    phone: "08129876543",
+    role: "ADMIN",
+    isActive: true,
+    createdAt: "2026-01-15T08:00:00Z",
+  },
+  {
+    id: "usr-003",
+    name: "Photographer",
+    email: "photo@yoonjaespace.com",
+    phone: "08131234567",
+    role: "PHOTOGRAPHER",
+    isActive: true,
+    createdAt: "2026-02-01T08:00:00Z",
+  },
+  {
+    id: "usr-004",
+    name: "Packaging Staff",
+    email: "packing@yoonjaespace.com",
+    phone: "08157654321",
+    role: "PACKAGING_STAFF",
+    isActive: false,
+    createdAt: "2026-02-10T08:00:00Z",
+  },
+]
+
+// ============================================================
+// Clients
+// ============================================================
+
+export const mockClients: Client[] = [
+  {
+    id: "cli-001",
+    name: "Dewi Anggraini",
+    phone: "08111222333",
+    email: "dewi.anggraini@gmail.com",
+    instagram: "@dewi_anggraini",
+    address: "Jl. Sudirman No. 45, Jakarta Selatan",
+    notes: "Pelanggan tetap, suka tema pastel",
+    totalBookings: 3,
+    createdAt: "2024-06-15T10:00:00Z",
+  },
+  {
+    id: "cli-002",
+    name: "Budi Santoso",
+    phone: "08222333444",
+    email: "budi.santoso@yahoo.com",
+    instagram: null,
+    address: "Jl. Gatot Subroto No. 12, Bandung",
+    notes: null,
+    totalBookings: 1,
+    createdAt: "2024-08-20T14:00:00Z",
+  },
+  {
+    id: "cli-003",
+    name: "Putri Rahayu",
+    phone: "08333444555",
+    email: "putri.rahayu@gmail.com",
+    instagram: "@putrirhy",
+    address: "Jl. Diponegoro No. 78, Surabaya",
+    notes: "Wisuda UGM, mau pakai toga",
+    totalBookings: 2,
+    createdAt: "2024-09-10T09:00:00Z",
+  },
+  {
+    id: "cli-004",
+    name: "Ahmad Fauzi",
+    phone: "08444555666",
+    email: null,
+    instagram: "@ahmadfauzi_",
+    address: "Jl. Ahmad Yani No. 33, Yogyakarta",
+    notes: "Foto keluarga besar, 8 orang",
+    totalBookings: 1,
+    createdAt: "2024-10-05T11:00:00Z",
+  },
+  {
+    id: "cli-005",
+    name: "Lisa Permata",
+    phone: "08555666777",
+    email: "lisa.permata@outlook.com",
+    instagram: "@lisapermata",
+    address: "Jl. Malioboro No. 56, Yogyakarta",
+    notes: null,
+    totalBookings: 4,
+    createdAt: "2024-07-22T13:00:00Z",
+  },
+  {
+    id: "cli-006",
+    name: "Rendra Kusuma",
+    phone: "08666777888",
+    email: "rendra.k@gmail.com",
+    instagram: "@rendrakusuma",
+    address: "Jl. Pemuda No. 90, Semarang",
+    notes: "Foto LinkedIn profesional",
+    totalBookings: 1,
+    createdAt: "2025-01-08T10:00:00Z",
+  },
+]
+
+// ============================================================
+// Packages
+// ============================================================
+
+export const mockPackages: Package[] = [
+  {
+    id: "pkg-001",
+    name: "Birthday Smash Cake",
+    description: "Paket foto ulang tahun dengan smash cake, dekorasi balon, dan properti ulang tahun",
+    duration: 60,
+    price: 850000,
+    editedPhotos: 15,
+    allPhotos: false,
+    isActive: true,
+  },
+  {
+    id: "pkg-002",
+    name: "Graduation",
+    description: "Paket foto wisuda dengan toga dan properti graduation, cocok untuk solo atau berdua",
+    duration: 45,
+    price: 650000,
+    editedPhotos: 10,
+    allPhotos: false,
+    isActive: true,
+  },
+  {
+    id: "pkg-003",
+    name: "Family Portrait",
+    description: "Paket foto keluarga hingga 5 orang, background premium, semua foto dikirim",
+    duration: 90,
+    price: 1200000,
+    editedPhotos: 20,
+    allPhotos: true,
+    isActive: true,
+  },
+  {
+    id: "pkg-004",
+    name: "LinkedIn Profile",
+    description: "Foto profesional untuk kebutuhan LinkedIn dan CV, include retouching premium",
+    duration: 30,
+    price: 350000,
+    editedPhotos: 5,
+    allPhotos: false,
+    isActive: true,
+  },
+  {
+    id: "pkg-005",
+    name: "Pas Photo",
+    description: "Pas foto formal berbagai ukuran (2x3, 3x4, 4x6), cetak langsung",
+    duration: 15,
+    price: 75000,
+    editedPhotos: 2,
+    allPhotos: false,
+    isActive: true,
+  },
+]
+
+// ============================================================
+// Backgrounds
+// ============================================================
+
+export const mockBackgrounds: Background[] = [
+  {
+    id: "bg-001",
+    name: "Limbo White",
+    description: "Background putih seamless untuk look clean dan minimalis",
+    isAvailable: true,
+  },
+  {
+    id: "bg-002",
+    name: "Spotlight",
+    description: "Background gelap dengan efek spotlight dramatis, cocok untuk portrait",
+    isAvailable: true,
+  },
+  {
+    id: "bg-003",
+    name: "Mid-Century",
+    description: "Background retro dengan furnitur mid-century, warm tones",
+    isAvailable: true,
+  },
+  {
+    id: "bg-004",
+    name: "Chrome",
+    description: "Background metalik chrome untuk look futuristik dan modern",
+    isAvailable: false,
+  },
+]
+
+// ============================================================
+// Add-Ons
+// ============================================================
+
+export const mockAddOns: AddOn[] = [
+  {
+    id: "addon-001",
+    name: "MUA (Makeup Artist)",
+    price: 350000,
+    description: "Jasa makeup profesional untuk sesi foto",
+    isActive: true,
+  },
+  {
+    id: "addon-002",
+    name: "Extra Person",
+    price: 150000,
+    description: "Tambahan orang di luar kuota paket (per orang)",
+    isActive: true,
+  },
+  {
+    id: "addon-003",
+    name: "Cetak Foto 4R",
+    price: 25000,
+    description: "Cetak foto ukuran 4R per lembar, glossy premium",
+    isActive: true,
+  },
+  {
+    id: "addon-004",
+    name: "Frame Premium",
+    price: 200000,
+    description: "Bingkai kayu premium ukuran 8R dengan kaca anti-glare",
+    isActive: true,
+  },
+]
+
+// ============================================================
+// Vouchers
+// ============================================================
+
+export const mockVouchers: Voucher[] = [
+  {
+    id: "vch-001",
+    code: "WELCOME20",
+    discountType: "PERCENTAGE",
+    discountValue: 20,
+    minPurchase: 500000,
+    maxUses: 50,
+    usedCount: 23,
+    validFrom: "2025-01-01T00:00:00Z",
+    validUntil: "2025-06-30T23:59:59Z",
+    isActive: true,
+  },
+  {
+    id: "vch-002",
+    code: "FAMILY50K",
+    discountType: "FIXED",
+    discountValue: 50000,
+    minPurchase: 1000000,
+    maxUses: 30,
+    usedCount: 12,
+    validFrom: "2025-02-01T00:00:00Z",
+    validUntil: "2025-04-30T23:59:59Z",
+    isActive: true,
+  },
+  {
+    id: "vch-003",
+    code: "GRADSPECIAL",
+    discountType: "PERCENTAGE",
+    discountValue: 15,
+    minPurchase: 300000,
+    maxUses: 100,
+    usedCount: 45,
+    validFrom: "2025-03-01T00:00:00Z",
+    validUntil: "2025-07-31T23:59:59Z",
+    isActive: true,
+  },
+]
+
+// ============================================================
+// Bookings
+// ============================================================
+
+export const mockBookings: Booking[] = [
+  {
+    id: "bk-001",
+    bookingCode: "YS-250201-001",
+    client: mockClients[0],
+    package: mockPackages[0],
+    background: mockBackgrounds[0],
+    photographer: mockStaff[2],
+    addOns: [
+      { addOn: mockAddOns[0], quantity: 1, price: 350000 },
+      { addOn: mockAddOns[2], quantity: 5, price: 125000 },
+    ],
+    voucher: mockVouchers[0],
+    sessionDate: "2025-02-15",
+    sessionTime: "10:00",
+    status: "PHOTOS_DELIVERED",
+    paymentStatus: "PAID",
+    subtotal: 1325000,
+    discount: 265000,
+    totalPrice: 1060000,
+    paidAmount: 1060000,
+    notes: "Tema warna pastel pink, kuenya sudah disiapkan client",
+    slug: "ys-250201-001",
+    createdAt: "2025-02-01T09:00:00Z",
+    updatedAt: "2025-02-16T14:00:00Z",
+  },
+  {
+    id: "bk-002",
+    bookingCode: "YS-250203-002",
+    client: mockClients[1],
+    package: mockPackages[3],
+    background: mockBackgrounds[1],
+    photographer: mockStaff[2],
+    addOns: [],
+    voucher: null,
+    sessionDate: "2025-02-10",
+    sessionTime: "14:00",
+    status: "CLOSED",
+    paymentStatus: "PAID",
+    subtotal: 350000,
+    discount: 0,
+    totalPrice: 350000,
+    paidAmount: 350000,
+    notes: "Pakai jas hitam formal",
+    slug: "ys-250203-002",
+    createdAt: "2025-02-03T11:00:00Z",
+    updatedAt: "2025-02-12T10:00:00Z",
+  },
+  {
+    id: "bk-003",
+    bookingCode: "YS-250205-003",
+    client: mockClients[2],
+    package: mockPackages[1],
+    background: mockBackgrounds[2],
+    photographer: mockStaff[2],
+    addOns: [{ addOn: mockAddOns[0], quantity: 1, price: 350000 }],
+    voucher: mockVouchers[2],
+    sessionDate: "2025-02-18",
+    sessionTime: "09:00",
+    status: "PAID",
+    paymentStatus: "PAID",
+    subtotal: 1000000,
+    discount: 150000,
+    totalPrice: 850000,
+    paidAmount: 850000,
+    notes: "Wisuda UGM, bawa toga sendiri",
+    slug: "ys-250205-003",
+    createdAt: "2025-02-05T15:00:00Z",
+    updatedAt: "2025-02-05T15:00:00Z",
+  },
+  {
+    id: "bk-004",
+    bookingCode: "YS-250207-004",
+    client: mockClients[3],
+    package: mockPackages[2],
+    background: mockBackgrounds[0],
+    photographer: null,
+    addOns: [{ addOn: mockAddOns[1], quantity: 3, price: 450000 }],
+    voucher: mockVouchers[1],
+    sessionDate: "2025-02-20",
+    sessionTime: "13:00",
+    status: "BOOKED",
+    paymentStatus: "UNPAID",
+    subtotal: 1650000,
+    discount: 50000,
+    totalPrice: 1600000,
+    paidAmount: 0,
+    notes: "Keluarga 8 orang (5+3 extra), anak kecil 2",
+    slug: "ys-250207-004",
+    createdAt: "2025-02-07T10:00:00Z",
+    updatedAt: "2025-02-07T10:00:00Z",
+  },
+  {
+    id: "bk-005",
+    bookingCode: "YS-250210-005",
+    client: mockClients[4],
+    package: mockPackages[0],
+    background: mockBackgrounds[2],
+    photographer: mockStaff[2],
+    addOns: [
+      { addOn: mockAddOns[0], quantity: 1, price: 350000 },
+      { addOn: mockAddOns[3], quantity: 2, price: 400000 },
+    ],
+    voucher: null,
+    sessionDate: "2025-02-22",
+    sessionTime: "11:00",
+    status: "BOOKED",
+    paymentStatus: "UNPAID",
+    subtotal: 1600000,
+    discount: 0,
+    totalPrice: 1600000,
+    paidAmount: 800000,
+    notes: "Smash cake untuk anak 1 tahun, tema rustic",
+    slug: "ys-250210-005",
+    createdAt: "2025-02-10T08:00:00Z",
+    updatedAt: "2025-02-10T08:00:00Z",
+  },
+  {
+    id: "bk-006",
+    bookingCode: "YS-250212-006",
+    client: mockClients[5],
+    package: mockPackages[3],
+    background: mockBackgrounds[1],
+    photographer: mockStaff[2],
+    addOns: [],
+    voucher: null,
+    sessionDate: "2025-02-12",
+    sessionTime: "16:00",
+    status: "SHOOT_DONE",
+    paymentStatus: "PAID",
+    subtotal: 350000,
+    discount: 0,
+    totalPrice: 350000,
+    paidAmount: 350000,
+    notes: null,
+    slug: "ys-250212-006",
+    createdAt: "2025-02-12T09:00:00Z",
+    updatedAt: "2025-02-13T17:00:00Z",
+  },
+  {
+    id: "bk-007",
+    bookingCode: "YS-250214-007",
+    client: mockClients[0],
+    package: mockPackages[4],
+    background: mockBackgrounds[0],
+    photographer: mockStaff[2],
+    addOns: [{ addOn: mockAddOns[2], quantity: 10, price: 250000 }],
+    voucher: null,
+    sessionDate: "2025-02-14",
+    sessionTime: "15:00",
+    status: "PHOTOS_DELIVERED",
+    paymentStatus: "PAID",
+    subtotal: 325000,
+    discount: 0,
+    totalPrice: 325000,
+    paidAmount: 325000,
+    notes: "Pas foto untuk CPNS, ukuran 4x6 dan 3x4",
+    slug: "ys-250214-007",
+    createdAt: "2025-02-14T08:00:00Z",
+    updatedAt: "2025-02-15T10:00:00Z",
+  },
+  {
+    id: "bk-008",
+    bookingCode: "YS-250215-008",
+    client: mockClients[4],
+    package: mockPackages[1],
+    background: mockBackgrounds[2],
+    photographer: null,
+    addOns: [{ addOn: mockAddOns[0], quantity: 1, price: 350000 }],
+    voucher: mockVouchers[2],
+    sessionDate: "2025-02-25",
+    sessionTime: "10:00",
+    status: "BOOKED",
+    paymentStatus: "UNPAID",
+    subtotal: 1000000,
+    discount: 150000,
+    totalPrice: 850000,
+    paidAmount: 0,
+    notes: "Wisuda UI, sesi berdua dengan teman",
+    slug: "ys-250215-008",
+    createdAt: "2025-02-15T12:00:00Z",
+    updatedAt: "2025-02-15T12:00:00Z",
+  },
+  {
+    id: "bk-009",
+    bookingCode: "YS-250130-009",
+    client: mockClients[2],
+    package: mockPackages[2],
+    background: mockBackgrounds[0],
+    photographer: mockStaff[2],
+    addOns: [],
+    voucher: null,
+    sessionDate: "2025-01-30",
+    sessionTime: "09:00",
+    status: "CANCELLED",
+    paymentStatus: "UNPAID",
+    subtotal: 1200000,
+    discount: 0,
+    totalPrice: 1200000,
+    paidAmount: 0,
+    notes: "Dibatalkan karena anggota keluarga sakit",
+    slug: "ys-250130-009",
+    createdAt: "2025-01-25T14:00:00Z",
+    updatedAt: "2025-01-29T08:00:00Z",
+  },
+  {
+    id: "bk-010",
+    bookingCode: "YS-250216-010",
+    client: mockClients[1],
+    package: mockPackages[0],
+    background: mockBackgrounds[2],
+    photographer: mockStaff[2],
+    addOns: [{ addOn: mockAddOns[0], quantity: 1, price: 350000 }],
+    voucher: null,
+    sessionDate: "2025-02-28",
+    sessionTime: "13:00",
+    status: "BOOKED",
+    paymentStatus: "UNPAID",
+    subtotal: 1200000,
+    discount: 0,
+    totalPrice: 1200000,
+    paidAmount: 600000,
+    notes: "Smash cake anak perempuan, tema princess",
+    slug: "ys-250216-010",
+    createdAt: "2025-02-16T07:00:00Z",
+    updatedAt: "2025-02-16T07:00:00Z",
+  },
+]
+
+// ============================================================
+// Expenses
+// ============================================================
+
+export const mockExpenses: Expense[] = [
+  {
+    id: "exp-001",
+    description: "Listrik studio bulan Februari",
+    amount: 850000,
+    category: "UTILITIES",
+    date: "2025-02-01",
+    createdBy: mockStaff[1],
+    receipt: null,
+  },
+  {
+    id: "exp-002",
+    description: "Beli softbox Godox 120cm",
+    amount: 1500000,
+    category: "EQUIPMENT",
+    date: "2025-02-03",
+    createdBy: mockStaff[0],
+    receipt: "receipt-002.jpg",
+  },
+  {
+    id: "exp-003",
+    description: "Properti bunga artifisial set",
+    amount: 350000,
+    category: "PROPS",
+    date: "2025-02-05",
+    createdBy: mockStaff[1],
+    receipt: null,
+  },
+  {
+    id: "exp-004",
+    description: "Iklan Instagram Ads Februari",
+    amount: 500000,
+    category: "MARKETING",
+    date: "2025-02-07",
+    createdBy: mockStaff[0],
+    receipt: "receipt-004.jpg",
+  },
+  {
+    id: "exp-005",
+    description: "Sewa studio bulan Februari",
+    amount: 3500000,
+    category: "STUDIO_RENT",
+    date: "2025-02-01",
+    createdBy: mockStaff[0],
+    receipt: "receipt-005.jpg",
+  },
+  {
+    id: "exp-006",
+    description: "Kertas foto glossy 100 lembar",
+    amount: 275000,
+    category: "EQUIPMENT",
+    date: "2025-02-10",
+    createdBy: mockStaff[3],
+    receipt: null,
+  },
+  {
+    id: "exp-007",
+    description: "Gaji part-time Feb (Siti)",
+    amount: 2000000,
+    category: "SALARY",
+    date: "2025-02-15",
+    createdBy: mockStaff[0],
+    receipt: null,
+  },
+  {
+    id: "exp-008",
+    description: "Background paper roll putih baru",
+    amount: 450000,
+    category: "PROPS",
+    date: "2025-02-14",
+    createdBy: mockStaff[2],
+    receipt: "receipt-008.jpg",
+  },
+]
+
+// ============================================================
+// Commissions
+// ============================================================
+
+export const mockCommissions: Commission[] = [
+  {
+    staffId: "usr-003",
+    staffName: "Andi Wijaya",
+    role: "PHOTOGRAPHER",
+    totalBookings: 7,
+    totalRevenue: 4785000,
+    commissionRate: 10,
+    commissionAmount: 478500,
+    period: "Februari 2025",
+  },
+  {
+    staffId: "usr-004",
+    staffName: "Siti Nurhaliza",
+    role: "PACKAGING_STAFF",
+    totalBookings: 5,
+    totalRevenue: 3585000,
+    commissionRate: 5,
+    commissionAmount: 179250,
+    period: "Februari 2025",
+  },
+  {
+    staffId: "usr-002",
+    staffName: "Rizky Pratama",
+    role: "ADMIN",
+    totalBookings: 10,
+    totalRevenue: 8235000,
+    commissionRate: 3,
+    commissionAmount: 247050,
+    period: "Februari 2025",
+  },
+]
+
+// ============================================================
+// Reminders
+// ============================================================
+
+export const mockReminders: Reminder[] = [
+  {
+    id: "rem-001",
+    bookingId: "bk-004",
+    bookingCode: "YS-250207-004",
+    clientName: "Ahmad Fauzi",
+    type: "PAYMENT",
+    message: "Belum ada pembayaran untuk booking keluarga 20 Feb",
+    dueDate: "2025-02-18",
+    isDone: false,
+  },
+  {
+    id: "rem-002",
+    bookingId: "bk-005",
+    bookingCode: "YS-250210-005",
+    clientName: "Lisa Permata",
+    type: "PAYMENT",
+    message: "Sisa pembayaran Rp800.000 untuk sesi smash cake",
+    dueDate: "2025-02-20",
+    isDone: false,
+  },
+  {
+    id: "rem-003",
+    bookingId: "bk-006",
+    bookingCode: "YS-250212-006",
+    clientName: "Rendra Kusuma",
+    type: "DELIVERY",
+    message: "Foto LinkedIn sudah diedit, siap kirim ke client",
+    dueDate: "2025-02-17",
+    isDone: false,
+  },
+  {
+    id: "rem-004",
+    bookingId: "bk-003",
+    bookingCode: "YS-250205-003",
+    clientName: "Putri Rahayu",
+    type: "SHOOT",
+    message: "Sesi foto wisuda besok pagi pukul 09:00",
+    dueDate: "2025-02-18",
+    isDone: false,
+  },
+  {
+    id: "rem-005",
+    bookingId: "bk-008",
+    bookingCode: "YS-250215-008",
+    clientName: "Lisa Permata",
+    type: "FOLLOW_UP",
+    message: "Follow up pembayaran untuk wisuda UI 25 Feb",
+    dueDate: "2025-02-22",
+    isDone: false,
+  },
+]
+
+// ============================================================
+// Financial Data
+// ============================================================
+
+export const mockFinanceSummary: FinanceSummary = {
+  totalIncome: 5135000,
+  totalExpense: 9425000,
+  netProfit: -4290000,
+  pendingPayments: 4250000,
+  incomeByMonth: [
+    { name: "Sep", income: 3200000, expense: 6800000 },
+    { name: "Oct", income: 4100000, expense: 7200000 },
+    { name: "Nov", income: 5800000, expense: 7500000 },
+    { name: "Dec", income: 7200000, expense: 8900000 },
+    { name: "Jan", income: 6500000, expense: 8200000 },
+    { name: "Feb", income: 5135000, expense: 9425000 },
+  ],
+}
+
+export const mockMonthlyRevenue: ChartDataPoint[] = [
+  { name: "Sep", income: 3200000, expense: 6800000 },
+  { name: "Oct", income: 4100000, expense: 7200000 },
+  { name: "Nov", income: 5800000, expense: 7500000 },
+  { name: "Dec", income: 7200000, expense: 8900000 },
+  { name: "Jan", income: 6500000, expense: 8200000 },
+  { name: "Feb", income: 5135000, expense: 9425000 },
+]
+
+// ============================================================
+// Dashboard Statistics
+// ============================================================
+
+export const mockDashboardStats = {
+  totalBookingsThisMonth: 8,
+  totalRevenueThisMonth: 5135000,
+  activeClients: 6,
+  pendingPayments: 4250000,
+  completedSessions: 4,
+  upcomingShots: 4,
+  bookingsByStatus: {
+    BOOKED: 4,
+    PAID: 1,
+    SHOOT_DONE: 1,
+    PHOTOS_DELIVERED: 2,
+    CLOSED: 1,
+    CANCELLED: 1,
+  },
+}
+
+// ============================================================
+// Current logged-in user (mock)
+// ============================================================
+
+export const mockCurrentUser = mockStaff[0]
+
+
+export const mockAddonTemplates = mockAddOns
+
+// ============================================================
+// Print Orders
+// ============================================================
+
+export const mockPrintOrders: PrintOrder[] = [
+  {
+    id: "po-001",
+    bookingId: "bk-007", // Corresponds to YS-250214-007 (Photos Delivered)
+    status: "SHIPPED",
+    selectedPhotosLink: "https://drive.google.com/drive/folders/...",
+    vendorName: "Prima Imaging Lab",
+    vendorNotes: "Cetak 4x6 doff, warna agak warm",
+    courier: "JNE",
+    trackingNumber: "JNE1234567890",
+    shippingAddress: "Jl. Sudirman No. 45, Jakarta Selatan",
+    createdAt: "2025-02-15T11:00:00Z",
+    updatedAt: "2025-02-16T09:00:00Z",
+  },
+  {
+    id: "po-002",
+    bookingId: "bk-001", // YS-250201-001
+    status: "PACKAGING",
+    selectedPhotosLink: "https://drive.google.com/drive/folders/...",
+    vendorName: "Sentra Cetak",
+    createdAt: "2025-02-16T08:00:00Z",
+    updatedAt: "2025-02-16T10:00:00Z",
+  }
+]

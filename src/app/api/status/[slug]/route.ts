@@ -1,25 +1,13 @@
 import { prisma } from '@/lib/prisma'
-import { NextRequest } from 'next/server'
-import {
-  withErrorHandler,
-  validateParams,
-} from '@/lib/api-middleware'
-import { ApiResponse } from '@/lib/api-response'
-import { slugParamSchema } from '@/schemas'
-import { apiLogger } from '@/lib/logger'
+import { NextRequest, NextResponse } from 'next/server'
 
 // GET — Public status page (NO AUTH REQUIRED)
-export const GET = withErrorHandler(async (request: NextRequest, routeContext?: { params: Promise<{ slug: string }> }) => {
-  // Resolve params
-  const params = routeContext?.params ? await routeContext.params : undefined
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ slug: string }> }
+) {
+  const { slug } = await params
 
-  // Validate params
-  const paramValidation = validateParams(params, slugParamSchema)
-  if (!paramValidation.success) return paramValidation.error
-
-  const { slug } = paramValidation.data
-
-  // Fetch booking by public slug
   const booking = await prisma.booking.findUnique({
     where: { publicSlug: slug },
     include: {
@@ -37,12 +25,12 @@ export const GET = withErrorHandler(async (request: NextRequest, routeContext?: 
   })
 
   if (!booking) {
-    return ApiResponse.notFound('Order')
+    return NextResponse.json({ error: 'Order tidak ditemukan' }, { status: 404 })
   }
 
   // Get studio settings
   const settings = await prisma.studioSetting.findMany()
-  const settingsMap: Record<string, string | number | boolean | object> = {}
+  const settingsMap: Record<string, any> = {}
   settings.forEach((s) => {
     try {
       settingsMap[s.key] = JSON.parse(s.value)
@@ -51,14 +39,8 @@ export const GET = withErrorHandler(async (request: NextRequest, routeContext?: 
     }
   })
 
-  apiLogger.info({
-    msg: 'Public status page accessed',
-    slug,
-    bookingId: booking.id,
-  })
-
-  // Return only public-safe data
-  return ApiResponse.success({
+  // Hanya return data yang aman untuk publik
+  return NextResponse.json({
     bookingCode: booking.bookingCode,
     clientName: booking.client.name,
     date: booking.date,
@@ -78,9 +60,11 @@ export const GET = withErrorHandler(async (request: NextRequest, routeContext?: 
         }
       : null,
     studio: {
-      name: (settingsMap['studio_name'] as string) || 'Yoonjaespace',
-      instagram: (settingsMap['studio_instagram'] as string) || '',
+      name: settingsMap['studio_name'] || 'Yoonjaespace',
+      address: settingsMap['studio_address'] || '',
+      phone: settingsMap['studio_phone'] || '',
+      instagram: settingsMap['studio_instagram'] || '',
       operatingHours: settingsMap['operating_hours'] || { open: '08:00', close: '20:00' },
     },
   })
-})
+}

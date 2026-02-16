@@ -1,16 +1,15 @@
 import { createClient } from '@/utils/supabase/server'
-import { NextRequest } from 'next/server'
-import { withErrorHandler, validateRequest } from '@/lib/api-middleware'
-import { ApiResponse } from '@/lib/api-response'
-import { loginSchema } from '@/schemas'
-import { authLogger } from '@/lib/logger'
+import { NextRequest, NextResponse } from 'next/server'
 
-export const POST = withErrorHandler(async (request: NextRequest) => {
-  // Validate request body
-  const validation = await validateRequest(request, loginSchema, 'body')
-  if (!validation.success) return validation.error
+export async function POST(request: NextRequest) {
+  const { email, password } = await request.json()
 
-  const { email, password } = validation.data
+  if (!email || !password) {
+    return NextResponse.json(
+      { error: 'Email dan password harus diisi' },
+      { status: 400 }
+    )
+  }
 
   const supabase = await createClient()
 
@@ -20,19 +19,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   })
 
   if (error) {
-    authLogger.warn({
-      msg: 'Login failed',
-      email,
-      error: error.message,
-    })
-    return ApiResponse.unauthorized('Email atau password salah')
+    return NextResponse.json(
+      { error: 'Email atau password salah' },
+      { status: 401 }
+    )
   }
 
-  authLogger.info({
-    msg: 'User logged in',
-    userId: data.user.id,
-    email: data.user.email,
-  })
-
-  return ApiResponse.success({ user: data.user })
-})
+  return NextResponse.json({ user: data.user })
+}

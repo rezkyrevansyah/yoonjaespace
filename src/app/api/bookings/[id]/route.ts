@@ -33,6 +33,7 @@ export async function GET(
       invoice: true,
       customFields: { include: { field: true } },
       expenses: true,
+      history: { orderBy: { createdAt: 'desc' } },
     },
   })
 
@@ -94,6 +95,42 @@ export async function PATCH(
     return NextResponse.json({ error: 'Booking yang dibatalkan tidak bisa diedit' }, { status: 400 })
   }
 
+  // Track reschedule changes for history
+  const historyEntries: any[] = []
+
+  if (date && new Date(date).toISOString() !== existing.date.toISOString()) {
+    historyEntries.push({
+      bookingId: id,
+      action: 'RESCHEDULED',
+      field: 'date',
+      oldValue: existing.date.toISOString(),
+      newValue: new Date(date).toISOString(),
+      changedBy: dbUser.id,
+    })
+  }
+
+  if (startTime && new Date(startTime).toISOString() !== existing.startTime.toISOString()) {
+    historyEntries.push({
+      bookingId: id,
+      action: 'RESCHEDULED',
+      field: 'startTime',
+      oldValue: existing.startTime.toISOString(),
+      newValue: new Date(startTime).toISOString(),
+      changedBy: dbUser.id,
+    })
+  }
+
+  if (endTime && new Date(endTime).toISOString() !== existing.endTime.toISOString()) {
+    historyEntries.push({
+      bookingId: id,
+      action: 'RESCHEDULED',
+      field: 'endTime',
+      oldValue: existing.endTime.toISOString(),
+      newValue: new Date(endTime).toISOString(),
+      changedBy: dbUser.id,
+    })
+  }
+
   // Recalculate total jika ada perubahan
   let newPackagePrice = existing.packagePrice
   if (packageId && packageId !== existing.packageId) {
@@ -114,74 +151,86 @@ export async function PATCH(
   const discount = discountAmount !== undefined ? discountAmount : existing.discountAmount
   const totalAmount = newPackagePrice + addOnsTotal - discount
 
-  // Update backgrounds jika ada
-  if (backgroundIds) {
-    await prisma.bookingBackground.deleteMany({ where: { bookingId: id } })
-    if (backgroundIds.length > 0) {
-      await prisma.bookingBackground.createMany({
-        data: backgroundIds.map((bgId: string) => ({
-          bookingId: id,
-          backgroundId: bgId,
-        })),
+  // Update booking + log history in a transaction
+  const updated = await prisma.$transaction(async (tx) => {
+    // Update backgrounds jika ada
+    if (backgroundIds) {
+      await tx.bookingBackground.deleteMany({ where: { bookingId: id } })
+      if (backgroundIds.length > 0) {
+        await tx.bookingBackground.createMany({
+          data: backgroundIds.map((bgId: string) => ({
+            bookingId: id,
+            backgroundId: bgId,
+          })),
+        })
+      }
+    }
+
+    // Update add-ons jika ada
+    if (addOns) {
+      await tx.bookingAddOn.deleteMany({ where: { bookingId: id } })
+      if (addOns.length > 0) {
+        await tx.bookingAddOn.createMany({
+          data: addOns.map((ao: any) => ({
+            bookingId: id,
+            itemName: ao.itemName,
+            quantity: ao.quantity,
+            unitPrice: ao.unitPrice,
+            subtotal: ao.quantity * ao.unitPrice,
+          })),
+        })
+      }
+    }
+
+    // Update custom fields jika ada
+    if (customFields) {
+      await tx.bookingCustomField.deleteMany({ where: { bookingId: id } })
+      if (customFields.length > 0) {
+        await tx.bookingCustomField.createMany({
+          data: customFields.map((cf: any) => ({
+            bookingId: id,
+            fieldId: cf.fieldId,
+            value: cf.value,
+          })),
+        })
+      }
+    }
+
+    // Update booking
+    const result = await tx.booking.update({
+      where: { id },
+      data: {
+        ...(date && { date: new Date(date) }),
+        ...(startTime && { startTime: new Date(startTime) }),
+        ...(endTime && { endTime: new Date(endTime) }),
+        ...(packageId && { packageId, packagePrice: newPackagePrice }),
+        ...(numberOfPeople && { numberOfPeople }),
+        ...(photoFor && { photoFor }),
+        ...(bts !== undefined && { bts }),
+        ...(notes !== undefined && { notes }),
+        ...(internalNotes !== undefined && { internalNotes }),
+        ...(discountAmount !== undefined && { discountAmount: discount }),
+        ...(discountNote !== undefined && { discountNote }),
+        totalAmount,
+      },
+      include: {
+        client: true,
+        package: true,
+        handledBy: { select: { id: true, name: true } },
+        addOns: true,
+        bookingBackgrounds: { include: { background: true } },
+        customFields: { include: { field: true } },
+      },
+    })
+
+    // Log history entries
+    if (historyEntries.length > 0) {
+      await tx.bookingHistory.createMany({
+        data: historyEntries,
       })
     }
-  }
 
-  // Update add-ons jika ada
-  if (addOns) {
-    await prisma.bookingAddOn.deleteMany({ where: { bookingId: id } })
-    if (addOns.length > 0) {
-      await prisma.bookingAddOn.createMany({
-        data: addOns.map((ao: any) => ({
-          bookingId: id,
-          itemName: ao.itemName,
-          quantity: ao.quantity,
-          unitPrice: ao.unitPrice,
-          subtotal: ao.quantity * ao.unitPrice,
-        })),
-      })
-    }
-  }
-
-  // Update custom fields jika ada
-  if (customFields) {
-    await prisma.bookingCustomField.deleteMany({ where: { bookingId: id } })
-    if (customFields.length > 0) {
-      await prisma.bookingCustomField.createMany({
-        data: customFields.map((cf: any) => ({
-          bookingId: id,
-          fieldId: cf.fieldId,
-          value: cf.value,
-        })),
-      })
-    }
-  }
-
-  // Update booking
-  const updated = await prisma.booking.update({
-    where: { id },
-    data: {
-      ...(date && { date: new Date(date) }),
-      ...(startTime && { startTime: new Date(startTime) }),
-      ...(endTime && { endTime: new Date(endTime) }),
-      ...(packageId && { packageId, packagePrice: newPackagePrice }),
-      ...(numberOfPeople && { numberOfPeople }),
-      ...(photoFor && { photoFor }),
-      ...(bts !== undefined && { bts }),
-      ...(notes !== undefined && { notes }),
-      ...(internalNotes !== undefined && { internalNotes }),
-      ...(discountAmount !== undefined && { discountAmount: discount }),
-      ...(discountNote !== undefined && { discountNote }),
-      totalAmount,
-    },
-    include: {
-      client: true,
-      package: true,
-      handledBy: { select: { id: true, name: true } },
-      addOns: true,
-      bookingBackgrounds: { include: { background: true } },
-      customFields: { include: { field: true } },
-    },
+    return result
   })
 
   return NextResponse.json(updated)

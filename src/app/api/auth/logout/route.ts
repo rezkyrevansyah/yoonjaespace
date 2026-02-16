@@ -1,22 +1,9 @@
 import { createClient } from '@/utils/supabase/server'
-import { withErrorHandler } from '@/lib/api-middleware'
-import { ApiResponse } from '@/lib/api-response'
-import { authLogger } from '@/lib/logger'
+import { NextResponse } from 'next/server'
 
-export const POST = withErrorHandler(async () => {
+export async function POST() {
   const supabase = await createClient()
-
-  // Get user before logout for logging
-  const { data: { user } } = await supabase.auth.getUser()
-
   await supabase.auth.signOut()
 
-  if (user) {
-    authLogger.info({
-      msg: 'User logged out',
-      userId: user.id,
-    })
-  }
-
-  return ApiResponse.success({ success: true })
-})
+  return NextResponse.json({ success: true })
+}

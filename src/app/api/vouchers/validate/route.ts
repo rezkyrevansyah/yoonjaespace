@@ -1,81 +1,72 @@
+import { createClient } from '@/utils/supabase/server'
 import { prisma } from '@/lib/prisma'
-import { NextRequest } from 'next/server'
-import {
-  withAuth,
-  withErrorHandler,
-  validateRequest,
-} from '@/lib/api-middleware'
-import { ApiResponse } from '@/lib/api-response'
-import { validateVoucherSchema } from '@/schemas'
-import { apiLogger } from '@/lib/logger'
+import { NextRequest, NextResponse } from 'next/server'
 
 // POST — Validate voucher code
-export const POST = withAuth(
-  withErrorHandler(async (request: NextRequest, { user }) => {
-    // Validate request body
-    const validation = await validateRequest(request, validateVoucherSchema, 'body')
-    if (!validation.success) return validation.error
+export async function POST(request: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-    const { code, purchaseAmount } = validation.data
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
-    // Find voucher
-    const voucher = await prisma.voucher.findUnique({
-      where: { code: code.toUpperCase() },
-    })
+  const { code, orderTotal } = await request.json()
 
-    if (!voucher) {
-      return ApiResponse.notFound('Voucher')
-    }
+  if (!code) {
+    return NextResponse.json({ error: 'Kode voucher harus diisi' }, { status: 400 })
+  }
 
-    if (!voucher.isActive) {
-      return ApiResponse.validationError('Voucher is not active')
-    }
-
-    // Check validity period
-    const now = new Date()
-    if (voucher.validFrom && now < voucher.validFrom) {
-      return ApiResponse.validationError('Voucher is not yet valid')
-    }
-    if (voucher.validUntil && now > voucher.validUntil) {
-      return ApiResponse.validationError('Voucher has expired')
-    }
-
-    // Check max usage
-    if (voucher.maxUsage && voucher.usedCount >= voucher.maxUsage) {
-      return ApiResponse.validationError('Voucher has reached maximum usage limit')
-    }
-
-    // Check min purchase
-    if (voucher.minPurchase && purchaseAmount < voucher.minPurchase) {
-      return ApiResponse.validationError(
-        `Minimum purchase amount is ${voucher.minPurchase.toLocaleString('id-ID')}`
-      )
-    }
-
-    // Calculate discount
-    let discountAmount = 0
-    if (voucher.discountType === 'fixed') {
-      discountAmount = voucher.discountValue
-    } else if (voucher.discountType === 'percentage') {
-      discountAmount = (purchaseAmount * voucher.discountValue) / 100
-    }
-
-    apiLogger.info({
-      msg: 'Voucher validated',
-      voucherCode: code,
-      userId: user.id,
-      discountAmount,
-    })
-
-    return ApiResponse.success({
-      valid: true,
-      voucher: {
-        id: voucher.id,
-        code: voucher.code,
-        discountType: voucher.discountType,
-        discountValue: voucher.discountValue,
-        discountAmount,
-      },
-    })
+  const voucher = await prisma.voucher.findUnique({
+    where: { code: code.toUpperCase() },
   })
-)
+
+  if (!voucher) {
+    return NextResponse.json({ error: 'Voucher tidak ditemukan' }, { status: 404 })
+  }
+
+  if (!voucher.isActive) {
+    return NextResponse.json({ error: 'Voucher sudah tidak aktif' }, { status: 400 })
+  }
+
+  // Cek expired
+  const now = new Date()
+  if (voucher.validFrom && now < voucher.validFrom) {
+    return NextResponse.json({ error: 'Voucher belum berlaku' }, { status: 400 })
+  }
+  if (voucher.validUntil && now > voucher.validUntil) {
+    return NextResponse.json({ error: 'Voucher sudah expired' }, { status: 400 })
+  }
+
+  // Cek max usage
+  if (voucher.maxUsage && voucher.usedCount >= voucher.maxUsage) {
+    return NextResponse.json({ error: 'Voucher sudah mencapai batas pemakaian' }, { status: 400 })
+  }
+
+  // Cek min purchase
+  if (voucher.minPurchase && orderTotal && orderTotal < voucher.minPurchase) {
+    return NextResponse.json(
+      { error: `Minimum pembelian Rp ${voucher.minPurchase.toLocaleString('id-ID')}` },
+      { status: 400 }
+    )
+  }
+
+  // Hitung diskon
+  let discountAmount = 0
+  if (voucher.discountType === 'fixed') {
+    discountAmount = voucher.discountValue
+  } else if (voucher.discountType === 'percentage') {
+    discountAmount = orderTotal ? (orderTotal * voucher.discountValue) / 100 : 0
+  }
+
+  return NextResponse.json({
+    valid: true,
+    voucher: {
+      id: voucher.id,
+      code: voucher.code,
+      discountType: voucher.discountType,
+      discountValue: voucher.discountValue,
+      discountAmount,
+    },
+  })
+}

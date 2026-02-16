@@ -21,7 +21,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { status, paymentStatus, photoLink } = await request.json()
+  const { status, paymentStatus, photoLink, paymentProof } = await request.json()
 
   const existing = await prisma.booking.findUnique({ where: { id } })
 
@@ -30,9 +30,20 @@ export async function PATCH(
   }
 
   const updateData: any = {}
+  const historyEntries: any[] = []
 
   if (status) {
     updateData.status = status
+
+    // Log status change
+    historyEntries.push({
+      bookingId: id,
+      action: 'STATUS_CHANGED',
+      field: 'status',
+      oldValue: existing.status,
+      newValue: status,
+      changedBy: dbUser.id,
+    })
 
     // Jika status PHOTOS_DELIVERED, set deliveredAt
     if (status === 'PHOTOS_DELIVERED') {
@@ -43,9 +54,34 @@ export async function PATCH(
   if (paymentStatus) {
     updateData.paymentStatus = paymentStatus
 
+    // Log payment status change
+    historyEntries.push({
+      bookingId: id,
+      action: 'PAYMENT_UPDATED',
+      field: 'paymentStatus',
+      oldValue: existing.paymentStatus,
+      newValue: paymentStatus,
+      changedBy: dbUser.id,
+    })
+
     // Jika payment berubah ke PAID dan status masih BOOKED, update ke PAID
     if (paymentStatus === 'PAID' && existing.status === 'BOOKED') {
       updateData.status = 'PAID'
+      updateData.paidAt = new Date()
+
+      historyEntries.push({
+        bookingId: id,
+        action: 'STATUS_CHANGED',
+        field: 'status',
+        oldValue: existing.status,
+        newValue: 'PAID',
+        changedBy: dbUser.id,
+      })
+    }
+
+    // Set paidAt jika payment berubah ke PAID
+    if (paymentStatus === 'PAID' && !existing.paidAt) {
+      updateData.paidAt = new Date()
     }
   }
 
@@ -53,14 +89,39 @@ export async function PATCH(
     updateData.photoLink = photoLink
   }
 
-  const updated = await prisma.booking.update({
-    where: { id },
-    data: updateData,
-    include: {
-      client: true,
-      package: true,
-      handledBy: { select: { id: true, name: true } },
-    },
+  if (paymentProof !== undefined) {
+    updateData.paymentProof = paymentProof
+
+    historyEntries.push({
+      bookingId: id,
+      action: 'PAYMENT_PROOF_UPLOADED',
+      field: 'paymentProof',
+      oldValue: existing.paymentProof || null,
+      newValue: paymentProof,
+      changedBy: dbUser.id,
+    })
+  }
+
+  // Execute update + history logging in a transaction
+  const updated = await prisma.$transaction(async (tx) => {
+    const result = await tx.booking.update({
+      where: { id },
+      data: updateData,
+      include: {
+        client: true,
+        package: true,
+        handledBy: { select: { id: true, name: true } },
+      },
+    })
+
+    // Log all history entries
+    if (historyEntries.length > 0) {
+      await tx.bookingHistory.createMany({
+        data: historyEntries,
+      })
+    }
+
+    return result
   })
 
   return NextResponse.json(updated)

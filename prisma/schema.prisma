@@ -163,6 +163,10 @@ model Booking {
   photoLink   String? // Google Drive link
   deliveredAt DateTime?
 
+  // Payment proof
+  paymentProof String?   // URL bukti transfer
+  paidAt       DateTime? // kapan pembayaran diterima
+
   // Notes
   notes         String? // notes dari customer
   internalNotes String? // notes internal staff
@@ -182,6 +186,7 @@ model Booking {
   invoice            Invoice?
   customFields       BookingCustomField[]
   expenses           Expense[]
+  history            BookingHistory[]
 
   @@map("bookings")
 }
@@ -341,6 +346,24 @@ model Expense {
   updatedAt        DateTime        @updatedAt
 
   @@map("expenses")
+}
+
+// ============================================
+// 11b. BOOKING HISTORY (Audit Log)
+// ============================================
+
+model BookingHistory {
+  id        String   @id @default(cuid())
+  bookingId String
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  action    String   // e.g. "STATUS_CHANGED", "RESCHEDULED", "PAYMENT_UPDATED", "ADDON_ADDED"
+  field     String?  // field yang berubah, e.g. "status", "date", "paymentStatus"
+  oldValue  String?  // nilai sebelumnya
+  newValue  String?  // nilai baru
+  changedBy String   // user ID yang melakukan perubahan
+  createdAt DateTime @default(now())
+
+  @@map("booking_history")
 }
 
 // ============================================

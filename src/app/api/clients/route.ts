@@ -1,90 +1,97 @@
+import { createClient } from '@/utils/supabase/server'
 import { prisma } from '@/lib/prisma'
-import { NextRequest } from 'next/server'
-import { Prisma } from '@prisma/client'
-import {
-  withAuth,
-  withAdmin,
-  withErrorHandler,
-  validateRequest,
-} from '@/lib/api-middleware'
-import { ApiResponse } from '@/lib/api-response'
-import { clientQuerySchema, createClientSchema } from '@/schemas'
-import { apiLogger } from '@/lib/logger'
+import { NextRequest, NextResponse } from 'next/server'
 
 // GET — List clients with search
-export const GET = withAuth(
-  withErrorHandler(async (request: NextRequest, { user }) => {
-    // Validate query parameters with Zod
-    const validation = await validateRequest(request, clientQuerySchema, 'query')
-    if (!validation.success) return validation.error
+export async function GET(request: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-    const { search, page, limit } = validation.data
-    const skip = (page - 1) * limit
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
-    // Build where clause with proper typing
-    const where: Prisma.ClientWhereInput = search
-      ? {
-          OR: [
-            { name: { contains: search, mode: 'insensitive' } },
-            { phone: { contains: search } },
-            { email: { contains: search, mode: 'insensitive' } },
-          ],
-        }
-      : {}
+  const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
 
-    // Execute query
-    const [clients, total] = await Promise.all([
-      prisma.client.findMany({
-        where,
-        include: {
-          _count: {
-            select: { bookings: true },
-          },
+  if (!dbUser || !dbUser.isActive) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const { searchParams } = new URL(request.url)
+  const search = searchParams.get('search')
+  const page = parseInt(searchParams.get('page') || '1')
+  const limit = parseInt(searchParams.get('limit') || '20')
+  const skip = (page - 1) * limit
+
+  const where: any = {}
+
+  if (search) {
+    where.OR = [
+      { name: { contains: search, mode: 'insensitive' } },
+      { phone: { contains: search } },
+      { email: { contains: search, mode: 'insensitive' } },
+    ]
+  }
+
+  const [clients, total] = await Promise.all([
+    prisma.client.findMany({
+      where,
+      include: {
+        _count: {
+          select: { bookings: true },
         },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-      }),
-      prisma.client.count({ where }),
-    ])
+      },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+    }),
+    prisma.client.count({ where }),
+  ])
 
-    apiLogger.info({
-      msg: 'Clients fetched',
-      userId: user.id,
-      count: clients.length,
-      search,
-    })
-
-    return ApiResponse.paginated(clients, page, limit, total)
+  return NextResponse.json({
+    clients,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
   })
-)
+}
 
 // POST — Create new client
-export const POST = withAdmin(
-  withErrorHandler(async (request: NextRequest, { user }) => {
-    // Validate request body with Zod
-    const validation = await validateRequest(request, createClientSchema, 'body')
-    if (!validation.success) return validation.error
+export async function POST(request: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-    const { name, phone, email, address, notes } = validation.data
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
-    // Create client
-    const client = await prisma.client.create({
-      data: {
-        name,
-        phone,
-        email: email || null,
-        address: address || null,
-        notes: notes || null,
-      },
-    })
+  const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
 
-    apiLogger.info({
-      msg: 'Client created',
-      clientId: client.id,
-      createdBy: user.id,
-    })
+  if (!dbUser || !['OWNER', 'ADMIN'].includes(dbUser.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
-    return ApiResponse.created(client)
+  const { name, phone, email, address, notes } = await request.json()
+
+  if (!name || !phone) {
+    return NextResponse.json(
+      { error: 'Nama dan nomor WA harus diisi' },
+      { status: 400 }
+    )
+  }
+
+  const client = await prisma.client.create({
+    data: {
+      name,
+      phone,
+      email: email || null,
+      address: address || null,
+      notes: notes || null,
+    },
   })
-)
+
+  return NextResponse.json(client, { status: 201 })
+}
