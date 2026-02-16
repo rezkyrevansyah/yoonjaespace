@@ -112,6 +112,7 @@ export interface Booking {
   discount: number
   totalPrice: number
   paidAmount: number
+  numPeople: number
   notes: string | null
   slug: string
   createdAt: string

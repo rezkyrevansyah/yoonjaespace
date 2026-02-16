@@ -1,6 +1,6 @@
 "use client"
 
-import useSWR from 'swr'
+import { useState, useEffect } from 'react'
 import { apiGet } from '@/lib/api-client'
 
 /**
@@ -43,25 +43,40 @@ export interface DashboardData {
  * Custom hook for fetching dashboard data
  */
 export function useDashboard() {
-  const { data, error, isLoading, mutate } = useSWR<DashboardData>(
-    '/api/dashboard',
-    async (url) => {
-      const response = await apiGet<DashboardData>(url)
+  const [data, setData] = useState<DashboardData | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  const fetchData = async () => {
+    setIsLoading(true)
+    try {
+      const response = await apiGet<DashboardData>('/api/dashboard')
       if (response.error) {
-        throw new Error(response.error)
+        setError(response.error)
+      } else {
+        setData(response.data || null)
+        setError(null)
       }
-      return response.data!
-    },
-    {
-      refreshInterval: 30000, // Refresh every 30 seconds
-      revalidateOnFocus: true,
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred'
+      setError(errorMessage)
+    } finally {
+      setIsLoading(false)
     }
-  )
+  }
+
+  useEffect(() => {
+    fetchData()
+    
+    // Refresh interval
+    const interval = setInterval(fetchData, 30000)
+    return () => clearInterval(interval)
+  }, [])
 
   return {
     data,
     error,
     isLoading,
-    refresh: mutate,
+    refresh: fetchData,
   }
 }

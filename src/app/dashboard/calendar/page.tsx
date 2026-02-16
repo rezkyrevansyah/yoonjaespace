@@ -14,7 +14,7 @@ import { StatusBadge } from "@/components/shared/status-badge"
 import { mockBookings } from "@/lib/mock-data"
 import { formatCurrency } from "@/lib/utils"
 import { useMobile } from "@/lib/hooks/use-mobile"
-import { BookingStatus } from "@/lib/types"
+import { BookingStatus, Booking } from "@/lib/types"
 
 const DAYS = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"]
 const DAYS_FULL = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
@@ -296,7 +296,18 @@ function MonthView({
   setSelectedDateMobile,
   setViewMode,
   setCurrentDate
-}: any) {
+}: {
+  days: (Date | null)[]
+  currentMonth: number
+  getBookingsForDate: (dateStr: string) => Booking[]
+  isTuesday: (date: Date) => boolean
+  isToday: (date: Date) => boolean
+  isMobile: boolean
+  selectedDateMobile: string | null
+  setSelectedDateMobile: (date: string | null) => void
+  setViewMode: (mode: ViewMode) => void
+  setCurrentDate: (date: Date) => void
+}) {
   const router = useRouter()
 
   const handleDateClick = (date: Date) => {
@@ -372,7 +383,7 @@ function MonthView({
                 // Mobile: just show dots
                 bookings.length > 0 && (
                   <div className="flex gap-0.5 flex-wrap mt-1">
-                    {bookings.slice(0, 5).map((booking, i) => (
+                    {bookings.slice(0, 5).map((booking: Booking, i: number) => (
                       <div
                         key={i}
                         className={`w-1.5 h-1.5 rounded-full ${getStatusColor(booking.status)}`}
@@ -421,7 +432,7 @@ function MonthView({
           </h3>
           {getBookingsForDate(selectedDateMobile).length > 0 ? (
             <div className="space-y-2">
-              {getBookingsForDate(selectedDateMobile).map((booking: any) => (
+              {getBookingsForDate(selectedDateMobile).map((booking: Booking) => (
                 <Link
                   key={booking.id}
                   href={`/dashboard/bookings/${booking.id}`}
@@ -449,7 +460,13 @@ function MonthView({
 }
 
 // ============ WEEK VIEW ============
-function WeekView({ weekDays, timeSlots, getBookingsForDate, isTuesday, isToday }: any) {
+function WeekView({ weekDays, timeSlots, getBookingsForDate, isTuesday, isToday }: {
+  weekDays: Date[]
+  timeSlots: string[]
+  getBookingsForDate: (dateStr: string) => Booking[]
+  isTuesday: (date: Date) => boolean
+  isToday: (date: Date) => boolean
+}) {
   const router = useRouter()
 
   return (
@@ -484,7 +501,7 @@ function WeekView({ weekDays, timeSlots, getBookingsForDate, isTuesday, isToday 
 
         {/* Time grid */}
         <div className="relative">
-          {timeSlots.map((time, timeIndex) => (
+          {timeSlots.map((time: string, timeIndex: number) => (
             <div key={time} className="grid grid-cols-8 gap-2 border-t border-gray-100">
               {/* Time label */}
               <div className="py-2 text-xs text-gray-500 font-medium">{time}</div>
@@ -496,7 +513,7 @@ function WeekView({ weekDays, timeSlots, getBookingsForDate, isTuesday, isToday 
                 const isTues = isTuesday(date)
 
                 // Find bookings in this hour
-                const hourBookings = bookings.filter((b: any) => {
+                const hourBookings = bookings.filter((b: Booking) => {
                   const bookingTime = getTimeInMinutes(b.sessionTime)
                   const slotTime = getTimeInMinutes(time)
                   return bookingTime >= slotTime && bookingTime < slotTime + 60
@@ -532,7 +549,12 @@ function WeekView({ weekDays, timeSlots, getBookingsForDate, isTuesday, isToday 
 }
 
 // ============ DAY VIEW ============
-function DayView({ date, timeSlots, getBookingsForDate, isTuesday }: any) {
+function DayView({ date, timeSlots, getBookingsForDate, isTuesday }: {
+  date: Date
+  timeSlots: string[]
+  getBookingsForDate: (dateStr: string) => Booking[]
+  isTuesday: (date: Date) => boolean
+}) {
   const router = useRouter()
   const dateStr = date.toISOString().split("T")[0]
   const bookings = getBookingsForDate(dateStr)
@@ -552,7 +574,7 @@ function DayView({ date, timeSlots, getBookingsForDate, isTuesday }: any) {
 
       {/* Timeline */}
       <div className="space-y-0">
-        {timeSlots.map((time) => {
+        {timeSlots.map((time: string) => {
           // Find bookings in this hour
           const hourBookings = bookings.filter((b: any) => {
             const bookingTime = getTimeInMinutes(b.sessionTime)
@@ -568,7 +590,7 @@ function DayView({ date, timeSlots, getBookingsForDate, isTuesday }: any) {
               {/* Booking or empty slot */}
               <div className="space-y-2">
                 {hourBookings.length > 0 ? (
-                  hourBookings.map((booking: any) => (
+                  hourBookings.map((booking: Booking) => (
                     <button
                       key={booking.id}
                       onClick={() => router.push(`/dashboard/bookings/${booking.id}`)}

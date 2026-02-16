@@ -5,16 +5,26 @@ import { useParams, notFound } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import Script from "next/script"
-import { ArrowLeft, Printer, Download, Loader2, Share2, Copy, Check } from "lucide-react"
-import { mockBookings, mockCurrentUser } from "@/lib/mock-data"
+import { ArrowLeft, Printer, Download, Loader2, Copy, Check } from "lucide-react"
+import { mockBookings } from "@/lib/mock-data"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { useToast } from "@/lib/hooks/use-toast"
-import { BOOKING_STATUS_MAP, PAYMENT_STATUS_MAP } from "@/lib/constants"
+import { PAYMENT_STATUS_MAP } from "@/lib/constants"
+
+interface JsPDF {
+  internal: { pageSize: { getWidth: () => number; getHeight: () => number } }
+  addImage: (data: string, format: string, x: number, y: number, w: number, h: number) => void
+  addPage: () => void
+  save: (filename: string) => void
+  getImageProperties: (data: string) => { width: number; height: number }
+}
 
 declare global {
   interface Window {
-    html2canvas: any
-    jspdf: any
+    html2canvas: (element: HTMLElement, options?: Record<string, unknown>) => Promise<HTMLCanvasElement>
+    jspdf: {
+      jsPDF: new (options?: Record<string, unknown>) => JsPDF
+    }
   }
 }
 
@@ -37,7 +47,6 @@ export default function InvoicePage() {
   // Generate Invoice Number (Mock) - using Date + Booking ID
   const invoiceNumber = `INV-${booking.bookingCode.replace("YS-", "")}`
   const invoiceDate = new Date() // Today
-  const dueDate = new Date(booking.sessionDate) // Due on session date
 
   // Items for the table
   const items = [
@@ -86,7 +95,6 @@ export default function InvoicePage() {
 
         console.log("Starting PDF generation...")
 
-        // @ts-ignore
         const canvas = await window.html2canvas(element, {
             scale: 2,
             useCORS: true,
@@ -101,37 +109,36 @@ export default function InvoicePage() {
                     // Force legacy colors and remove problematic CSS variables if any
                     // We need to be aggressive here because html2canvas fails on ANY usage of lab()/oklch()
                     
-                    const allElements = clonedElement.getElementsByTagName("*")
-                    for (let i = 0; i < allElements.length; i++) {
-                        const el = allElements[i] as HTMLElement
-                        const style = window.getComputedStyle(el)
+                    for (const el of Array.from(clonedElement.getElementsByTagName("*"))) {
+                        const targetEl = el as HTMLElement
+                        const style = window.getComputedStyle(targetEl)
                         
                         // Handle Background Color
                         if (style.backgroundColor && (style.backgroundColor.includes("oklch") || style.backgroundColor.includes("lab"))) {
                             // Reset to safe defaults based on common patterns
-                            if (el.classList.contains("bg-white")) el.style.backgroundColor = "#ffffff"
-                            else if (el.classList.contains("bg-gray-100")) el.style.backgroundColor = "#f3f4f6"
-                            else if (el.classList.contains("bg-[#7A1F1F]")) el.style.backgroundColor = "#7A1F1F"
-                            else if (el.classList.contains("bg-[#F5ECEC]")) el.style.backgroundColor = "#F5ECEC"
-                            else el.style.backgroundColor = "#ffffff" // Default fallback
+                            if (targetEl.classList.contains("bg-white")) targetEl.style.backgroundColor = "#ffffff"
+                            else if (targetEl.classList.contains("bg-gray-100")) targetEl.style.backgroundColor = "#f3f4f6"
+                            else if (targetEl.classList.contains("bg-[#7A1F1F]")) targetEl.style.backgroundColor = "#7A1F1F"
+                            else if (targetEl.classList.contains("bg-[#F5ECEC]")) targetEl.style.backgroundColor = "#F5ECEC"
+                            else targetEl.style.backgroundColor = "#ffffff" // Default fallback
                         }
 
                         // Handle Text Color
                         if (style.color && (style.color.includes("oklch") || style.color.includes("lab"))) {
-                             if (el.classList.contains("text-white")) el.style.color = "#ffffff"
-                             else if (el.classList.contains("text-[#7A1F1F]")) el.style.color = "#7A1F1F"
-                             else if (el.classList.contains("text-gray-900")) el.style.color = "#111827"
-                             else if (el.classList.contains("text-gray-600")) el.style.color = "#4b5563"
-                             else el.style.color = "#000000" // Default fallback
+                             if (targetEl.classList.contains("text-white")) targetEl.style.color = "#ffffff"
+                             else if (targetEl.classList.contains("text-[#7A1F1F]")) targetEl.style.color = "#7A1F1F"
+                             else if (targetEl.classList.contains("text-gray-900")) targetEl.style.color = "#111827"
+                             else if (targetEl.classList.contains("text-gray-600")) targetEl.style.color = "#4b5563"
+                             else targetEl.style.color = "#000000" // Default fallback
                         }
                         
                         // Handle Border Color
                         if (style.borderColor && (style.borderColor.includes("oklch") || style.borderColor.includes("lab"))) {
-                            el.style.borderColor = "#e5e7eb" // Default border color
+                            targetEl.style.borderColor = "#e5e7eb"
                         }
 
                         // Remove shadows
-                        el.style.boxShadow = "none"
+                        targetEl.style.boxShadow = "none"
                     }
                 }
             }
@@ -139,7 +146,6 @@ export default function InvoicePage() {
 
         const imgData = canvas.toDataURL("image/png", 1.0)
 
-        // @ts-ignore
         const { jsPDF } = window.jspdf
         const pdf = new jsPDF({
             orientation: "portrait",

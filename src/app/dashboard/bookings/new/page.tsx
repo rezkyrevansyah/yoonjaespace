@@ -7,9 +7,7 @@ import {
   ArrowLeft,
   Search,
   Plus,
-  X,
   AlertCircle,
-  Calendar as CalendarIcon,
   ChevronUp,
   ChevronDown,
   Trash2,
@@ -135,7 +133,7 @@ export default function NewBookingPage() {
     ])
   }
 
-  const updateAddOn = (tempId: string, field: keyof AddOnItem, value: any) => {
+  const updateAddOn = (tempId: string, field: keyof AddOnItem, value: string | number) => {
     setAddOns(
       addOns.map((item) => {
         if (item.tempId !== tempId) return item

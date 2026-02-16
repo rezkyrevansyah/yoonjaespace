@@ -4,7 +4,7 @@ import { use } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { mockBookings, mockPrintOrders } from "@/lib/mock-data"
-import { formatCurrency, formatDate } from "@/lib/utils"
+import { formatDate } from "@/lib/utils"
 // We don't use the constant flow strictly because we need to inject print steps
 import {
   CalendarCheck,
@@ -59,7 +59,6 @@ const getExtendedBooking = (slug: string): ExtendedBooking | null => {
 
   // Mock logic for invoice
   // Assume invoice is generated if status is at least PAID (or even BOOKED depending on business logic, but let's say always for simplicity of the "Download" button existence)
-  const invoiceGenerated = true // brief says "Show: Always (even if not generated yet)" but for the "Download" button state
   // We'll simulate invoice is ready if status != BOOKED (just for variety) or always ready.
   // Brief says: Jika sudah generate -> Button Download. Jika belum -> Empty state.
   // Let's assume invoice is generated once PAYMENT_STATUS is PAId or PARTIAL?

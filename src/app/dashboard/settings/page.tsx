@@ -12,11 +12,8 @@ import {
   Ticket,
   ListChecks,
   Info,
-  Users,
-  Clock,
   Check,
-  X,
-  GripVertical
+  X
 } from "lucide-react"
 import {
   mockPackages as initialPackages,
@@ -1723,7 +1720,7 @@ export default function SettingsPage() {
               <label className="block text-sm font-medium text-[#111827] mb-1">Field Type *</label>
               <select
                 value={customFieldForm.type || "TEXT"}
-                onChange={(e) => setCustomFieldForm({ ...customFieldForm, type: e.target.value as any })}
+                onChange={(e) => setCustomFieldForm({ ...customFieldForm, type: e.target.value as CustomField["type"] })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-[#7A1F1F]"
               >
                 {FIELD_TYPES.map(ft => (

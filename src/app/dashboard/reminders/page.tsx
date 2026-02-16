@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import {
   Bell,
   Calendar,
@@ -24,7 +23,6 @@ type TabFilter = "today" | "tomorrow" | "week" | "all"
 const MOCK_CURRENT_TIME = new Date("2026-02-15T07:00:00") // Saturday, Feb 15, 2026, 07:00 AM
 
 export default function RemindersPage() {
-  const router = useRouter()
   const isMobile = useMobile()
   const [activeTab, setActiveTab] = useState<TabFilter>("today")
 
@@ -109,7 +107,7 @@ export default function RemindersPage() {
   }
 
   // Generate WhatsApp reminder link
-  const generateWALink = (booking: any) => {
+  const generateWALink = (booking: (typeof mockBookings)[0]) => {
     const phone = booking.client.phone.replace(/^0/, '62')
     const sessionDate = new Date(booking.sessionDate)
     const dayName = getDayName(sessionDate)

@@ -29,7 +29,6 @@ import {
   Link as LinkIcon,
   Send,
   Camera,
-  Package, // Conflict with lucid-react Package icon vs local type? Lucide usually exports Package icon.
   Users,
   Film
 } from "lucide-react"
@@ -74,13 +73,8 @@ export default function BookingDetailPage() {
   const initialBooking = mockBookings.find((b) => b.id === id)
   const initialPrintOrder = mockPrintOrders.find(p => p.bookingId === id)
 
-  if (!initialBooking) {
-    notFound() // This will render the closest not-found.tsx
-    return null
-  }
-
   // 2. State for Mock Mutations
-  const [booking, setBooking] = useState<Booking>(initialBooking)
+  const [booking, setBooking] = useState<Booking>(initialBooking || ({} as Booking))
   const [printOrder, setPrintOrder] = useState<PrintOrder | undefined>(initialPrintOrder)
   const [isUpdating, setIsUpdating] = useState(false)
   const [gdriveLink, setGdriveLink] = useState("")
@@ -90,6 +84,11 @@ export default function BookingDetailPage() {
   
   // Cancel Modal
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
+
+  if (!initialBooking) {
+    notFound() // This will render the closest not-found.tsx
+    return null
+  }
 
   // Handlers
   const confirmDelete = () => {

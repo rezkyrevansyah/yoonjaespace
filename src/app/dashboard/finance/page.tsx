@@ -10,9 +10,7 @@ import {
   Download,
   Plus,
   Edit2,
-  Trash2,
-  X,
-  Calendar as CalendarIcon
+  Trash2
 } from "lucide-react"
 import { mockBookings } from "@/lib/mock-data"
 import { formatCurrency, formatDate } from "@/lib/utils"
@@ -165,7 +163,7 @@ export default function FinancePage() {
     })
 
     return Object.entries(breakdown)
-      .filter(([_, value]) => value > 0)
+      .filter(([, value]) => value > 0)
       .map(([category, value]) => ({
         name: CATEGORY_STYLES[category as FinanceExpenseCategory].label,
         value,
@@ -681,7 +679,7 @@ export default function FinancePage() {
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    label={({ name, percent }) => `${name} ${(percent ? percent * 100 : 0).toFixed(0)}%`}
                     outerRadius={120}
                     fill="#8884d8"
                     dataKey="value"
@@ -690,11 +688,11 @@ export default function FinancePage() {
                       <Cell key={`cell-${index}`} fill={CHART_COLORS[entry.category]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                  <Tooltip formatter={(value: any) => formatCurrency(Number(value) || 0)} />
                   <Legend
                     verticalAlign="bottom"
                     height={36}
-                    formatter={(value, entry: any) => `${value} (${formatCurrency(entry.payload.value)})`}
+                    formatter={(value: any, entry: any) => `${value} (${formatCurrency(entry.payload?.value || 0)})`}
                   />
                 </PieChart>
               </ResponsiveContainer>

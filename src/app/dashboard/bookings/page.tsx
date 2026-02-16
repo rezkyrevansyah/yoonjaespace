@@ -127,7 +127,7 @@ export default function BookingsPage() {
   // --- Filter & Sort ---
 
   const filteredAndSortedBookings = useMemo(() => {
-    let filtered = bookings.filter((b) => {
+    const filtered = bookings.filter((b) => {
       // Search
       const matchesSearch =
         b.bookingCode.toLowerCase().includes(search.toLowerCase()) ||

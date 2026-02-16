@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
   Plus,
@@ -13,9 +12,7 @@ import {
   Edit,
   Trash2,
   MoreHorizontal,
-  Users,
-  Instagram,
-  MapPin
+  Users
 } from "lucide-react"
 import { mockClients, mockBookings, mockCurrentUser } from "@/lib/mock-data"
 import { formatCurrency, formatDate, getInitials } from "@/lib/utils"
@@ -28,9 +25,9 @@ type ClientFormData = {
   id?: string
   name: string
   phone: string
-  email: string
-  instagram: string
-  address: string
+  email: string | null
+  instagram: string | null
+  address: string | null
 }
 
 const ITEMS_PER_PAGE = 10
@@ -139,7 +136,7 @@ export default function ClientsPage() {
     setAddModalOpen(true)
   }
 
-  const handleEdit = (client: any) => {
+  const handleEdit = (client: { id: string, name: string, phone: string, email?: string | null, instagram?: string | null, address?: string | null }) => {
     setFormData({
       id: client.id,
       name: client.name,
@@ -151,7 +148,7 @@ export default function ClientsPage() {
     setEditModalOpen(true)
   }
 
-  const handleDeleteClick = (client: any) => {
+  const handleDeleteClick = (client: ClientFormData) => {
     setSelectedClient(client)
     setDeleteModalOpen(true)
   }
@@ -485,7 +482,7 @@ export default function ClientsPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
             <input
               type="email"
-              value={formData.email}
+              value={formData.email || ""}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all"
               placeholder="email@example.com"
@@ -496,7 +493,7 @@ export default function ClientsPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Instagram</label>
             <input
               type="text"
-              value={formData.instagram}
+              value={formData.instagram || ""}
               onChange={(e) => setFormData({ ...formData, instagram: e.target.value })}
               className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all"
               placeholder="@username"
@@ -507,7 +504,7 @@ export default function ClientsPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Alamat</label>
             <textarea
               rows={3}
-              value={formData.address}
+              value={formData.address || ""}
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
               className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all resize-none"
               placeholder="Alamat lengkap client"

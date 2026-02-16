@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { prisma } from '@/lib/prisma'
+import { Prisma, BookingStatus } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { nanoid } from 'nanoid'
 import { format } from 'date-fns'
@@ -28,10 +29,10 @@ export async function GET(request: NextRequest) {
   const limit = parseInt(searchParams.get('limit') || '20')
   const skip = (page - 1) * limit
 
-  const where: any = {}
+  const where: Prisma.BookingWhereInput = {}
 
   if (status) {
-    where.status = status
+    where.status = status as BookingStatus
   }
 
   if (date) {
@@ -168,7 +169,7 @@ export async function POST(request: NextRequest) {
   let addOnsTotal = 0
   if (addOns && addOns.length > 0) {
     addOnsTotal = addOns.reduce(
-      (sum: number, ao: any) => sum + ao.quantity * ao.unitPrice,
+      (sum: number, ao: { quantity: number; unitPrice: number }) => sum + ao.quantity * ao.unitPrice,
       0
     )
   }
@@ -230,7 +231,7 @@ export async function POST(request: NextRequest) {
       // Add-ons
       addOns: addOns?.length
         ? {
-            create: addOns.map((ao: any) => ({
+            create: addOns.map((ao: { itemName: string; quantity: number; unitPrice: number }) => ({
               itemName: ao.itemName,
               quantity: ao.quantity,
               unitPrice: ao.unitPrice,
@@ -242,7 +243,7 @@ export async function POST(request: NextRequest) {
       // Custom fields
       customFields: customFields?.length
         ? {
-            create: customFields.map((cf: any) => ({
+            create: customFields.map((cf: { fieldId: string; value: string }) => ({
               fieldId: cf.fieldId,
               value: cf.value,
             })),

@@ -66,14 +66,14 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
     )
   }
 
-  const clientBookings = mockBookings.filter((b) => b.client.id === id)
+  const clientBookings = useMemo(() => mockBookings.filter((b) => b.client.id === id), [id])
   const totalBookings = clientBookings.filter(b => b.status !== "CANCELLED").length
   const totalSpent = clientBookings
     .filter((b) => b.status !== "CANCELLED")
     .reduce((sum, b) => sum + b.paidAmount, 0)
 
   const lastVisit = useMemo(() => {
-    const completedBookings = clientBookings
+    const completedBookings = [...clientBookings]
       .filter(b => b.status !== "CANCELLED")
       .sort((a, b) => new Date(b.sessionDate).getTime() - new Date(a.sessionDate).getTime())
 

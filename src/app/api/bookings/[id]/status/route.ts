@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { prisma } from '@/lib/prisma'
+import { Prisma, BookingStatus, PaymentStatus } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 
 // PATCH — Update booking status
@@ -29,8 +30,8 @@ export async function PATCH(
     return NextResponse.json({ error: 'Booking tidak ditemukan' }, { status: 404 })
   }
 
-  const updateData: any = {}
-  const historyEntries: any[] = []
+  const updateData: Prisma.BookingUpdateInput = {}
+  const historyEntries: Prisma.BookingHistoryCreateManyInput[] = []
 
   if (status) {
     updateData.status = status
@@ -41,7 +42,7 @@ export async function PATCH(
       action: 'STATUS_CHANGED',
       field: 'status',
       oldValue: existing.status,
-      newValue: status,
+      newValue: status as BookingStatus,
       changedBy: dbUser.id,
     })
 
@@ -60,7 +61,7 @@ export async function PATCH(
       action: 'PAYMENT_UPDATED',
       field: 'paymentStatus',
       oldValue: existing.paymentStatus,
-      newValue: paymentStatus,
+      newValue: paymentStatus as PaymentStatus,
       changedBy: dbUser.id,
     })
 
