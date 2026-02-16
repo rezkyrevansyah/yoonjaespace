@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   LogOut,
   X,
+  Activity,
 } from "lucide-react"
 
 const iconMap: Record<string, React.ElementType> = {
@@ -33,6 +34,7 @@ const iconMap: Record<string, React.ElementType> = {
   Award,
   Settings,
   ShieldCheck,
+  Activity,
 }
 
 interface SidebarProps {

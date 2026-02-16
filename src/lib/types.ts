@@ -209,3 +209,14 @@ export interface PrintOrder {
   createdAt: string
   updatedAt: string
 }
+
+export interface ActivityLog {
+  id: string
+  userId: string
+  userName: string
+  userRole: UserRole
+  action: string
+  details: string
+  timestamp: string // ISO string
+  type: "CREATE" | "UPDATE" | "DELETE" | "SYSTEM"
+}

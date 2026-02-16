@@ -1,12 +1,13 @@
-"use client"
-
+import { useState, useRef, useEffect } from "react"
 import { usePathname } from "next/navigation"
+import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { getInitials } from "@/lib/utils"
-import { mockCurrentUser } from "@/lib/mock-data"
+import { mockCurrentUser, mockActivities } from "@/lib/mock-data"
 import { USER_ROLE_MAP } from "@/lib/constants"
 import { Breadcrumb } from "./breadcrumb"
-import { Bell, Search, Menu } from "lucide-react"
+import { Bell, Search, Menu, X } from "lucide-react"
+import { ActivityLogItem } from "@/components/shared/activity-log-item"
 
 interface HeaderProps {
   onMenuClick?: () => void
@@ -14,6 +15,21 @@ interface HeaderProps {
 
 export function Header({ onMenuClick }: HeaderProps) {
   const pathname = usePathname()
+  const [showActivities, setShowActivities] = useState(false)
+  const activityRef = useRef<HTMLDivElement>(null)
+
+  // Close when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (activityRef.current && !activityRef.current.contains(event.target as Node)) {
+        setShowActivities(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [])
 
   const getPageTitle = () => {
     const segments = pathname.split("/").filter(Boolean)
@@ -21,6 +37,12 @@ export function Header({ onMenuClick }: HeaderProps) {
     const lastSegment = segments[segments.length - 1]
     return lastSegment.charAt(0).toUpperCase() + lastSegment.slice(1)
   }
+
+  // Get today's activities
+  const today = new Date().toISOString().split("T")[0]
+  const todaysActivities = mockActivities.filter(
+    (activity) => activity.timestamp.startsWith(today)
+  ).slice(0, 5) // Limit to 5 for dropdown
 
   return (
     <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm border-b border-[#E5E7EB] h-16">
@@ -54,11 +76,62 @@ export function Header({ onMenuClick }: HeaderProps) {
             <Search className="h-5 w-5" />
           </button>
 
-          {/* Notifications */}
-          <button className="relative p-2 rounded-lg text-[#6B7280] hover:bg-[#F9FAFB] hover:text-[#111827] transition-colors">
-            <Bell className="h-5 w-5" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#DC2626] rounded-full"></span>
-          </button>
+          {/* Notifications / Activity Log */}
+          <div className="relative" ref={activityRef}>
+            <button 
+              onClick={() => setShowActivities(!showActivities)}
+              className={cn(
+                "relative p-2 rounded-lg transition-colors",
+                showActivities ? "bg-[#F9FAFB] text-[#111827]" : "text-[#6B7280] hover:bg-[#F9FAFB] hover:text-[#111827]"
+              )}
+            >
+              <Bell className="h-5 w-5" />
+              {todaysActivities.length > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#DC2626] rounded-full"></span>
+              )}
+            </button>
+
+            {/* Dropdown */}
+            {showActivities && (
+              <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-xl shadow-lg border border-[#E5E7EB] overflow-hidden z-50">
+                <div className="p-4 border-b border-[#E5E7EB] flex items-center justify-between">
+                  <h3 className="font-semibold text-[#111827]">Aktivitas Hari Ini</h3>
+                  <button 
+                    onClick={() => setShowActivities(false)}
+                    className="text-[#9CA3AF] hover:text-[#6B7280]"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                
+                <div className="max-h-[320px] overflow-y-auto">
+                  {todaysActivities.length > 0 ? (
+                    <div className="divide-y divide-[#E5E7EB]">
+                      {todaysActivities.map((activity) => (
+                        <div key={activity.id} className="px-4 hover:bg-[#F9FAFB] transition-colors">
+                          <ActivityLogItem activity={activity} />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center text-[#6B7280]">
+                      <p className="text-sm">Belum ada aktivitas hari ini</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-3 border-t border-[#E5E7EB] bg-[#F9FAFB]">
+                  <Link 
+                    href="/dashboard/activities" 
+                    className="flex justify-center w-full text-sm font-medium text-[#7A1F1F] hover:text-[#9B3333]"
+                    onClick={() => setShowActivities(false)}
+                  >
+                    Lihat Semua Aktivitas
+                  </Link>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* User Avatar (desktop) */}
           <div className="hidden lg:flex items-center gap-2 ml-2 pl-3 border-l border-[#E5E7EB]">

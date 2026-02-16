@@ -788,3 +788,73 @@ export const mockPrintOrders: PrintOrder[] = [
     updatedAt: "2025-02-16T10:00:00Z",
   }
 ]
+
+// ============================================================
+// Activity Logs
+// ============================================================
+
+import { ActivityLog } from "./types"
+
+export const mockActivities: ActivityLog[] = [
+  {
+    id: "act-001",
+    userId: "usr-001",
+    userName: "Owner Yoonjaespace",
+    userRole: "OWNER",
+    action: "Login",
+    details: "Login berhasil dari IP 192.168.1.1",
+    timestamp: "2026-02-16T08:00:00Z",
+    type: "SYSTEM",
+  },
+  {
+    id: "act-002",
+    userId: "usr-002",
+    userName: "Admin",
+    userRole: "ADMIN",
+    action: "Create Booking",
+    details: "Membuat booking baru YS-250216-010 untuk Lisa Permata",
+    timestamp: "2026-02-16T09:15:00Z",
+    type: "CREATE",
+  },
+  {
+    id: "act-003",
+    userId: "usr-003",
+    userName: "Photographer",
+    userRole: "PHOTOGRAPHER",
+    action: "Update Status",
+    details: "Mengubah status booking YS-250216-010 menjadi SHOOT_DONE",
+    timestamp: "2026-02-16T10:30:00Z",
+    type: "UPDATE",
+  },
+  {
+    id: "act-004",
+    userId: "usr-001",
+    userName: "Owner Yoonjaespace",
+    userRole: "OWNER",
+    action: "Update Settings",
+    details: "Mengubah pengaturan harga paket Birthday Smash Cake",
+    timestamp: "2026-02-16T11:45:00Z",
+    type: "UPDATE",
+  },
+  {
+    id: "act-005",
+    userId: "usr-002",
+    userName: "Admin",
+    userRole: "ADMIN",
+    action: "Print Invoice",
+    details: "Mencetak invoice untuk booking YS-250216-010",
+    timestamp: "2026-02-16T13:00:00Z",
+    type: "SYSTEM",
+  },
+  // Yesterday's activity (should be filtered out)
+  {
+    id: "act-006",
+    userId: "usr-002",
+    userName: "Admin",
+    userRole: "ADMIN",
+    action: "Logout",
+    details: "Logout dari sistem",
+    timestamp: "2026-02-15T17:00:00Z", // Yesterday
+    type: "SYSTEM",
+  },
+]

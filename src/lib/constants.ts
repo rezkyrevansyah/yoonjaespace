@@ -123,6 +123,11 @@ export const SIDEBAR_MENU = [
     icon: "Award",
   },
   {
+    label: "Activities",
+    href: "/dashboard/activities",
+    icon: "Activity",
+  },
+  {
     label: "Settings",
     href: "/dashboard/settings",
     icon: "Settings",
