@@ -63,12 +63,12 @@ export function hasPermission(
   userRole: UserRole,
   permission: string
 ): boolean {
-  const permissions = ROLE_PERMISSIONS[userRole]
+  const permissions = ROLE_PERMISSIONS[userRole] as readonly string[]
   return permissions.includes('*') || permissions.includes(permission)
 }
 
 // Check if user can access menu
 export function canAccessMenu(userRole: UserRole, menu: string): boolean {
-  const menus = MENU_ACCESS[userRole]
+  const menus = MENU_ACCESS[userRole] as readonly string[]
   return menus.includes(menu)
 }

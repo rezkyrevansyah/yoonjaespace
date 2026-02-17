@@ -117,7 +117,7 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
         <nav className="flex-1 overflow-y-auto py-4 px-3">
           <ul className="space-y-1">
             {SIDEBAR_MENU.filter((item) =>
-              user?.role && item.roles.includes(user.role as any)
+              user?.role && (item.roles as readonly string[]).includes(user.role)
             ).map((item) => {
               const Icon = iconMap[item.icon]
               const isActive =
