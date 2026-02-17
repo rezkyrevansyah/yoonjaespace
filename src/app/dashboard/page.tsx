@@ -2,7 +2,8 @@
 
 import Link from "next/link"
 import { StatusBadge } from "@/components/shared/status-badge"
-import { mockBookings, mockDashboardStats, mockCurrentUser } from "@/lib/mock-data"
+import { useAuth } from "@/lib/hooks/use-auth"
+import { useDashboard } from "@/lib/hooks/use-dashboard"
 import { formatDate } from "@/lib/utils"
 import {
   CalendarClock,
@@ -11,16 +12,20 @@ import {
   Package as PackageIcon,
   Send,
   CalendarCheck,
-
   Plus,
   Search,
   ArrowRight,
   CalendarDays,
   CalendarX,
   CheckCircle,
+  Loader2,
+  AlertCircle
 } from "lucide-react"
 
 export default function DashboardPage() {
+  const { user, isLoading: isAuthLoading } = useAuth()
+  const { data, isLoading: isDashboardLoading, error } = useDashboard()
+
   // Get today's date
   const today = new Date()
   const dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"]
@@ -40,17 +45,32 @@ export default function DashboardPage() {
   ]
   const todayFormatted = `${dayNames[today.getDay()]}, ${today.getDate()} ${monthNames[today.getMonth()]} ${today.getFullYear()}`
 
-  // Get today's schedule (mock: filter bookings for today's date)
-  // For demo, let's show some upcoming bookings as "today"
-  const todaySchedule = mockBookings
-    .filter((b) => b.status === "BOOKED" || b.status === "PAID")
-    .slice(0, 3)
+  if (isAuthLoading || isDashboardLoading) {
+    return (
+      <div className="flex h-[50vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+      </div>
+    )
+  }
 
-  // Action items stats (mock data)
+  if (error) {
+    return (
+      <div className="flex h-[50vh] flex-col items-center justify-center text-red-500">
+        <AlertCircle className="h-10 w-10 mb-2" />
+        <p>Failed to load dashboard data</p>
+        <p className="text-sm text-gray-500 mt-1">{error?.message || String(error)}</p>
+      </div>
+    )
+  }
+
+  // Fallback if data is missing despite no error
+  if (!data) return null
+
+  // Action items stats
   const actionItems = [
     {
       label: "Waiting Selection",
-      count: 5,
+      count: data.actionItems.waitingClientSelection,
       icon: Clock,
       bgColor: "bg-yellow-50",
       textColor: "text-yellow-700",
@@ -59,7 +79,7 @@ export default function DashboardPage() {
     },
     {
       label: "At Vendor",
-      count: 3,
+      count: data.actionItems.sentToVendor,
       icon: Truck,
       bgColor: "bg-blue-50",
       textColor: "text-blue-700",
@@ -68,7 +88,7 @@ export default function DashboardPage() {
     },
     {
       label: "Need Packaging",
-      count: 7,
+      count: data.actionItems.needPackaging,
       icon: PackageIcon,
       bgColor: "bg-purple-50",
       textColor: "text-purple-700",
@@ -77,7 +97,7 @@ export default function DashboardPage() {
     },
     {
       label: "Need Shipping",
-      count: 2,
+      count: data.actionItems.needShipping,
       icon: Send,
       bgColor: "bg-green-50",
       textColor: "text-green-700",
@@ -91,7 +111,7 @@ export default function DashboardPage() {
       {/* Section A: Welcome Banner */}
       <div>
         <h1 className="text-xl lg:text-2xl font-semibold text-[#111827]" style={{ fontFamily: "var(--font-poppins)" }}>
-          Selamat datang, {mockCurrentUser.name}! 👋
+          Selamat datang, {user?.name || 'User'}! 👋
         </h1>
         <p className="text-sm text-[#6B7280] mt-1">{todayFormatted}</p>
       </div>
@@ -106,7 +126,7 @@ export default function DashboardPage() {
               <div>
                 <p className="text-sm text-[#6B7280] mb-1">Total Bookings</p>
                 <p className="text-3xl font-bold text-[#111827]">
-                  {mockDashboardStats.totalBookingsThisMonth}
+                  {data.monthlyStats.totalBookings}
                 </p>
                 <p className="text-xs text-[#059669] mt-1">+12% dari bulan lalu</p>
               </div>
@@ -116,15 +136,15 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Booked / Active */}
+          {/* Revenue */}
           <div className="bg-white rounded-xl border border-[#E5E7EB] p-5">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm text-[#6B7280] mb-1">Booked (Active)</p>
+                <p className="text-sm text-[#6B7280] mb-1">Estimasi Revenue</p>
                 <p className="text-3xl font-bold text-[#1D4ED8]">
-                  {mockDashboardStats.bookingsByStatus.BOOKED}
+                  Rp {(data.monthlyStats.revenue / 1000000).toFixed(1)}jt
                 </p>
-                <p className="text-xs text-[#1D4ED8] mt-1">Siap untuk sesi foto</p>
+                <p className="text-xs text-[#1D4ED8] mt-1">Bulan ini</p>
               </div>
               <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center">
                 <CheckCircle className="h-6 w-6 text-[#1D4ED8]" />
@@ -132,15 +152,15 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Cancelled */}
+          {/* Unpaid */}
           <div className="bg-white rounded-xl border border-[#E5E7EB] p-5">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm text-[#6B7280] mb-1">Cancelled</p>
+                <p className="text-sm text-[#6B7280] mb-1">Belum Lunas</p>
                 <p className="text-3xl font-bold text-[#DC2626]">
-                  {mockDashboardStats.bookingsByStatus.CANCELLED}
+                  {data.monthlyStats.unpaidBookings}
                 </p>
-                <p className="text-xs text-[#6B7280] mt-1">Dibatalkan bulan ini</p>
+                <p className="text-xs text-[#6B7280] mt-1">Bookings belum lunas</p>
               </div>
               <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center">
                 <CalendarX className="h-6 w-6 text-[#DC2626]" />
@@ -160,7 +180,7 @@ export default function DashboardPage() {
               <Link
                 key={item.label}
                 href={item.href}
-                className={`${item.bgColor} rounded-xl p-4 hover:shadow-md transition-shadow cursor-pointer border border-transparent hover:border-${item.iconColor.replace("text-", "")}/20`}
+                className={`block ${item.bgColor} rounded-xl p-4 hover:shadow-md transition-shadow cursor-pointer border border-transparent hover:border-${item.iconColor.replace("text-", "")}/20`}
               >
                 <div className="flex flex-col">
                   <Icon className={`h-6 w-6 ${item.iconColor} mb-2`} />
@@ -198,9 +218,9 @@ export default function DashboardPage() {
           <h2 className="text-base font-semibold text-[#111827]">Jadwal Hari Ini</h2>
         </div>
 
-        {todaySchedule.length > 0 ? (
+        {data.todaySchedule.length > 0 ? (
           <div className="space-y-3">
-            {todaySchedule.map((booking) => (
+            {data.todaySchedule.map((booking) => (
               <Link
                 key={booking.id}
                 href={`/dashboard/bookings/${booking.id}`}

@@ -1,8 +1,3 @@
-// ============================================
-// YOONJAESPACE - Studio Management App
-// Prisma Schema
-// ============================================
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,9 +8,267 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// ============================================
-// 1. USER & AUTH
-// ============================================
+model User {
+  id              String       @id
+  name            String
+  email           String       @unique
+  role            Role         @default(ADMIN)
+  isActive        Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  phone           String?
+  handledBookings Booking[]    @relation("HandledBy")
+  commissions     Commission[]
+  activities      ActivityLog[]
+
+  @@map("users")
+}
+
+model Client {
+  id        String    @id @default(cuid())
+  name      String
+  phone     String
+  email     String?
+  address   String?
+  notes     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  instagram String?
+  bookings  Booking[]
+
+  @@map("clients")
+}
+
+model Package {
+  id           String    @id @default(cuid())
+  name         String
+  description  String?
+  price        Float
+  duration     Int
+  maxPeople    Int       @default(1)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  allPhotos    Boolean   @default(false)
+  editedPhotos Int       @default(0)
+  bookings     Booking[]
+
+  @@map("packages")
+}
+
+model Background {
+  id                 String              @id @default(cuid())
+  name               String
+  isActive           Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  description        String?
+  bookingBackgrounds BookingBackground[]
+
+  @@map("backgrounds")
+}
+
+model Booking {
+  id                 String               @id @default(cuid())
+  bookingCode        String               @unique
+  publicSlug         String               @unique
+  clientId           String
+  date               DateTime
+  startTime          DateTime
+  endTime            DateTime
+  packageId          String
+  numberOfPeople     Int                  @default(1)
+  photoFor           PhotoFor             @default(OTHER)
+  bts                Boolean              @default(false)
+  status             BookingStatus        @default(BOOKED)
+  paymentStatus      PaymentStatus        @default(UNPAID)
+  packagePrice       Float
+  discountAmount     Float                @default(0)
+  discountNote       String?
+  totalAmount        Float
+  photoLink          String?
+  deliveredAt        DateTime?
+  notes              String?
+  internalNotes      String?
+  handledById        String
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  paidAt             DateTime?
+  paymentProof       String?
+  remindedAt         DateTime?
+  addOns             BookingAddOn[]
+  bookingBackgrounds BookingBackground[]
+  customFields       BookingCustomField[]
+  history            BookingHistory[]
+  client             Client               @relation(fields: [clientId], references: [id])
+  handledBy          User                 @relation("HandledBy", fields: [handledById], references: [id])
+  package            Package              @relation(fields: [packageId], references: [id])
+  expenses           Expense[]
+  invoice            Invoice?
+  printOrder         PrintOrder?
+
+  @@map("bookings")
+}
+
+model BookingBackground {
+  id           String     @id @default(cuid())
+  bookingId    String
+  backgroundId String
+  background   Background @relation(fields: [backgroundId], references: [id])
+  booking      Booking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@unique([bookingId, backgroundId])
+  @@map("booking_backgrounds")
+}
+
+model AddOnTemplate {
+  id           String   @id @default(cuid())
+  name         String
+  defaultPrice Float
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  @@map("addon_templates")
+}
+
+model BookingAddOn {
+  id        String   @id @default(cuid())
+  bookingId String
+  itemName  String
+  quantity  Int      @default(1)
+  unitPrice Float
+  subtotal  Float
+  createdAt DateTime @default(now())
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@map("booking_addons")
+}
+
+model PrintOrder {
+  id              String      @id @default(cuid())
+  bookingId       String      @unique
+  status          PrintStatus @default(WAITING_CLIENT_SELECTION)
+  selectedPhotos  String?
+  vendorName      String?
+  vendorNotes     String?
+  shippingAddress String?
+  courier         String?
+  trackingNumber  String?
+  shippedAt       DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  booking         Booking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@map("print_orders")
+}
+
+model Invoice {
+  id            String   @id @default(cuid())
+  bookingId     String   @unique
+  invoiceNumber String   @unique
+  issuedAt      DateTime @default(now())
+  pdfUrl        String?
+  booking       Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@map("invoices")
+}
+
+model CustomFieldDefinition {
+  id         String               @id @default(cuid())
+  fieldName  String
+  fieldType  String               @default("text")
+  options    String?
+  isRequired Boolean              @default(false)
+  isActive   Boolean              @default(true)
+  sortOrder  Int                  @default(0)
+  createdAt  DateTime             @default(now())
+  values     BookingCustomField[]
+
+  @@map("custom_field_definitions")
+}
+
+model BookingCustomField {
+  id        String                @id @default(cuid())
+  bookingId String
+  fieldId   String
+  value     String
+  booking   Booking               @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  field     CustomFieldDefinition @relation(fields: [fieldId], references: [id])
+
+  @@unique([bookingId, fieldId])
+  @@map("booking_custom_fields")
+}
+
+model Expense {
+  id               String          @id @default(cuid())
+  description      String
+  amount           Float
+  category         ExpenseCategory
+  date             DateTime
+  relatedBookingId String?
+  notes            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  relatedBooking   Booking?        @relation(fields: [relatedBookingId], references: [id])
+
+  @@map("expenses")
+}
+
+model BookingHistory {
+  id        String   @id @default(cuid())
+  bookingId String
+  action    String
+  field     String?
+  oldValue  String?
+  newValue  String?
+  changedBy String
+  createdAt DateTime @default(now())
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@map("booking_history")
+}
+
+model Commission {
+  id            String   @id @default(cuid())
+  userId        String
+  month         Int
+  year          Int
+  totalBookings Int
+  amount        Float
+  notes         String?
+  paidAt        DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, month, year])
+  @@map("commissions")
+}
+
+model Voucher {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  description   String?
+  discountType  String    @default("fixed")
+  discountValue Float
+  minPurchase   Float?
+  maxUsage      Int?
+  usedCount     Int       @default(0)
+  isActive      Boolean   @default(true)
+  validFrom     DateTime?
+  validUntil    DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@map("vouchers")
+}
+
+model StudioSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("studio_settings")
+}
 
 enum Role {
   OWNER
@@ -23,83 +276,6 @@ enum Role {
   PHOTOGRAPHER
   PACKAGING_STAFF
 }
-
-model User {
-  id        String   @id
-  name      String
-  email     String   @unique
-  role      Role     @default(ADMIN)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  handledBookings Booking[]    @relation("HandledBy")
-  commissions     Commission[]
-
-  @@map("users")
-}
-
-// ============================================
-// 2. CLIENT (Customer)
-// ============================================
-
-model Client {
-  id        String   @id @default(cuid())
-  name      String
-  phone     String // nomor WA
-  email     String?
-  address   String? // shipping address for print
-  notes     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  bookings Booking[]
-
-  @@map("clients")
-}
-
-// ============================================
-// 3. PACKAGE (Paket Foto)
-// ============================================
-
-model Package {
-  id          String   @id @default(cuid())
-  name        String // e.g. "Birthday Smash Cake Session"
-  description String?
-  price       Float
-  duration    Int // dalam menit
-  maxPeople   Int      @default(1)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  bookings Booking[]
-
-  @@map("packages")
-}
-
-// ============================================
-// 4. BACKGROUND OPTIONS
-// ============================================
-
-model Background {
-  id        String   @id @default(cuid())
-  name      String // e.g. "Limbo", "Spotlight", "Mid-Century", "Chrome"
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-
-  // Relations
-  bookingBackgrounds BookingBackground[]
-
-  @@map("backgrounds")
-}
-
-// ============================================
-// 5. BOOKING (Order Utama)
-// ============================================
 
 enum BookingStatus {
   BOOKED
@@ -126,117 +302,6 @@ enum PhotoFor {
   OTHER
 }
 
-model Booking {
-  id          String @id @default(cuid())
-  bookingCode String @unique // e.g. "YJ-20260215-001" - untuk URL publik
-  publicSlug  String @unique // short unique code untuk URL status client
-
-  // Client
-  clientId String
-  client   Client @relation(fields: [clientId], references: [id])
-
-  // Schedule
-  date      DateTime // tanggal sesi
-  startTime DateTime // jam mulai
-  endTime   DateTime // jam selesai
-
-  // Package
-  packageId String
-  package   Package @relation(fields: [packageId], references: [id])
-
-  // Details
-  numberOfPeople Int      @default(1)
-  photoFor       PhotoFor @default(OTHER)
-  bts            Boolean  @default(false) // Behind The Scenes
-
-  // Status
-  status        BookingStatus @default(BOOKED)
-  paymentStatus PaymentStatus @default(UNPAID)
-
-  // Pricing
-  packagePrice   Float // snapshot harga paket saat booking
-  discountAmount Float   @default(0)
-  discountNote   String? // e.g. "Voucher NEWYEAR10"
-  totalAmount    Float // packagePrice + addOns - discount
-
-  // Delivery
-  photoLink   String? // Google Drive link
-  deliveredAt DateTime?
-
-  // Payment proof
-  paymentProof String?   // URL bukti transfer
-  paidAt       DateTime? // kapan pembayaran diterima
-
-  // Notes
-  notes         String? // notes dari customer
-  internalNotes String? // notes internal staff
-
-  // Handled by
-  handledById String
-  handledBy   User   @relation("HandledBy", fields: [handledById], references: [id])
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  addOns             BookingAddOn[]
-  bookingBackgrounds BookingBackground[]
-  printOrder         PrintOrder?
-  invoice            Invoice?
-  customFields       BookingCustomField[]
-  expenses           Expense[]
-  history            BookingHistory[]
-
-  @@map("bookings")
-}
-
-// ============================================
-// 6. BOOKING - BACKGROUNDS (Many-to-Many)
-// ============================================
-
-model BookingBackground {
-  id           String     @id @default(cuid())
-  bookingId    String
-  booking      Booking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  backgroundId String
-  background   Background @relation(fields: [backgroundId], references: [id])
-
-  @@unique([bookingId, backgroundId])
-  @@map("booking_backgrounds")
-}
-
-// ============================================
-// 7. ADD-ONS
-// ============================================
-
-model AddOnTemplate {
-  id           String   @id @default(cuid())
-  name         String // e.g. "MUA", "Extra Person", "Extra Duration", "Print Canvas"
-  defaultPrice Float
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-
-  @@map("addon_templates")
-}
-
-model BookingAddOn {
-  id        String   @id @default(cuid())
-  bookingId String
-  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  itemName  String // nama add-on
-  quantity  Int      @default(1)
-  unitPrice Float
-  subtotal  Float // qty * unitPrice
-  createdAt DateTime @default(now())
-
-  @@map("booking_addons")
-}
-
-// ============================================
-// 8. PRINT / CANVAS ORDER
-// ============================================
-
 enum PrintStatus {
   WAITING_CLIENT_SELECTION
   SENT_TO_VENDOR
@@ -247,185 +312,28 @@ enum PrintStatus {
   COMPLETED
 }
 
-model PrintOrder {
-  id        String  @id @default(cuid())
-  bookingId String  @unique
-  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-
-  status PrintStatus @default(WAITING_CLIENT_SELECTION)
-
-  // Client selection
-  selectedPhotos String? // link atau notes foto yang dipilih client
-
-  // Vendor
-  vendorName  String?
-  vendorNotes String?
-
-  // Shipping
-  shippingAddress String?
-  courier         String?
-  trackingNumber  String? // nomor resi
-  shippedAt       DateTime?
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("print_orders")
-}
-
-// ============================================
-// 9. INVOICE
-// ============================================
-
-model Invoice {
-  id            String   @id @default(cuid())
-  bookingId     String   @unique
-  booking       Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  invoiceNumber String   @unique // e.g. "INV-20260215-001"
-  issuedAt      DateTime @default(now())
-  pdfUrl        String? // URL ke PDF yang sudah di-generate
-
-  @@map("invoices")
-}
-
-// ============================================
-// 10. CUSTOM FIELDS (Admin bisa tambah field custom)
-// ============================================
-
-model CustomFieldDefinition {
-  id         String   @id @default(cuid())
-  fieldName  String // e.g. "Tema Warna", "Request Pose"
-  fieldType  String   @default("text") // text, select, boolean
-  options    String? // JSON string untuk select options, e.g. '["Option A","Option B"]'
-  isRequired Boolean  @default(false)
-  isActive   Boolean  @default(true)
-  sortOrder  Int      @default(0)
-  createdAt  DateTime @default(now())
-
-  // Relations
-  values BookingCustomField[]
-
-  @@map("custom_field_definitions")
-}
-
-model BookingCustomField {
-  id        String                @id @default(cuid())
-  bookingId String
-  booking   Booking               @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  fieldId   String
-  field     CustomFieldDefinition @relation(fields: [fieldId], references: [id])
-  value     String
-
-  @@unique([bookingId, fieldId])
-  @@map("booking_custom_fields")
-}
-
-// ============================================
-// 11. FINANCE - EXPENSE
-// ============================================
-
 enum ExpenseCategory {
   PRINT_VENDOR
   PACKAGING
   SHIPPING
   OPERATIONAL
   OTHER
+  EQUIPMENT
+  STUDIO_RENT
+  PROPS
+  UTILITIES
+  MARKETING
+  SALARY
 }
 
-model Expense {
-  id               String          @id @default(cuid())
-  description      String
-  amount           Float
-  category         ExpenseCategory
-  date             DateTime
-  relatedBookingId String?
-  relatedBooking   Booking?        @relation(fields: [relatedBookingId], references: [id], onDelete: SetNull)
-  notes            String?
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-
-  @@map("expenses")
-}
-
-// ============================================
-// 11b. BOOKING HISTORY (Audit Log)
-// ============================================
-
-model BookingHistory {
+model ActivityLog {
   id        String   @id @default(cuid())
-  bookingId String
-  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  action    String   // e.g. "STATUS_CHANGED", "RESCHEDULED", "PAYMENT_UPDATED", "ADDON_ADDED"
-  field     String?  // field yang berubah, e.g. "status", "date", "paymentStatus"
-  oldValue  String?  // nilai sebelumnya
-  newValue  String?  // nilai baru
-  changedBy String   // user ID yang melakukan perubahan
-  createdAt DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  action    String   // Login, Create Booking, Update Status, etc.
+  details   String?
+  type      String   @default("SYSTEM") // SYSTEM, CREATE, UPDATE, DELETE
+  timestamp DateTime @default(now())
 
-  @@map("booking_history")
+  @@map("activity_logs")
 }
-
-// ============================================
-// 12. COMMISSION / BONUS STAFF
-// ============================================
-
-model Commission {
-  id            String   @id @default(cuid())
-  userId        String
-  user          User     @relation(fields: [userId], references: [id])
-  month         Int // 1-12
-  year          Int
-  totalBookings Int // jumlah booking yang di-handle bulan itu
-  amount        Float // nominal komisi
-  notes         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  @@unique([userId, month, year])
-  @@map("commissions")
-}
-
-// ============================================
-// 13. VOUCHER / DISCOUNT
-// ============================================
-
-model Voucher {
-  id            String    @id @default(cuid())
-  code          String    @unique
-  description   String?
-  discountType  String    @default("fixed") // "fixed" or "percentage"
-  discountValue Float // nominal atau persentase
-  minPurchase   Float?
-  maxUsage      Int? // null = unlimited
-  usedCount     Int       @default(0)
-  isActive      Boolean   @default(true)
-  validFrom     DateTime?
-  validUntil    DateTime?
-  createdAt     DateTime  @default(now())
-
-  @@map("vouchers")
-}
-
-// ============================================
-// 14. STUDIO SETTINGS
-// ============================================
-
-model StudioSetting {
-  id        String   @id @default(cuid())
-  key       String   @unique
-  value     String // JSON string for complex values
-  updatedAt DateTime @updatedAt
-
-  @@map("studio_settings")
-}
-
-// Settings yang akan disimpan:
-// - "operating_hours": { "open": "08:00", "close": "20:00" }
-// - "day_off": "tuesday"
-// - "default_payment_status": "unpaid" | "paid"
-// - "studio_name": "Yoonjaespace"
-// - "studio_address": "..."
-// - "studio_phone": "..."
-// - "studio_instagram": "https://www.instagram.com/yoonjaespace"
-// - "holiday_dates": ["2026-03-17", ...] // hari libur nasional yang pindahkan libur

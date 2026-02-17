@@ -13,11 +13,12 @@ import {
   Calendar,
   Circle
 } from "lucide-react"
-import { mockStaff, mockCurrentUser } from "@/lib/mock-data"
+import { useAuth } from "@/lib/hooks/use-auth"
 import { formatDate, getInitials } from "@/lib/utils"
 import { USER_ROLE_MAP } from "@/lib/constants"
 import { useMobile } from "@/lib/hooks/use-mobile"
 import { useToast } from "@/lib/hooks/use-toast"
+import { useUsers } from "@/lib/hooks/use-users"
 import { Modal } from "@/components/shared/modal"
 import type { StaffUser, UserRole } from "@/lib/types"
 
@@ -40,9 +41,8 @@ interface UserFormData {
 export default function UsersPage() {
   const isMobile = useMobile()
   const { showToast } = useToast()
-
-  // Users state
-  const [users, setUsers] = useState<StaffUser[]>(mockStaff)
+  const { user: currentUser } = useAuth()
+  const { users, isLoading, createUser, updateUser, deleteUser } = useUsers()
 
   // Modals
   const [addModalOpen, setAddModalOpen] = useState(false)
@@ -74,7 +74,7 @@ export default function UsersPage() {
   const [newPassword, setNewPassword] = useState("")
 
   // Handle add user
-  const handleAddUser = () => {
+  const handleAddUser = async () => {
     // Validation
     if (!userForm.name || !userForm.email || !userForm.password || !userForm.confirmPassword) {
       showToast("Mohon lengkapi semua field yang wajib", "warning")
@@ -97,32 +97,31 @@ export default function UsersPage() {
       return
     }
 
-    const newUser: StaffUser = {
-      id: `usr-${Date.now()}`,
+    const success = await createUser({
       name: userForm.name,
       email: userForm.email,
       phone: userForm.phone || "",
+      password: userForm.password,
       role: userForm.role!,
-      isActive: userForm.isActive !== undefined ? userForm.isActive : true,
-      createdAt: new Date().toISOString()
-    }
-
-    setUsers([...users, newUser])
-    showToast(`User ${newUser.name} berhasil ditambahkan`, "success")
-    setAddModalOpen(false)
-    setUserForm({
-      name: "",
-      email: "",
-      phone: "",
-      password: "",
-      confirmPassword: "",
-      role: "ADMIN",
-      isActive: true
+      isActive: userForm.isActive !== undefined ? userForm.isActive : true
     })
+
+    if (success) {
+      setAddModalOpen(false)
+      setUserForm({
+        name: "",
+        email: "",
+        phone: "",
+        password: "",
+        confirmPassword: "",
+        role: "ADMIN",
+        isActive: true
+      })
+    }
   }
 
   // Handle edit user
-  const handleEditUser = () => {
+  const handleEditUser = async () => {
     if (!editingUser || !userForm.name) {
       showToast("Mohon lengkapi field yang wajib", "warning")
       return
@@ -140,25 +139,25 @@ export default function UsersPage() {
       }
     }
 
-    const updatedUser: StaffUser = {
-      ...editingUser,
+    const success = await updateUser(editingUser.id, {
       name: userForm.name,
-      phone: userForm.phone || editingUser.phone,
-      role: userForm.role || editingUser.role,
-      isActive: userForm.isActive !== undefined ? userForm.isActive : editingUser.isActive
-    }
+      phone: userForm.phone,
+      role: userForm.role,
+      isActive: userForm.isActive,
+      ...(resetPassword && newPassword ? { password: newPassword } : {})
+    })
 
-    setUsers(users.map(u => u.id === editingUser.id ? updatedUser : u))
-    showToast(`User ${updatedUser.name} berhasil diupdate`, "success")
-    setEditModalOpen(false)
-    setEditingUser(null)
-    setUserForm({})
-    setResetPassword(false)
-    setNewPassword("")
+    if (success) {
+      setEditModalOpen(false)
+      setEditingUser(null)
+      setUserForm({})
+      setResetPassword(false)
+      setNewPassword("")
+    }
   }
 
   // Handle delete user
-  const handleDeleteUser = () => {
+  const handleDeleteUser = async () => {
     if (!userToDelete) return
 
     if (userToDelete.role === "OWNER") {
@@ -166,13 +165,12 @@ export default function UsersPage() {
       return
     }
 
-    if (userToDelete.id === mockCurrentUser.id) {
+    if (userToDelete.id === currentUser?.id) {
       showToast("Anda tidak bisa menghapus akun sendiri", "warning")
       return
     }
 
-    setUsers(users.filter(u => u.id !== userToDelete.id))
-    showToast(`User ${userToDelete.name} berhasil dihapus`, "success")
+    await deleteUser(userToDelete.id, userToDelete.name)
     setDeleteModalOpen(false)
     setUserToDelete(null)
   }
@@ -202,7 +200,7 @@ export default function UsersPage() {
 
   // Check if user can be deleted
   const canDeleteUser = (user: StaffUser) => {
-    return user.role !== "OWNER" && user.id !== mockCurrentUser.id
+    return user.role !== "OWNER" && user.id !== currentUser?.id
   }
 
   return (
@@ -257,9 +255,9 @@ export default function UsersPage() {
             </thead>
             <tbody>
               {users.map((user) => {
-                const roleConfig = USER_ROLE_MAP[user.role]
+                const roleConfig = USER_ROLE_MAP[user.role] || { label: user.role, color: "#6B7280", bgColor: "#F3F4F6" }
                 const isOwner = user.role === "OWNER"
-                const isCurrentUser = user.id === mockCurrentUser.id
+                const isCurrentUser = user.id === currentUser?.id
 
                 return (
                   <tr
@@ -351,9 +349,9 @@ export default function UsersPage() {
         /* Mobile Cards */
         <div className="space-y-3">
           {users.map((user) => {
-            const roleConfig = USER_ROLE_MAP[user.role]
+            const roleConfig = USER_ROLE_MAP[user.role] || { label: user.role, color: "#6B7280", bgColor: "#F3F4F6" }
             const isOwner = user.role === "OWNER"
-            const isCurrentUser = user.id === mockCurrentUser.id
+            const isCurrentUser = user.id === currentUser?.id
 
             return (
               <div
@@ -713,7 +711,7 @@ export default function UsersPage() {
           description={
             userToDelete.role === "OWNER"
               ? "Owner tidak bisa dihapus."
-              : userToDelete.id === mockCurrentUser.id
+              : userToDelete.id === currentUser?.id
               ? "Anda tidak bisa menghapus akun sendiri."
               : "User akan dihapus permanent. Booking history yang di-handle user ini akan tetap ada."
           }

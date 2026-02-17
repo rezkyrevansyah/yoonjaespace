@@ -39,7 +39,7 @@ export async function PATCH(
     data: {
       ...(code && { code: code.toUpperCase() }),
       ...(description !== undefined && { description: description || null }),
-      ...(discountType && { discountType }),
+      ...(discountType && { discountType: discountType.toUpperCase() }),
       ...(discountValue !== undefined && { discountValue }),
       ...(minPurchase !== undefined && { minPurchase: minPurchase || null }),
       ...(maxUsage !== undefined && { maxUsage: maxUsage || null }),

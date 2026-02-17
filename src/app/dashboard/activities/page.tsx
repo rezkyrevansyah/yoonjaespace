@@ -1,16 +1,29 @@
 "use client"
 
-import { mockActivities } from "@/lib/mock-data"
+import { useActivities } from "@/lib/hooks/use-activities"
 import { ActivityLogItem } from "@/components/shared/activity-log-item"
-import { CalendarDays } from "lucide-react"
+import { CalendarDays, Loader2, AlertCircle } from "lucide-react"
 import { formatDate } from "@/lib/utils"
 
 export default function ActivitiesPage() {
-  // Get today's activities
-  const today = new Date().toISOString().split("T")[0]
-  const todaysActivities = mockActivities.filter(
-    (activity) => activity.timestamp.startsWith(today)
-  )
+  const { activities, isLoading, isError } = useActivities(50)
+
+  if (isLoading) {
+    return (
+      <div className="flex h-[50vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <div className="flex h-[50vh] flex-col items-center justify-center text-red-500">
+        <AlertCircle className="h-10 w-10 mb-2" />
+        <p>Gagal memuat aktivitas</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -22,9 +35,9 @@ export default function ActivitiesPage() {
       </div>
 
       <div className="bg-white rounded-xl border border-[#E5E7EB] overflow-hidden">
-        {todaysActivities.length > 0 ? (
+        {activities.length > 0 ? (
           <div className="divide-y divide-[#E5E7EB]">
-            {todaysActivities.map((activity) => (
+            {activities.map((activity) => (
               <div key={activity.id} className="px-6 py-2 hover:bg-[#F9FAFB] transition-colors">
                 <ActivityLogItem activity={activity} />
               </div>

@@ -82,7 +82,11 @@ export async function GET() {
   })
 
   return NextResponse.json({
-    todaySchedule: todayBookings,
+    todaySchedule: todayBookings.map(b => ({
+      ...b,
+      sessionTime: b.startTime.toISOString().split('T')[1].slice(0, 5),
+      sessionDate: b.date.toISOString().split('T')[0]
+    })),
     actionItems: {
       waitingClientSelection,
       sentToVendor,

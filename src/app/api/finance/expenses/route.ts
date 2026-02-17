@@ -88,7 +88,19 @@ export async function POST(request: NextRequest) {
   }
 
   // Validasi kategori matches Enum
-  const validCategories = ['PRINT_VENDOR', 'PACKAGING', 'SHIPPING', 'OPERATIONAL', 'OTHER']
+  const validCategories = [
+    'PRINT_VENDOR',
+    'PACKAGING',
+    'SHIPPING',
+    'OPERATIONAL',
+    'OTHER',
+    'EQUIPMENT',
+    'STUDIO_RENT',
+    'PROPS',
+    'UTILITIES',
+    'MARKETING',
+    'SALARY'
+  ]
   if (!validCategories.includes(category)) {
     return NextResponse.json(
       { error: `Kategori tidak valid. Pilihan: ${validCategories.join(', ')}` },

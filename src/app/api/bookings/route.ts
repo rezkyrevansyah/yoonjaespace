@@ -25,14 +25,23 @@ export async function GET(request: NextRequest) {
   const date = searchParams.get('date')
   const month = searchParams.get('month') // format: 2026-02
   const search = searchParams.get('search')
+  const printStatus = searchParams.get('printStatus')
   const page = parseInt(searchParams.get('page') || '1')
   const limit = parseInt(searchParams.get('limit') || '20')
   const skip = (page - 1) * limit
 
   const where: Prisma.BookingWhereInput = {}
 
-  if (status) {
+  if (status && status !== 'ALL') {
     where.status = status as BookingStatus
+  }
+
+  if (printStatus && printStatus !== 'ALL') {
+     // Assuming PrintOrderStatus is a valid enum or string you want to filter by
+     // We need to link to the PrintOrder relation
+     where.printOrder = {
+        status: printStatus as any // Using as any for now if type is not strictly imported, or import PrintOrderStatus
+     }
   }
 
   if (date) {
@@ -58,6 +67,8 @@ export async function GET(request: NextRequest) {
   }
 
   // Packaging staff hanya lihat order yang ada print
+  // Unless they are filtering for a specific status, let's keep this constraint? 
+  // Or maybe valid printStatus implies printOrder exists.
   if (dbUser.role === 'PACKAGING_STAFF') {
     where.printOrder = { isNot: null }
   }
@@ -82,7 +93,17 @@ export async function GET(request: NextRequest) {
   ])
 
   return NextResponse.json({
-    bookings,
+    bookings, // No need for 'data' wrapper if the hook expects { bookings, pagination }? Wait, let's check hook response type.
+    // Hook expects { bookings: data?.bookings || [] ... } based on typical SWR usage?
+    // Let's check hook implementation. Hook says: bookings: data?.data || []
+    // But API was returning: { bookings, pagination }
+    // There is a mismatch! The hook expects `data.data`, API returns `bookings`.
+    // Let's fix API to return `data: bookings` to match standard or fix hook.
+    // Actually the hook usually adapts. Let's look at `use-bookings.ts` again.
+    // It says `bookings: data?.data || []`. 
+    // And uses `interface BookingsResponse { data: Booking[], ... }`
+    // So API should return `data`.
+    data: bookings, 
     pagination: {
       page,
       limit,
@@ -144,18 +165,26 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // Get atau create client
+  // Get atau create client (upsert by phone to avoid duplicates)
   let finalClientId = clientId
 
   if (!clientId) {
-    const newClient = await prisma.client.create({
-      data: {
-        name: clientName,
-        phone: clientPhone,
-        email: clientEmail || null,
-      },
+    const existingClient = await prisma.client.findFirst({
+      where: { phone: clientPhone }
     })
-    finalClientId = newClient.id
+
+    if (existingClient) {
+      finalClientId = existingClient.id
+    } else {
+      const newClient = await prisma.client.create({
+        data: {
+          name: clientName,
+          phone: clientPhone,
+          email: clientEmail || null,
+        },
+      })
+      finalClientId = newClient.id
+    }
   }
 
   // Get package untuk snapshot harga
@@ -217,7 +246,7 @@ export async function POST(request: NextRequest) {
       totalAmount,
       notes: notes || null,
       internalNotes: internalNotes || null,
-      handledById: dbUser.id,
+      handledById: body.handledById || dbUser.id,
 
       // Backgrounds
       bookingBackgrounds: backgroundIds?.length

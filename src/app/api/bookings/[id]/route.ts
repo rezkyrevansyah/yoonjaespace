@@ -41,7 +41,13 @@ export async function GET(
     return NextResponse.json({ error: 'Booking tidak ditemukan' }, { status: 404 })
   }
 
-  return NextResponse.json(booking)
+  // Flatten backgrounds to single background for frontend compatibility
+  const responseData = {
+    ...booking,
+    background: booking.bookingBackgrounds?.[0]?.background || null
+  }
+
+  return NextResponse.json(responseData)
 }
 
 // PATCH — Update booking
@@ -233,7 +239,13 @@ export async function PATCH(
     return result
   })
 
-  return NextResponse.json(updated)
+  // Flatten backgrounds for frontend
+  const responseData = {
+    ...updated,
+    background: updated.bookingBackgrounds?.[0]?.background || null
+  }
+
+  return NextResponse.json(responseData)
 }
 
 // DELETE — Delete booking (Owner only)

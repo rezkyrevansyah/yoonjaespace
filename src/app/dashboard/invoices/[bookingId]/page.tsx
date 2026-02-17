@@ -2,17 +2,26 @@
 
 import { use } from "react"
 import Link from "next/link"
-import { mockBookings } from "@/lib/mock-data"
+import { useBooking } from "@/lib/hooks/use-bookings"
 import { formatCurrency, formatDate } from "@/lib/utils"
-import { ArrowLeft, Printer, Camera } from "lucide-react"
+import { ArrowLeft, Printer, Camera, Loader2, AlertCircle } from "lucide-react"
 
 export default function InvoicePage({ params }: { params: Promise<{ bookingId: string }> }) {
   const { bookingId } = use(params)
-  const booking = mockBookings.find((b) => b.id === bookingId)
+  const { booking, isLoading, isError } = useBooking(bookingId)
 
-  if (!booking) {
+  if (isLoading) {
+    return (
+      <div className="flex h-[50vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+      </div>
+    )
+  }
+
+  if (isError || !booking) {
     return (
       <div className="page-container text-center py-16">
+        <AlertCircle className="h-10 w-10 text-red-500 mx-auto mb-2" />
         <p className="text-lg font-medium text-[#111827]">Booking tidak ditemukan</p>
         <Link href="/dashboard/bookings" className="text-sm text-[#7A1F1F] hover:text-[#9B3333] mt-2 inline-block">
           Kembali ke bookings
@@ -24,14 +33,7 @@ export default function InvoicePage({ params }: { params: Promise<{ bookingId: s
   return (
     <div className="page-container max-w-2xl">
       {/* Actions */}
-      <div className="flex items-center justify-between mb-6 print:hidden">
-        <Link
-          href={`/dashboard/bookings/${booking.id}`}
-          className="inline-flex items-center gap-2 text-sm text-[#6B7280] hover:text-[#111827] transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Kembali
-        </Link>
+      <div className="flex items-center justify-end mb-6 print:hidden">
         <button
           onClick={() => window.print()}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#7A1F1F] text-white text-sm font-semibold hover:bg-[#9B3333] transition-colors"
@@ -58,6 +60,15 @@ export default function InvoicePage({ params }: { params: Promise<{ bookingId: s
             <h2 className="text-2xl font-bold text-[#7A1F1F]">INVOICE</h2>
             <p className="text-sm text-[#6B7280] mt-1">{booking.bookingCode}</p>
             <p className="text-xs text-[#9CA3AF]">{formatDate(booking.createdAt)}</p>
+            <div className="mt-2">
+              <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
+                booking.paymentStatus === 'PAID'
+                  ? 'bg-green-100 text-green-700 border border-green-200'
+                  : 'bg-amber-100 text-amber-700 border border-amber-200'
+              }`}>
+                {booking.paymentStatus === 'PAID' ? 'PAID' : 'UNPAID'}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -73,9 +84,8 @@ export default function InvoicePage({ params }: { params: Promise<{ bookingId: s
           </div>
           <div className="text-right">
             <p className="text-xs text-[#6B7280] mb-1">Detail Sesi:</p>
-            <p className="text-sm text-[#111827]">{formatDate(booking.sessionDate)}</p>
-            <p className="text-sm text-[#6B7280]">{booking.sessionTime}</p>
-            <p className="text-sm text-[#6B7280]">{booking.background.name}</p>
+            <p className="text-sm text-[#111827]">{formatDate(booking.date)}</p>
+            <p className="text-sm text-[#6B7280]">{formatDate(booking.startTime, 'HH:mm')}</p>
           </div>
         </div>
 
@@ -102,45 +112,50 @@ export default function InvoicePage({ params }: { params: Promise<{ bookingId: s
             </tr>
 
             {/* Add-ons */}
-            {booking.addOns.map((item, i) => (
-              <tr key={i} className="border-b border-[#E5E7EB]">
-                <td className="py-3">
-                  <p className="font-medium text-[#111827]">{item.addOn.name}</p>
-                </td>
-                <td className="py-3 text-center text-[#6B7280]">{item.quantity}</td>
-                <td className="py-3 text-right text-[#6B7280]">{formatCurrency(item.addOn.price)}</td>
-                <td className="py-3 text-right text-[#111827] font-medium">{formatCurrency(item.price)}</td>
-              </tr>
-            ))}
+            {booking.addOns.map((item, i) => {
+              const unitPrice = item.unitPrice || 0
+              const subtotal = item.subtotal || (unitPrice * item.quantity)
+              return (
+                <tr key={i} className="border-b border-[#E5E7EB]">
+                  <td className="py-3">
+                    <p className="font-medium text-[#111827]">{item.itemName}</p>
+                  </td>
+                  <td className="py-3 text-center text-[#6B7280]">{item.quantity}</td>
+                  <td className="py-3 text-right text-[#6B7280]">{formatCurrency(unitPrice)}</td>
+                  <td className="py-3 text-right text-[#111827] font-medium">{formatCurrency(subtotal)}</td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
 
         {/* Totals */}
         <div className="border-t-2 border-[#111827] pt-4 space-y-2">
+          {/* Subtotal calculation: package price + addons */}
           <div className="flex justify-between text-sm">
-            <span className="text-[#6B7280]">Subtotal</span>
-            <span className="text-[#111827]">{formatCurrency(booking.subtotal)}</span>
+            <span className="text-[#6B7280]">Total Sesi</span>
+            <span className="text-[#111827]">{formatCurrency(booking.totalAmount + (booking.discountAmount || 0))}</span>
           </div>
-          {booking.discount > 0 && (
+          {booking.discountAmount > 0 && (
             <div className="flex justify-between text-sm">
               <span className="text-[#6B7280]">
-                Diskon {booking.voucher && `(${booking.voucher.code})`}
+                Diskon {booking.discountNote && `(${booking.discountNote})`}
               </span>
-              <span className="text-[#059669]">-{formatCurrency(booking.discount)}</span>
+              <span className="text-[#059669]">-{formatCurrency(booking.discountAmount)}</span>
             </div>
           )}
           <div className="flex justify-between text-lg font-bold pt-2 border-t border-[#E5E7EB]">
             <span className="text-[#111827]">Total</span>
-            <span className="text-[#7A1F1F]">{formatCurrency(booking.totalPrice)}</span>
+            <span className="text-[#7A1F1F]">{formatCurrency(booking.totalAmount)}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-[#6B7280]">Dibayar</span>
-            <span className="text-[#111827]">{formatCurrency(booking.paidAmount)}</span>
+            <span className="text-[#111827]">{formatCurrency((booking.paymentStatus === 'PAID' ? booking.totalAmount : 0))}</span>
           </div>
-          {booking.totalPrice - booking.paidAmount > 0 && (
+          {booking.totalAmount - (booking.paymentStatus === 'PAID' ? booking.totalAmount : 0) > 0 && (
             <div className="flex justify-between text-sm font-semibold">
               <span className="text-[#DC2626]">Sisa Pembayaran</span>
-              <span className="text-[#DC2626]">{formatCurrency(booking.totalPrice - booking.paidAmount)}</span>
+              <span className="text-[#DC2626]">{formatCurrency(booking.totalAmount - (booking.paymentStatus === 'PAID' ? booking.totalAmount : 0))}</span>
             </div>
           )}
         </div>

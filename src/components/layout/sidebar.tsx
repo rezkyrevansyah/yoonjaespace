@@ -5,9 +5,10 @@ import Image from "next/image"
 import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { SIDEBAR_MENU } from "@/lib/constants"
-import { mockCurrentUser } from "@/lib/mock-data"
+
 import { getInitials } from "@/lib/utils"
 import { useAuth } from "@/lib/hooks/use-auth"
+import { useReminderCount } from "@/lib/hooks/use-reminder-count"
 import { USER_ROLE_MAP } from "@/lib/constants"
 import {
   LayoutDashboard,
@@ -45,7 +46,8 @@ interface SidebarProps {
 export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
-  const { logout } = useAuth()
+  const { user, logout } = useAuth()
+  const { count: reminderCount } = useReminderCount()
 
   const handleLogout = async () => {
     await logout()
@@ -114,7 +116,9 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-4 px-3">
           <ul className="space-y-1">
-            {SIDEBAR_MENU.map((item) => {
+            {SIDEBAR_MENU.filter((item) =>
+              user?.role && item.roles.includes(user.role as any)
+            ).map((item) => {
               const Icon = iconMap[item.icon]
               const isActive =
                 item.href === "/dashboard"
@@ -150,9 +154,9 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
                       {item.label}
                     </span>
 
-                    {"badge" in item && item.badge ? (
+                    {item.href === "/dashboard/reminders" && reminderCount > 0 ? (
                       <span className="ml-auto inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#7A1F1F] text-[10px] font-semibold text-white">
-                        {item.badge}
+                        {reminderCount}
                       </span>
                     ) : null}
                   </Link>
@@ -166,15 +170,15 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
         <div className="border-t border-[#E5E7EB] p-4">
           <div className="flex items-start gap-3">
             <div className="flex items-center justify-center w-10 h-10 rounded-full bg-[#F5ECEC] text-[#7A1F1F] text-sm font-semibold shrink-0">
-              {getInitials(mockCurrentUser.name)}
+              {getInitials(user?.name || "User")}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-[#111827] truncate">
-                {mockCurrentUser.name}
+                {user?.name || "User"}
               </p>
               <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#F5ECEC] mt-1">
                 <span className="text-[10px] font-semibold text-[#7A1F1F] uppercase">
-                  {USER_ROLE_MAP[mockCurrentUser.role].label}
+                  {user?.role ? USER_ROLE_MAP[user.role]?.label : "Staff"}
                 </span>
               </div>
             </div>

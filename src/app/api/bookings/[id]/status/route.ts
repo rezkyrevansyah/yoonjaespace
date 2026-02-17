@@ -46,9 +46,33 @@ export async function PATCH(
       changedBy: dbUser.id,
     })
 
+    // Jika status berubah ke PAID, SHOOT_DONE, PHOTOS_DELIVERED, atau CLOSED, auto-update paymentStatus ke PAID
+    const paidStatuses = ['PAID', 'SHOOT_DONE', 'PHOTOS_DELIVERED', 'CLOSED']
+    if (paidStatuses.includes(status) && existing.paymentStatus !== 'PAID') {
+      updateData.paymentStatus = 'PAID'
+      updateData.paidAt = new Date()
+
+      historyEntries.push({
+        bookingId: id,
+        action: 'PAYMENT_UPDATED',
+        field: 'paymentStatus',
+        oldValue: existing.paymentStatus,
+        newValue: 'PAID',
+        changedBy: dbUser.id,
+      })
+    }
+
     // Jika status PHOTOS_DELIVERED, set deliveredAt
     if (status === 'PHOTOS_DELIVERED') {
       updateData.deliveredAt = new Date()
+    }
+
+    // Jika status CLOSED, auto-complete Print Order jika ada
+    if (status === 'CLOSED') {
+      await prisma.printOrder.updateMany({
+        where: { bookingId: id },
+        data: { status: 'COMPLETED' }
+      })
     }
   }
 
@@ -83,6 +107,24 @@ export async function PATCH(
     // Set paidAt jika payment berubah ke PAID
     if (paymentStatus === 'PAID' && !existing.paidAt) {
       updateData.paidAt = new Date()
+    }
+
+    // Jika payment berubah ke UNPAID, status kembali ke BOOKED
+    if (paymentStatus === 'UNPAID') {
+      updateData.status = 'BOOKED'
+      updateData.paidAt = null // Clear paidAt
+
+      // Log status reversion
+      if (existing.status !== 'BOOKED') {
+          historyEntries.push({
+            bookingId: id,
+            action: 'STATUS_CHANGED',
+            field: 'status',
+            oldValue: existing.status,
+            newValue: 'BOOKED',
+            changedBy: dbUser.id,
+          })
+      }
     }
   }
 

@@ -16,7 +16,12 @@ export async function GET() {
     orderBy: { sortOrder: 'asc' },
   })
 
-  return NextResponse.json(fields)
+  const result = fields.map(f => ({
+    ...f,
+    fieldType: f.fieldType.toUpperCase()
+  }))
+
+  return NextResponse.json(result)
 }
 
 // POST — Create custom field
@@ -43,8 +48,8 @@ export async function POST(request: NextRequest) {
   const field = await prisma.customFieldDefinition.create({
     data: {
       fieldName,
-      fieldType: fieldType || 'text',
-      options: options ? JSON.stringify(options) : null,
+      fieldType: (fieldType || 'TEXT').toUpperCase(),
+      options: options || null, // Store as raw string "Red, Blue, Green"
       isRequired: isRequired || false,
       sortOrder: sortOrder || 0,
     },

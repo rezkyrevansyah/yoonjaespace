@@ -14,8 +14,12 @@ export async function GET() {
     where: { id: user.id },
   })
 
-  if (!dbUser || !dbUser.isActive) {
-    return NextResponse.json({ error: 'User tidak ditemukan atau tidak aktif' }, { status: 403 })
+  if (!dbUser) {
+    return NextResponse.json({ error: 'User tidak terdaftar' }, { status: 403 })
+  }
+
+  if (!dbUser.isActive) {
+    return NextResponse.json({ error: 'User tidak aktif' }, { status: 403 })
   }
 
   return NextResponse.json({

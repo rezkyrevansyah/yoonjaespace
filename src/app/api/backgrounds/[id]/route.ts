@@ -21,12 +21,13 @@ export async function PATCH(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { name, isActive } = await request.json()
+  const { name, description, isActive } = await request.json()
 
   const updated = await prisma.background.update({
     where: { id },
     data: {
       ...(name && { name }),
+      ...(description !== undefined && { description }),
       ...(isActive !== undefined && { isActive }),
     },
   })

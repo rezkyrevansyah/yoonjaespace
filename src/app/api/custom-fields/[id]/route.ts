@@ -28,8 +28,8 @@ export async function PATCH(
     where: { id },
     data: {
       ...(fieldName && { fieldName }),
-      ...(fieldType && { fieldType }),
-      ...(options !== undefined && { options: options ? JSON.stringify(options) : null }),
+      ...(fieldType && { fieldType: fieldType.toUpperCase() }),
+      ...(options !== undefined && { options: options || null }),
       ...(isRequired !== undefined && { isRequired }),
       ...(isActive !== undefined && { isActive }),
       ...(sortOrder !== undefined && { sortOrder }),

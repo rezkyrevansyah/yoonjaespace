@@ -16,22 +16,30 @@ import {
   Clock,
   Sparkles,
   Ticket,
-  Users
+  Users,
+  Loader2,
+  FileText
 } from "lucide-react"
-import {
-  mockClients,
-  mockPackages,
-  mockBackgrounds,
-  mockAddOns,
-  mockStaff,
-  mockVouchers,
-  mockCurrentUser,
-} from "@/lib/mock-data"
 import { formatCurrency } from "@/lib/utils"
-// import { toast } from "sonner" // Removed to avoid dependency error
+// import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/lib/hooks/use-toast"
-// import { Calendar } from "@/components/ui/calendar" // Using native date input for simplicity as per requirement strictness
+import { apiPost } from "@/lib/api-client"
+import { useAuth } from "@/lib/hooks/use-auth"
+
+// Hooks
+import {
+  usePackages, 
+  useBackgrounds, 
+  useAddOnTemplates, 
+  useStaff, 
+  useVouchers,
+  useCustomFields,
+  useStudioSettings
+} from "@/lib/hooks/use-master-data"
+import type { Package, Background, AddOn, StaffUser, Voucher, CustomField } from "@/lib/types"
+
+type AddOnTemplate = AddOn
 
 type ClientFormData = {
   id?: string
@@ -57,9 +65,24 @@ type ManualDiscountMethod = "PERCENTAGE" | "FIXED"
 export default function NewBookingPage() {
   const router = useRouter()
   const { showToast } = useToast()
+  const { user } = useAuth()
 
-  // --- 1. Client Info (Inline Search) ---
-  const [clientSearch, setClientSearch] = useState("")
+  // --- Master Data Hooks ---
+  const { packages, isLoading: isLoadingPackages } = usePackages()
+  const { backgrounds, isLoading: isLoadingBackgrounds } = useBackgrounds()
+  const { addOnTemplates, isLoading: isLoadingAddOns } = useAddOnTemplates()
+  const { staff, isLoading: isLoadingStaff } = useStaff()
+  const { vouchers } = useVouchers()
+  const { customFields } = useCustomFields()
+  const { settings } = useStudioSettings()
+
+  // --- 1. Client Info ---
+  const [clientMode, setClientMode] = useState<"new" | "search">("new")
+  const [phoneSearch, setPhoneSearch] = useState("")
+  const [foundClient, setFoundClient] = useState<any>(null)
+  const [isSearching, setIsSearching] = useState(false)
+  const [searchError, setSearchError] = useState("")
+
   const [clientForm, setClientForm] = useState<ClientFormData>({
     name: "",
     phone: "",
@@ -67,53 +90,77 @@ export default function NewBookingPage() {
     instagram: "",
     address: "",
   })
-  const [isClientFound, setIsClientFound] = useState(false)
 
-  // Debounced Search Effect
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (clientSearch.length > 2) {
-        const found = mockClients.find(
-          (c) =>
-            c.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
-            c.phone.includes(clientSearch)
-        )
-        if (found) {
-          setClientForm({
-            id: found.id,
-            name: found.name,
-            phone: found.phone,
-            email: found.email || "",
-            instagram: found.instagram || "",
-            address: found.address || "",
-          })
-          setIsClientFound(true)
-        } else {
-           // Not found: don't auto-clear if user is typing a new name, just reset ID
-           setIsClientFound(false)
-           setClientForm(prev => ({ ...prev, id: undefined }))
-        }
+  const handlePhoneSearch = async () => {
+    if (!phoneSearch.trim()) return
+    setIsSearching(true)
+    setFoundClient(null)
+    setSearchError("")
+    try {
+      const res = await fetch(`/api/clients?search=${encodeURIComponent(phoneSearch)}&limit=1`)
+      const json = await res.json()
+      const client = json.data?.[0]
+      if (client) {
+        setFoundClient(client)
+      } else {
+        setSearchError("Client dengan nomor tersebut tidak ditemukan.")
       }
-    }, 500)
-    return () => clearTimeout(timer)
-  }, [clientSearch])
+    } catch {
+      setSearchError("Gagal mencari data client.")
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  const selectFoundClient = () => {
+    if (!foundClient) return
+    setClientForm({
+      id: foundClient.id,
+      name: foundClient.name,
+      phone: foundClient.phone,
+      email: foundClient.email || "",
+      instagram: foundClient.instagram || "",
+      address: foundClient.address || "",
+    })
+  }
+
+  const switchMode = (mode: "new" | "search") => {
+    setClientMode(mode)
+    setFoundClient(null)
+    setPhoneSearch("")
+    setSearchError("")
+    setClientForm({ name: "", phone: "", email: "", instagram: "", address: "" })
+  }
+
 
   // --- 2. Schedule ---
   const [sessionDate, setSessionDate] = useState("")
   const [sessionTime, setSessionTime] = useState("")
 
-  const isTuesday = useMemo(() => {
-    if (!sessionDate) return false
-    const day = new Date(sessionDate).getDay()
-    return day === 2 // 0=Sun, 1=Mon, 2=Tue
-  }, [sessionDate])
+  // Day Off Logic
+  const isDayOff = useMemo(() => {
+    if (!sessionDate || !settings?.dayOff) return null
+    
+    const date = new Date(sessionDate)
+    const dayIndex = date.getDay()
+    const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"]
+    const dayName = days[dayIndex]
+
+    // settings.dayOff is expected to be an array of strings e.g. ["Minggu", "Selasa"]
+    // Ensure case insensitive check if needed, but usually it's Title Case
+    const offDays = Array.isArray(settings.dayOff) ? settings.dayOff : []
+    
+    if (offDays.includes(dayName)) {
+        return dayName
+    }
+    return null
+  }, [sessionDate, settings])
 
   // --- 3. Session Details ---
   const [packageId, setPackageId] = useState("")
   const [backgroundId, setBackgroundId] = useState("")
-  const [numPeople, setNumPeople] = useState(1)
+  const [numPeople, setNumPeople] = useState<number | string>(1)
   const [photoFor, setPhotoFor] = useState("")
-  const [btsVideo, setBtsVideo] = useState(false)
   const [notes, setNotes] = useState("")
 
   // --- 4. Add-ons ---
@@ -143,13 +190,13 @@ export default function NewBookingPage() {
           if (value === "custom") {
             return { ...item, id: "custom", name: "", unitPrice: 0, isCustom: true }
           }
-          const template = mockAddOns.find((t) => t.id === value)
+          const template = addOnTemplates.find((t: AddOn) => t.id === value)
           if (template) {
             return {
               ...item,
               id: template.id,
               name: template.name,
-              unitPrice: template.price,
+              unitPrice: template.defaultPrice,
               isCustom: false,
             }
           }
@@ -174,20 +221,38 @@ export default function NewBookingPage() {
   const [discountReason, setDiscountReason] = useState("")
 
   // --- 6. Staff ---
-  const [staffId, setStaffId] = useState(mockCurrentUser.id)
+  const [staffId, setStaffId] = useState("")
+  
+  // Set default staff to current user
+  useEffect(() => {
+    if (user && !staffId) {
+        setStaffId(user.id)
+    }
+  }, [user, staffId])
+
+  // --- 7. Custom Fields ---
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({})
+
+  const handleCustomFieldChange = (fieldId: string, value: string) => {
+      setCustomFieldValues(prev => ({
+          ...prev,
+          [fieldId]: value
+      }))
+  }
 
   // --- Calculations ---
-  const selectedPackage = useMemo(() => mockPackages.find((p) => p.id === packageId), [packageId])
+  const selectedPackage = useMemo(() => packages.find((p: Package) => p.id === packageId), [packageId, packages])
   
   const subtotal = useMemo(() => {
     const pkgPrice = selectedPackage?.price || 0
+    // Ensure numPeople is treated as number, default to 1 if empty/invalid for calculation
+    const quantity = typeof numPeople === 'string' ? (parseInt(numPeople) || 1) : numPeople
     const addOnsPrice = addOns.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)
     return pkgPrice + addOnsPrice
-  }, [selectedPackage, addOns])
+  }, [selectedPackage, addOns, numPeople])
 
   const discountAmount = useMemo(() => {
     if (discountType === "VOUCHER") {
-      // Validate voucher logic mocking
       if (appliedVoucher) return appliedVoucher.amount
       return 0
     } else {
@@ -199,11 +264,23 @@ export default function NewBookingPage() {
 
   const finalTotal = Math.max(0, subtotal - discountAmount)
 
-  // Voucher Validation Mock
+  // Voucher Validation (Local Check against fetched vouchers)
   const validateVoucher = () => {
-    const voucher = mockVouchers.find(v => v.code === voucherCode)
+    const voucher = vouchers.find((v: Voucher) => v.code === voucherCode)
     if (voucher) {
-      // Simple mock calculation
+       // Check validity dates
+       const now = new Date()
+       if (voucher.validFrom && new Date(voucher.validFrom) > now) {
+           setVoucherError("Voucher belum berlaku")
+           setAppliedVoucher(null)
+           return
+       }
+       if (voucher.validUntil && new Date(voucher.validUntil) < now) {
+           setVoucherError("Voucher kadaluarsa")
+           setAppliedVoucher(null)
+           return
+       }
+
       let amt = 0
       if (voucher.discountType === "FIXED") amt = voucher.discountValue
       else amt = (subtotal * voucher.discountValue) / 100
@@ -218,9 +295,10 @@ export default function NewBookingPage() {
 
   // --- Mobile Summary ---
   const [isMobileSummaryOpen, setIsMobileSummaryOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   // --- Submit ---
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     // Basic validation
     if (!clientForm.name || !clientForm.phone ) {
         showToast("Mohon lengkapi data client", "warning")
@@ -231,28 +309,77 @@ export default function NewBookingPage() {
         return
     }
 
-    const payload = {
-       client: clientForm,
-       session: { date: sessionDate, time: sessionTime },
-       packageId,
-       backgroundId,
-       addOns,
-       discount: { type: discountType, amount: discountAmount, note: discountReason || appliedVoucher?.code },
-       staffId,
-       total: finalTotal
+    setIsSubmitting(true)
+
+    try {
+        // Prepare Start/End Time
+        const startDateTime = new Date(`${sessionDate}T${sessionTime}`)
+        const durationMinutes = selectedPackage?.duration || 60
+        const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60000)
+
+        // Construct Payload for /api/bookings POST
+        const payload = {
+            clientId: clientForm.id,
+            clientName: clientForm.name,
+            clientPhone: clientForm.phone,
+            clientEmail: clientForm.email,
+            
+            date: sessionDate, // YYYY-MM-DD
+            startTime: startDateTime.toISOString(),
+            endTime: endDateTime.toISOString(),
+            
+            packageId,
+            backgroundIds: [backgroundId],
+            numberOfPeople: typeof numPeople === 'string' ? (parseInt(numPeople) || 1) : numPeople,
+            photoFor: photoFor || undefined,
+            bts: false,
+
+            addOns: addOns.map(a => ({
+                itemName: a.name,
+                quantity: a.quantity,
+                unitPrice: a.unitPrice
+            })),
+            
+            
+            discountAmount,
+            discountNote: discountReason || (appliedVoucher ? `Voucher: ${appliedVoucher.code}` : undefined),
+            
+            handledById: staffId,
+            notes,
+
+            customFields: Object.entries(customFieldValues).map(([fieldId, value]) => ({
+                fieldId,
+                value
+            }))
+        }
+
+        const res = await apiPost<any>("/api/bookings", payload)
+        
+        if (res.error) {
+            throw new Error(res.error)
+        }
+
+        // res.data contains the booking object
+        showToast(`Booking berhasil dibuat! Order ID: ${res.data?.bookingCode}`, "success")
+        router.push("/dashboard/bookings")
+
+    } catch (error: any) {
+        console.error(error)
+        showToast(error.message || "Gagal membuat booking", "error")
+    } finally {
+        setIsSubmitting(false)
     }
-
-    console.log("Creating Booking:", payload)
-
-    // Simulate API call
-    const orderId = `YJS-${new Date().toISOString().slice(0,10).replace(/-/g,"")}-${Math.floor(Math.random()*1000)}`
-
-    // Show feedback
-    showToast(`Booking berhasil dibuat! Order ID: ${orderId}`, "success")
-
-    router.push("/dashboard/bookings")
   }
 
+  if (isLoadingPackages || isLoadingBackgrounds || isLoadingStaff) {
+      return (
+          <div className="flex h-screen items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-gray-300" />
+          </div>
+      )
+  }
+
+  // Return JSX (Same as before)
   return (
     <div className="min-h-screen pb-24 sm:pb-10 relative">
       {/* Header */}
@@ -279,72 +406,135 @@ export default function NewBookingPage() {
               <User className="h-5 w-5 text-[#7A1F1F]" />
               Client Information
             </h2>
-            
-            <div className="relative mb-6">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input 
-                type="text"
-                placeholder="Cari nama atau nomor WA..."
-                value={clientSearch}
-                onChange={(e) => setClientSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] transition-all"
-              />
-              {isClientFound && (
-                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                   Existing Client
-                 </span>
-              )}
+
+            {/* Mode Toggle */}
+            <div className="flex gap-2 mb-5 p-1 bg-gray-100 rounded-xl w-fit">
+              <button
+                onClick={() => switchMode("new")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${clientMode === "new" ? "bg-white text-[#7A1F1F] shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+              >
+                Input Data Baru
+              </button>
+              <button
+                onClick={() => switchMode("search")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${clientMode === "search" ? "bg-white text-[#7A1F1F] shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+              >
+                Cari Client
+              </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <div>
+            {/* Search Mode */}
+            {clientMode === "search" && (
+              <div className="mb-5">
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type="tel"
+                      placeholder="Masukkan nomor WhatsApp client..."
+                      value={phoneSearch}
+                      onChange={(e) => { setPhoneSearch(e.target.value); setFoundClient(null); setSearchError("") }}
+                      onKeyDown={(e) => e.key === "Enter" && handlePhoneSearch()}
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all"
+                    />
+                  </div>
+                  <button
+                    onClick={handlePhoneSearch}
+                    disabled={isSearching || !phoneSearch.trim()}
+                    className="px-5 py-2.5 bg-[#7A1F1F] text-white rounded-xl text-sm font-medium hover:bg-[#9B3333] disabled:opacity-50 flex items-center gap-2 transition-colors"
+                  >
+                    {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                    Cari
+                  </button>
+                </div>
+
+                {searchError && (
+                  <p className="text-sm text-red-500 mt-2 flex items-center gap-1">
+                    <AlertCircle className="h-4 w-4" /> {searchError}
+                  </p>
+                )}
+
+                {foundClient && !clientForm.id && (
+                  <div className="mt-3 p-4 border border-green-200 bg-green-50 rounded-xl flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold text-gray-900">{foundClient.name}</p>
+                      <p className="text-sm text-gray-500">{foundClient.phone}{foundClient.email ? ` • ${foundClient.email}` : ""}</p>
+                    </div>
+                    <button
+                      onClick={selectFoundClient}
+                      className="px-4 py-2 bg-[#7A1F1F] text-white text-sm font-medium rounded-lg hover:bg-[#9B3333] transition-colors"
+                    >
+                      Pakai Data Ini
+                    </button>
+                  </div>
+                )}
+
+                {clientForm.id && (
+                  <div className="mt-3 p-3 border border-green-200 bg-green-50 rounded-xl flex items-center justify-between">
+                    <span className="text-sm font-medium text-green-700">Client dipilih: {clientForm.name}</span>
+                    <button onClick={() => { setClientForm({ name: "", phone: "", email: "", instagram: "", address: "" }); setFoundClient(null) }} className="text-xs text-gray-500 hover:text-red-500">Batalkan</button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Client Form - shown in new mode always, in search mode only after client selected */}
+            {(clientMode === "new" || clientForm.id) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Nama Lengkap <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     value={clientForm.name}
+                    readOnly={!!clientForm.id}
                     onChange={(e) => setClientForm({...clientForm, name: e.target.value})}
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all"
+                    className={`w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all ${clientForm.id ? "bg-gray-50 text-gray-600" : ""}`}
                   />
-               </div>
-               <div>
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">WhatsApp <span className="text-red-500">*</span></label>
                   <input
                     type="tel"
                     placeholder="08xxxxxxxxxx"
                     value={clientForm.phone}
+                    readOnly={!!clientForm.id}
                     onChange={(e) => setClientForm({...clientForm, phone: e.target.value})}
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all"
+                    className={`w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all ${clientForm.id ? "bg-gray-50 text-gray-600" : ""}`}
                   />
-               </div>
-               <div>
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
                   <input
                     type="email"
                     value={clientForm.email}
+                    readOnly={!!clientForm.id}
                     onChange={(e) => setClientForm({...clientForm, email: e.target.value})}
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all"
+                    className={`w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all ${clientForm.id ? "bg-gray-50 text-gray-600" : ""}`}
                   />
-               </div>
-               <div>
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Instagram</label>
                   <input
                     type="text"
                     placeholder="@username"
                     value={clientForm.instagram}
+                    readOnly={!!clientForm.id}
                     onChange={(e) => setClientForm({...clientForm, instagram: e.target.value})}
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all"
+                    className={`w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all ${clientForm.id ? "bg-gray-50 text-gray-600" : ""}`}
                   />
-               </div>
-               <div className="md:col-span-2">
+                </div>
+                <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Alamat</label>
                   <textarea
                     rows={2}
                     value={clientForm.address}
+                    readOnly={!!clientForm.id}
                     onChange={(e) => setClientForm({...clientForm, address: e.target.value})}
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all resize-none"
+                    className={`w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all resize-none ${clientForm.id ? "bg-gray-50 text-gray-600" : ""}`}
                   />
-               </div>
-            </div>
+                </div>
+              </div>
+            )}
           </section>
 
           {/* SECTION 2: SCHEDULE */}
@@ -363,10 +553,10 @@ export default function NewBookingPage() {
                     onChange={(e) => setSessionDate(e.target.value)}
                     className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all"
                   />
-                  {isTuesday && (
+                  {isDayOff && (
                     <div className="mt-2 flex items-start gap-2 p-3 bg-yellow-50 text-yellow-800 rounded-lg text-sm">
                        <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                       <p>Warning: Selasa adalah hari libur studio.</p>
+                       <p>Warning: <strong>{isDayOff}</strong> adalah hari libur studio.</p>
                     </div>
                   )}
                </div>
@@ -404,13 +594,12 @@ export default function NewBookingPage() {
                     value={packageId}
                     onChange={(e) => {
                         setPackageId(e.target.value)
-                        // Auto set people count default if needed based on package? 
-                        // For now keep at 1 or manual
+                        // Auto update people count if needed?
                     }}
                     className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all appearance-none cursor-pointer bg-white"
                   >
                     <option value="">Pilih Paket Utama</option>
-                    {mockPackages.map(p => (
+                    {packages.map((p: Package) => (
                         <option key={p.id} value={p.id}>
                             {p.name} — {formatCurrency(p.price)}
                         </option>
@@ -427,7 +616,7 @@ export default function NewBookingPage() {
                         className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all appearance-none cursor-pointer bg-white"
                       >
                         <option value="">Pilih Background</option>
-                        {mockBackgrounds.map(b => (
+                        {backgrounds.map((b: Background) => (
                             <option key={b.id} value={b.id}>{b.name}</option>
                         ))}
                       </select>
@@ -438,37 +627,41 @@ export default function NewBookingPage() {
                         type="number"
                         min={1}
                         value={numPeople}
-                        onChange={(e) => setNumPeople(parseInt(e.target.value) || 1)}
+                        onChange={(e) => {
+                            const val = e.target.value
+                            if (val === "") {
+                                setNumPeople("")
+                            } else {
+                                setNumPeople(parseInt(val))
+                            }
+                        }}
+                        onBlur={() => {
+                            if (!numPeople || (typeof numPeople === 'number' && numPeople < 1)) {
+                                setNumPeople(1)
+                                showToast("Jumlah orang minimal 1", "warning")
+                            }
+                        }}
                         className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all"
                       />
                   </div>
                </div>
 
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Photo For</label>
-                      <input
-                        type="text"
-                        placeholder="Contoh: 1st Birthday, Graduation..."
-                        value={photoFor}
-                        onChange={(e) => setPhotoFor(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all"
-                      />
-                  </div>
-                   <div className="flex items-center h-full pt-8">
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <div className="relative">
-                            <input 
-                                type="checkbox" 
-                                checked={btsVideo} 
-                                onChange={(e) => setBtsVideo(e.target.checked)}
-                                className="sr-only peer" 
-                            />
-                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[#7A1F1F]/10 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#7A1F1F]"></div>
-                        </div>
-                        <span className="text-sm font-medium text-gray-700">Include BTS Video</span>
-                      </label>
-                  </div>
+               <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Photo For</label>
+                   <select
+                     value={photoFor}
+                     onChange={(e) => setPhotoFor(e.target.value)}
+                     className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all appearance-none cursor-pointer bg-white"
+                   >
+                        <option value="BIRTHDAY">Birthday</option>
+                        <option value="GRADUATION">Graduation</option>
+                        <option value="FAMILY">Family</option>
+                        <option value="GROUP">Group</option>
+                        <option value="LINKEDIN">LinkedIn / Professional</option>
+                        <option value="PAS_PHOTO">Pas Photo</option>
+                        <option value="STUDIO_ONLY">Studio Only</option>
+                        <option value="OTHER">Other</option>
+                   </select>
                </div>
 
                 <div>
@@ -483,6 +676,68 @@ export default function NewBookingPage() {
                </div>
             </div>
           </section>
+
+          {/* SECTION 4: CUSTOM FIELDS (Dynamic) */}
+          {customFields && customFields.length > 0 && (
+             <section className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-[#7A1F1F]" />
+                    Additional Details
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {customFields.map((field: CustomField) => (
+                        <div key={field.id} className={field.fieldType === 'TEXT' ? "md:col-span-2" : ""}>
+                            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                                {field.fieldName} {field.isRequired && <span className="text-red-500">*</span>}
+                            </label>
+                            
+                            {field.fieldType === 'TEXT' && (
+                                <textarea
+                                    rows={2}
+                                    value={customFieldValues[field.id] || ""}
+                                    onChange={(e) => handleCustomFieldChange(field.id, e.target.value)}
+                                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all resize-none"
+                                />
+                            )}
+                            
+                            {field.fieldType === 'NUMBER' && (
+                                <input
+                                    type="number"
+                                    value={customFieldValues[field.id] || ""}
+                                    onChange={(e) => handleCustomFieldChange(field.id, e.target.value)}
+                                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all"
+                                />
+                            )}
+                            
+                             {field.fieldType === 'SELECT' && (
+                                <select
+                                    value={customFieldValues[field.id] || ""}
+                                    onChange={(e) => handleCustomFieldChange(field.id, e.target.value)}
+                                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all appearance-none bg-white"
+                                >
+                                    <option value="">Select Option</option>
+                                    {field.options?.split(',').map((opt: string) => (
+                                        <option key={opt.trim()} value={opt.trim()}>{opt.trim()}</option>
+                                    ))}
+                                </select>
+                             )}
+
+                             {field.fieldType === 'CHECKBOX' && (
+                                 <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                                     <input
+                                        type="checkbox"
+                                        checked={customFieldValues[field.id] === "true"}
+                                        onChange={(e) => handleCustomFieldChange(field.id, e.target.checked ? "true" : "false")}
+                                        className="w-5 h-5 text-[#7A1F1F] rounded focus:ring-[#7A1F1F]"
+                                     />
+                                     <span className="text-sm text-gray-700">Yes</span>
+                                 </label>
+                             )}
+                        </div>
+                    ))}
+                </div>
+             </section>
+          )}
 
           {/* SECTION 4: ADD-ONS */}
           <section className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
@@ -523,7 +778,7 @@ export default function NewBookingPage() {
                                                 className="w-full p-2 rounded-lg border border-gray-200 text-sm"
                                             >
                                                 <option value="">Pilih Item</option>
-                                                {mockAddOns.map(ao => (
+                                                {addOnTemplates.map((ao: AddOn) => (
                                                     <option key={ao.id} value={ao.id}>{ao.name}</option>
                                                 ))}
                                                 <option value="custom">Custom Item...</option>
@@ -532,7 +787,7 @@ export default function NewBookingPage() {
                                                 <input
                                                     type="text"
                                                     placeholder="Nama item custom"
-                                                    value={item.name}
+                                                    value={item.name || ''}
                                                     onChange={(e) => updateAddOn(item.tempId, "name", e.target.value)}
                                                     className="w-full p-2 rounded-lg border border-gray-200 text-sm"
                                                 />
@@ -543,7 +798,7 @@ export default function NewBookingPage() {
                                         <input
                                             type="number"
                                             min={1}
-                                            value={item.quantity}
+                                            value={item.quantity || 1}
                                             onChange={(e) => updateAddOn(item.tempId, "quantity", parseInt(e.target.value) || 1)}
                                             className="w-full p-2 rounded-lg border border-gray-200 text-sm"
                                         />
@@ -551,7 +806,7 @@ export default function NewBookingPage() {
                                     <td className="px-3 py-3 align-top">
                                         <input
                                             type="number"
-                                            value={item.unitPrice}
+                                            value={item.unitPrice || 0}
                                             disabled={!item.isCustom}
                                             onChange={(e) => updateAddOn(item.tempId, "unitPrice", parseInt(e.target.value) || 0)}
                                             className={cn(
@@ -690,7 +945,7 @@ export default function NewBookingPage() {
                     onChange={(e) => setStaffId(e.target.value)}
                     className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm bg-white"
                 >
-                    {mockStaff.map(s => (
+                    {staff.map((s: StaffUser) => (
                         <option key={s.id} value={s.id}>{s.name} ({s.role})</option>
                     ))}
                 </select>
@@ -751,9 +1006,10 @@ export default function NewBookingPage() {
               <div className="space-y-3">
                   <button
                     onClick={handleSubmit}
-                    className="w-full py-3.5 bg-[#7A1F1F] text-white font-semibold rounded-xl hover:bg-[#9B3333] active:bg-[#5C1717] transition-all shadow-md hover:shadow-lg"
+                    disabled={isSubmitting}
+                    className="w-full py-3.5 bg-[#7A1F1F] text-white font-semibold rounded-xl hover:bg-[#9B3333] active:bg-[#5C1717] transition-all shadow-md hover:shadow-lg disabled:opacity-70 disabled:cursor-not-allowed"
                   >
-                      Create Booking
+                      {isSubmitting ? "Creating..." : "Create Booking"}
                   </button>
                   <button
                     onClick={() => router.back()}
@@ -793,56 +1049,12 @@ export default function NewBookingPage() {
             </div>
             <button
                 onClick={handleSubmit}
-                 className="px-6 py-2.5 bg-[#7A1F1F] text-white font-semibold rounded-xl hover:bg-[#9B3333]"
+                disabled={isSubmitting}
+                 className="px-6 py-2.5 bg-[#7A1F1F] text-white font-semibold rounded-xl hover:bg-[#9B3333] disabled:opacity-70"
             >
-                Create
+                {isSubmitting ? "..." : "Create"}
             </button>
         </div>
-
-        {/* Expanded Content */}
-        {isMobileSummaryOpen && (
-            <div className="p-6 overflow-y-auto h-[calc(100%-90px)]">
-                 <h3 className="text-lg font-bold text-gray-900 mb-6">Ringkasan Harga</h3>
-                  <div className="space-y-4 text-sm text-gray-600">
-                     <div className="flex justify-between items-start">
-                         <span className="font-medium text-gray-900">{selectedPackage ? selectedPackage.name : "Belum pilih paket"}</span>
-                         <span>{formatCurrency(selectedPackage?.price || 0)}</span>
-                     </div>
-                     
-                     {addOns.length > 0 && (
-                         <div className="pl-3 border-l-2 border-gray-100 space-y-2 py-1">
-                             {addOns.map(item => (
-                                 <div key={item.tempId} className="flex justify-between text-xs">
-                                     <span>{item.name || "Custom Item"} (x{item.quantity})</span>
-                                     <span>{formatCurrency(item.unitPrice * item.quantity)}</span>
-                                 </div>
-                             ))}
-                         </div>
-                     )}
-
-                     <div className="border-t border-gray-100 my-2"></div>
-
-                     <div className="flex justify-between font-medium">
-                         <span>Subtotal</span>
-                         <span>{formatCurrency(subtotal)}</span>
-                     </div>
-
-                     {discountAmount > 0 && (
-                         <div className="flex justify-between text-green-600">
-                             <span>Discount {appliedVoucher ? `(${appliedVoucher.code})` : ""}</span>
-                             <span>-{formatCurrency(discountAmount)}</span>
-                         </div>
-                     )}
-                     
-                      <div className="border-t-2 border-dashed border-gray-200 pt-4 mt-4">
-                        <div className="flex justify-between items-end">
-                            <span className="text-base font-bold text-gray-900">TOTAL</span>
-                            <span className="text-2xl font-bold text-[#7A1F1F]">{formatCurrency(finalTotal)}</span>
-                        </div>
-                    </div>
-                  </div>
-            </div>
-        )}
       </div>
     </div>
   )

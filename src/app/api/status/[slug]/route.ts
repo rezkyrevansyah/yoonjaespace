@@ -41,6 +41,7 @@ export async function GET(
 
   // Hanya return data yang aman untuk publik
   return NextResponse.json({
+    id: booking.id, // Needed for Invoice link construction if client side wants it, though we verify it here
     bookingCode: booking.bookingCode,
     clientName: booking.client.name,
     date: booking.date,
@@ -51,6 +52,8 @@ export async function GET(
     status: booking.status,
     paymentStatus: booking.paymentStatus,
     deliveredAt: booking.deliveredAt,
+    photoLink: booking.photoLink,
+    invoiceLink: `/invoice/${booking.id}`, // Public invoice link
     printOrder: booking.printOrder
       ? {
           status: booking.printOrder.status,

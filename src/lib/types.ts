@@ -24,6 +24,10 @@ export type ExpenseCategory =
   | "UTILITIES"
   | "MARKETING"
   | "SALARY"
+  | "PRINT_VENDOR"
+  | "PACKAGING"
+  | "SHIPPING"
+  | "OPERATIONAL"
   | "OTHER"
 
 // --- Core Models ---
@@ -71,10 +75,12 @@ export interface Background {
 export interface AddOn {
   id: string
   name: string
-  price: number
-  description: string
+  defaultPrice: number
+  description?: string
   isActive: boolean
 }
+
+export type AddOnTemplate = AddOn
 
 export interface Voucher {
   id: string
@@ -90,31 +96,47 @@ export interface Voucher {
 }
 
 export interface BookingAddOn {
-  addOn: AddOn
+  id: string
+  bookingId: string
+  itemName: string
   quantity: number
-  price: number
+  unitPrice: number
+  subtotal: number
 }
 
 export interface Booking {
   id: string
   bookingCode: string
+  publicSlug: string
+  clientId: string
   client: Client
+  date: string
+  startTime: string
+  endTime: string
+  backgroundId: string
+  background: Background | null
+  packageId: string
   package: Package
-  background: Background
-  photographer: StaffUser | null
-  addOns: BookingAddOn[]
-  voucher: Voucher | null
-  sessionDate: string
-  sessionTime: string
+  numberOfPeople: number
+  photoFor: string
+  bts: boolean
   status: BookingStatus
   paymentStatus: PaymentStatus
-  subtotal: number
-  discount: number
-  totalPrice: number
+  packagePrice: number
+  discountAmount: number
+  discountNote: string | null
+  totalAmount: number
   paidAmount: number
-  numPeople: number
   notes: string | null
-  slug: string
+  internalNotes: string | null
+  driveLink: string | null // or photoLink?
+  photoLink: string | null
+  handledById: string | null
+  handledBy: StaffUser | null
+  addOns: BookingAddOn[]
+  printOrder: PrintOrder | null
+  customFields: { id: string, fieldId: string, value: string, field?: CustomField }[]
+  remindedAt: string | null
   createdAt: string
   updatedAt: string
 }
@@ -186,13 +208,14 @@ export interface FinanceSummary {
   netProfit: number
   pendingPayments: number
   incomeByMonth: ChartDataPoint[]
+  expenseByCategory: Record<string, number>
 }
 
 export type PrintOrderStatus = 
-  | "WAITING_SELECTION"
+  | "WAITING_CLIENT_SELECTION"
   | "SENT_TO_VENDOR"
-  | "PRINTING"
-  | "RECEIVED"
+  | "PRINTING_IN_PROGRESS"
+  | "PRINT_RECEIVED"
   | "PACKAGING"
   | "SHIPPED"
   | "COMPLETED"
@@ -201,7 +224,7 @@ export interface PrintOrder {
   id: string
   bookingId: string
   status: PrintOrderStatus
-  selectedPhotosLink?: string
+  selectedPhotos?: string
   vendorName?: string
   vendorNotes?: string
   courier?: string
@@ -220,4 +243,14 @@ export interface ActivityLog {
   details: string
   timestamp: string // ISO string
   type: "CREATE" | "UPDATE" | "DELETE" | "SYSTEM"
+}
+
+export interface CustomField {
+  id: string
+  fieldName: string
+  fieldType: "TEXT" | "SELECT" | "CHECKBOX" | "NUMBER"
+  options?: string
+  isRequired: boolean
+  sortOrder: number
+  isActive: boolean
 }

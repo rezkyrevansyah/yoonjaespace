@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { name, defaultPrice } = await request.json()
+  const { name, defaultPrice, isActive } = await request.json()
 
   if (!name || defaultPrice === undefined) {
     return NextResponse.json(
@@ -52,7 +52,11 @@ export async function POST(request: NextRequest) {
   }
 
   const template = await prisma.addOnTemplate.create({
-    data: { name, defaultPrice },
+    data: {
+      name,
+      defaultPrice,
+      isActive: isActive !== undefined ? isActive : true
+    },
   })
 
   return NextResponse.json(template, { status: 201 })

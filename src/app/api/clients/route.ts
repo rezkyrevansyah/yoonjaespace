@@ -37,8 +37,13 @@ export async function GET(request: NextRequest) {
     prisma.client.findMany({
       where,
       include: {
-        _count: {
-          select: { bookings: true },
+        bookings: {
+          select: {
+            date: true,
+            totalAmount: true,
+            status: true,
+            paymentStatus: true,
+          },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -48,8 +53,34 @@ export async function GET(request: NextRequest) {
     prisma.client.count({ where }),
   ])
 
+  // Enhance clients with stats
+  const clientsWithStats = clients.map((client) => {
+    const validBookings = client.bookings.filter(
+      (b) => b.status !== 'CANCELLED'
+    )
+    
+    // Total spent (paid bookings only)
+    const totalSpent = validBookings
+      .filter((b) => b.paymentStatus === 'PAID')
+      .reduce((sum, b) => sum + b.totalAmount, 0)
+
+    // Last visit (latest booking date)
+    const lastVisit = validBookings.length > 0
+      ? validBookings.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0].date
+      : null
+
+    // Remove bookings from response to keep it light, unless needed detailed
+    const { bookings, ...clientData } = client
+    return {
+      ...clientData,
+      totalBookings: validBookings.length,
+      totalSpent,
+      lastVisit,
+    }
+  })
+
   return NextResponse.json({
-    clients,
+    data: clientsWithStats,
     pagination: {
       page,
       limit,
@@ -74,7 +105,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { name, phone, email, address, notes } = await request.json()
+  const { name, phone, email, instagram, address, notes } = await request.json()
 
   if (!name || !phone) {
     return NextResponse.json(
@@ -88,6 +119,7 @@ export async function POST(request: NextRequest) {
       name,
       phone,
       email: email || null,
+      instagram: instagram || null,
       address: address || null,
       notes: notes || null,
     },

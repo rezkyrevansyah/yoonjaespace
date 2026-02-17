@@ -14,6 +14,7 @@ interface ModalProps {
   onConfirm?: () => void
   variant?: "primary" | "danger"
   isLoading?: boolean
+  size?: "sm" | "md" | "lg"
 }
 
 export function Modal({
@@ -27,6 +28,7 @@ export function Modal({
   onConfirm,
   variant = "primary",
   isLoading = false,
+  size = "md",
 }: ModalProps) {
   React.useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -46,10 +48,19 @@ export function Modal({
 
   if (!isOpen) return null
 
+  const sizeClasses = {
+    sm: "max-w-sm",
+    md: "max-w-md",
+    lg: "max-w-lg"
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div 
-        className="relative w-full max-w-md bg-white rounded-xl shadow-xl overflow-hidden animate-in zoom-in-95 duration-200"
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+      onClick={() => !isLoading && onClose()}
+    >
+      <div
+        className={`relative w-full ${sizeClasses[size]} bg-white rounded-xl shadow-xl overflow-hidden animate-in zoom-in-95 duration-200`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
@@ -63,7 +74,8 @@ export function Modal({
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-gray-400 hover:text-gray-500 hover:bg-gray-100 transition-colors"
+            disabled={isLoading}
+            className="p-1 rounded-lg text-gray-400 hover:text-gray-500 hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <X className="h-5 w-5" />
           </button>

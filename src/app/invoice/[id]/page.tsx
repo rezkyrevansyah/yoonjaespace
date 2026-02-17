@@ -1,12 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useParams, notFound } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import Script from "next/script"
 import { ArrowLeft, Printer, Download, Loader2, Copy, Check } from "lucide-react"
-import { mockBookings } from "@/lib/mock-data"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { useToast } from "@/lib/hooks/use-toast"
 import { PAYMENT_STATUS_MAP } from "@/lib/constants"
@@ -35,18 +34,52 @@ export default function InvoicePage() {
   const [isDownloading, setIsDownloading] = useState(false)
   const [scriptsLoaded, setScriptsLoaded] = useState({ html2canvas: false, jspdf: false })
   const [copied, setCopied] = useState(false)
+  const [booking, setBooking] = useState<any>(null)
+  const [studio, setStudio] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState(false)
 
-  // Find the booking
-  const booking = mockBookings.find((b) => b.id === id)
+  // Fetch booking data from API
+  useEffect(() => {
+    if (!id) return
 
-  if (!booking) {
+    const fetchInvoice = async () => {
+      try {
+        const res = await fetch(`/api/public/invoice/${id}`)
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}))
+          throw new Error(err.error || 'Failed to fetch invoice')
+        }
+        const data = await res.json()
+        setBooking(data.booking)
+        setStudio(data.studio)
+      } catch (err) {
+        console.error(err)
+        setError(true)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchInvoice()
+  }, [id])
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    )
+  }
+
+  if (error || !booking) {
     notFound()
     return null
   }
 
-  // Generate Invoice Number (Mock) - using Date + Booking ID
+  // Generate Invoice Number - using Date + Booking ID
   const invoiceNumber = `INV-${booking.bookingCode.replace("YS-", "")}`
-  const invoiceDate = new Date() // Today
+  const invoiceDate = new Date()
 
   // Items for the table
   const items = [
@@ -57,12 +90,12 @@ export default function InvoicePage() {
       unitPrice: booking.package.price,
       total: booking.package.price,
     },
-    ...booking.addOns.map((item) => ({
-      description: `Add-on: ${item.addOn.name}`,
+    ...booking.addOns.map((item: any) => ({
+      description: `Add-on: ${item.itemName}`,
       notes: null,
       quantity: item.quantity,
-      unitPrice: item.price,
-      total: item.price * item.quantity,
+      unitPrice: item.unitPrice,
+      total: item.unitPrice * item.quantity,
     })),
   ]
 
@@ -181,7 +214,7 @@ export default function InvoicePage() {
     }
   }
 
-  const paymentStatus = booking.paymentStatus ? PAYMENT_STATUS_MAP[booking.paymentStatus] : PAYMENT_STATUS_MAP["UNPAID"]
+  const paymentStatus = booking.paymentStatus ? (PAYMENT_STATUS_MAP as any)[booking.paymentStatus] : PAYMENT_STATUS_MAP["UNPAID"]
 
   return (
     <>
@@ -239,22 +272,21 @@ export default function InvoicePage() {
                  {/* Left: Logo & Studio Info */}
                  <div className="flex flex-col gap-4">
                       <div className="flex items-center gap-3">
-                          <Image 
-                            src="/logo_yoonjae.png" 
-                            alt="Yoonjae Space" 
-                            width={50} 
-                            height={50} 
+                          <Image
+                            src="/logo_yoonjae.png"
+                            alt="Yoonjae Space"
+                            width={50}
+                            height={50}
                             className="object-contain" // Assuming square logo
                             priority
                           />
                           <span className="text-xl font-bold text-[#7A1F1F] tracking-tight" style={{ fontFamily: 'var(--font-poppins), sans-serif' }}>
-                            Yoonjaespace
+                            {studio?.name || "Yoonjaespace"}
                           </span>
                       </div>
                       <div className="text-xs text-gray-500 leading-relaxed font-medium">
-                          Jl. Kaliurang KM 5, Gang Megatruh<br/>
-                          Yogyakarta, DIY 55281<br/>
-                          +62 812-3456-7890 • @yoonjaespace
+                          {studio?.address || ""}<br/>
+                          {studio?.phone || ""} • {studio?.instagram || ""}
                       </div>
                  </div>
 
@@ -343,10 +375,10 @@ export default function InvoicePage() {
                      ))}
                      
                      {/* Discount Row if any */}
-                     {booking.discount > 0 && (
+                     {booking.discountAmount > 0 && (
                          <tr className="bg-red-50/50">
                              <td colSpan={3} className="py-3 px-4 text-right text-red-600 italic font-medium">Discount</td>
-                             <td className="py-3 px-4 text-right text-red-600 font-medium whitespace-nowrap">- {formatCurrency(booking.discount)}</td>
+                             <td className="py-3 px-4 text-right text-red-600 font-medium whitespace-nowrap">- {formatCurrency(booking.discountAmount)}</td>
                          </tr>
                      )}
                  </tbody>
@@ -354,7 +386,7 @@ export default function InvoicePage() {
                     {/* Subtotal */}
                     <tr>
                          <td colSpan={3} className="pt-4 px-4 text-right text-gray-500 text-xs uppercase font-bold tracking-wider">Subtotal</td>
-                         <td className="pt-4 px-4 text-right font-bold text-gray-700">{formatCurrency(booking.subtotal)}</td>
+                         <td className="pt-4 px-4 text-right font-bold text-gray-700">{formatCurrency(booking.packagePrice + booking.addOns.reduce((sum: number, item: any) => sum + (item.subtotal || item.unitPrice * item.quantity), 0))}</td>
                      </tr>
                      
                      {/* Total */}
@@ -362,7 +394,7 @@ export default function InvoicePage() {
                          <td colSpan={4} className="py-2">
                              <div className="flex justify-end items-center mt-2 bg-[#F5ECEC]/50 p-2 border-t-2 border-double border-[#7A1F1F]">
                                  <span className="text-[#7A1F1F] font-bold text-lg mr-8">TOTAL</span>
-                                 <span className="text-[#7A1F1F] font-bold text-xl">{formatCurrency(booking.totalPrice)}</span>
+                                 <span className="text-[#7A1F1F] font-bold text-xl">{formatCurrency(booking.totalAmount)}</span>
                              </div>
                          </td>
                      </tr>
@@ -382,42 +414,26 @@ export default function InvoicePage() {
                                 <Check className="h-4 w-4" />
                                 <span>Paid Amount: {formatCurrency(booking.paidAmount)}</span>
                             </div>
-                            {(booking.totalPrice - booking.paidAmount) > 0 && (
+                            {(booking.totalAmount - booking.paidAmount) > 0 && (
                                 <div className="text-red-600 font-bold mt-1">
-                                    Outstanding Balance: {formatCurrency(booking.totalPrice - booking.paidAmount)}
+                                    Outstanding Balance: {formatCurrency(booking.totalAmount - booking.paidAmount)}
                                 </div>
                             )}
                         </div>
                      )}
-
-                     <div className="bg-gray-50 rounded-lg p-4 text-xs text-gray-600 border border-gray-100">
-                         <div className="flex justify-between mb-1">
-                             <span>Bank Name:</span>
-                             <span className="font-bold text-gray-800">BCA (Bank Central Asia)</span>
-                         </div>
-                         <div className="flex justify-between mb-1">
-                             <span>Account No:</span>
-                             <span className="font-bold text-gray-800 font-mono text-sm">123-456-7890</span>
-                         </div>
-                         <div className="flex justify-between">
-                             <span>Account Name:</span>
-                             <span className="font-bold text-gray-800">Yoonjae Space Official</span>
-                         </div>
-                     </div>
                  </div>
 
                  <div className="text-right flex flex-col items-end justify-end">
                      <p className="text-xs text-gray-400 mb-16">Authorized Signature</p>
                      <div className="border-t border-gray-300 w-40 text-center pt-2">
-                         <p className="text-xs font-bold text-gray-900">Yoonjae Space Manager</p>
+                         <p className="text-xs font-bold text-gray-900">{studio?.name || "Yoonjae Space"} Manager</p>
                      </div>
                  </div>
              </div>
              
              <div className="mt-12 text-center text-xs text-gray-400 print:mt-24">
-                 <p>Thank you for choosing Yoonjae Space for your special moments! 💕</p>
-                 <p className="mt-1">yoonjaespace.com | @yoonjaespace</p>
-             </div>
+                 <p>Thank you for choosing {studio?.name || "Yoonjae Space"} for your special moments! 💕</p>
+              </div>
         </div>
 
       </div>

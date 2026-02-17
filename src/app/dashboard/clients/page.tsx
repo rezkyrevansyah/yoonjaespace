@@ -12,14 +12,26 @@ import {
   Edit,
   Trash2,
   MoreHorizontal,
-  Users
+  Users,
+  Loader2,
+  AlertCircle
 } from "lucide-react"
-import { mockClients, mockBookings, mockCurrentUser } from "@/lib/mock-data"
 import { formatCurrency, formatDate, getInitials } from "@/lib/utils"
-import { useMobile } from "@/lib/hooks/use-mobile"
+// import { useMobile } from "@/lib/hooks/use-mobile" // Assuming this exists or using simple check
 import { useToast } from "@/lib/hooks/use-toast"
 import { Modal } from "@/components/shared/modal"
 import { Pagination } from "@/components/shared/pagination"
+import { useClients } from "@/lib/hooks/use-clients"
+import { useAuth } from "@/lib/hooks/use-auth"
+import { apiPost, apiPatch, apiDelete } from "@/lib/api-client"
+import { Client } from "@/lib/types"
+
+// Extend Client type locally if types.ts not yet updated
+type ClientWithStats = Client & {
+  totalBookings?: number
+  totalSpent?: number
+  lastVisit?: string | null
+}
 
 type ClientFormData = {
   id?: string
@@ -28,25 +40,43 @@ type ClientFormData = {
   email: string | null
   instagram: string | null
   address: string | null
+  notes: string | null
 }
 
 const ITEMS_PER_PAGE = 10
 
 export default function ClientsPage() {
   const router = useRouter()
-  const isMobile = useMobile()
   const { showToast } = useToast()
+  const { user } = useAuth()
+  
+  // Mobile check (simplified)
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768)
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
 
-  const [clients, setClients] = useState(mockClients)
+  // State
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
+
+  // Use Hook
+  const { clients, pagination, isLoading, mutate } = useClients({
+      search: debouncedSearch,
+      page: currentPage,
+      limit: ITEMS_PER_PAGE
+  })
 
   // Modals
   const [addModalOpen, setAddModalOpen] = useState(false)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
-  const [selectedClient, setSelectedClient] = useState<ClientFormData | null>(null)
+  const [selectedClient, setSelectedClient] = useState<ClientWithStats | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Form state
   const [formData, setFormData] = useState<ClientFormData>({
@@ -54,7 +84,8 @@ export default function ClientsPage() {
     phone: "",
     email: "",
     instagram: "",
-    address: ""
+    address: "",
+    notes: ""
   })
 
   // Debounced search
@@ -66,46 +97,14 @@ export default function ClientsPage() {
     return () => clearTimeout(timer)
   }, [search])
 
-  // Calculate stats for each client
-  const clientsWithStats = useMemo(() => {
-    return clients.map(client => {
-      const clientBookings = mockBookings.filter(b => b.client.id === client.id && b.status !== "CANCELLED")
-      const totalSpent = clientBookings.reduce((sum, b) => sum + b.paidAmount, 0)
-      const lastVisit = clientBookings.length > 0
-        ? clientBookings.sort((a, b) => new Date(b.sessionDate).getTime() - new Date(a.sessionDate).getTime())[0].sessionDate
-        : null
-
-      return {
-        ...client,
-        totalBookings: clientBookings.length,
-        totalSpent,
-        lastVisit
-      }
-    })
-  }, [clients])
-
-  // Filter clients
-  const filteredClients = useMemo(() => {
-    return clientsWithStats.filter((c) =>
-      c.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-      c.phone.includes(debouncedSearch) ||
-      (c.email && c.email.toLowerCase().includes(debouncedSearch.toLowerCase()))
-    )
-  }, [clientsWithStats, debouncedSearch])
-
-  // Pagination
-  const totalPages = Math.ceil(filteredClients.length / ITEMS_PER_PAGE)
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
-  const endIndex = startIndex + ITEMS_PER_PAGE
-  const paginatedClients = filteredClients.slice(startIndex, endIndex)
 
   // Format phone for WhatsApp
   const formatPhoneForWA = (phone: string) => {
-    return phone.replace(/^0/, '62')
+    return phone.replace(/^0/, '62').replace(/\D/g, '')
   }
 
   // Get relative time
-  const getRelativeTime = (dateStr: string | null) => {
+  const getRelativeTime = (dateStr?: string | null) => {
     if (!dateStr) return "Belum ada sesi"
 
     const date = new Date(dateStr)
@@ -122,7 +121,7 @@ export default function ClientsPage() {
   }
 
   // Permissions
-  const canDelete = mockCurrentUser.role === "OWNER"
+  const canDelete = user?.role === "OWNER"
 
   // CRUD Operations
   const handleAdd = () => {
@@ -131,68 +130,78 @@ export default function ClientsPage() {
       phone: "",
       email: "",
       instagram: "",
-      address: ""
+      address: "",
+      notes: ""
     })
     setAddModalOpen(true)
   }
 
-  const handleEdit = (client: { id: string, name: string, phone: string, email?: string | null, instagram?: string | null, address?: string | null }) => {
+  const handleEdit = (client: ClientWithStats) => {
+    setSelectedClient(client)
     setFormData({
       id: client.id,
       name: client.name,
       phone: client.phone,
       email: client.email || "",
       instagram: client.instagram || "",
-      address: client.address || ""
+      address: client.address || "",
+      notes: client.notes || ""
     })
     setEditModalOpen(true)
   }
 
-  const handleDeleteClick = (client: ClientFormData) => {
+  const handleDeleteClick = (client: ClientWithStats) => {
     setSelectedClient(client)
     setDeleteModalOpen(true)
   }
 
-  const saveClient = () => {
+  const saveClient = async () => {
     if (!formData.name || !formData.phone) {
       showToast("Nama dan nomor WhatsApp wajib diisi", "warning")
       return
     }
 
-    if (formData.id) {
-      // Update existing
-      setClients(prev => prev.map(c =>
-        c.id === formData.id
-          ? { ...c, ...formData }
-          : c
-      ))
-      showToast(`Client ${formData.name} berhasil diupdate`, "success")
-      setEditModalOpen(false)
-    } else {
-      // Create new
-      const newClient = {
-        id: `cl-${Date.now()}`,
-        name: formData.name,
-        phone: formData.phone,
-        email: formData.email || null,
-        instagram: formData.instagram || null,
-        address: formData.address || null,
-        notes: null,
-        totalBookings: 0,
-        createdAt: new Date().toISOString()
-      }
-      setClients(prev => [newClient, ...prev])
-      showToast(`Client ${formData.name} berhasil ditambahkan`, "success")
-      setAddModalOpen(false)
+    setIsSubmitting(true)
+    try {
+        if (formData.id) {
+            // Update
+            const res = await apiPatch(`/api/clients/${formData.id}`, formData)
+            if (res.error) throw new Error(res.error)
+            showToast(`Client ${formData.name} berhasil diupdate`, "success")
+            setEditModalOpen(false)
+        } else {
+            // Create
+            const res = await apiPost("/api/clients", formData)
+            if (res.error) throw new Error(res.error)
+            showToast(`Client ${formData.name} berhasil ditambahkan`, "success")
+            setAddModalOpen(false)
+        }
+        mutate() // Refresh list
+    } catch (error: any) {
+        console.error(error)
+        showToast(error.message || "Gagal menyimpan client", "error")
+    } finally {
+        setIsSubmitting(false)
     }
   }
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (selectedClient) {
-      setClients(prev => prev.filter(c => c.id !== selectedClient.id))
-      showToast(`Client ${selectedClient.name} berhasil dihapus`, "success")
-      setDeleteModalOpen(false)
-      setSelectedClient(null)
+      setIsSubmitting(true)
+      try {
+          const res = await apiDelete(`/api/clients/${selectedClient.id}`)
+          if (res.error) throw new Error(res.error)
+          
+          showToast(`Client ${selectedClient.name} berhasil dihapus`, "success")
+          setDeleteModalOpen(false)
+          setSelectedClient(null)
+          mutate() // Refresh list
+      } catch (error: any) {
+          console.error(error)
+          showToast(error.message || "Gagal menghapus client", "error")
+      } finally {
+          setIsSubmitting(false)
+      }
     }
   }
 
@@ -202,7 +211,9 @@ export default function ClientsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-[#111827]">Clients</h1>
-          <p className="text-sm text-[#6B7280] mt-1">{clients.length} total klien</p>
+          <p className="text-sm text-[#6B7280] mt-1">
+             {pagination?.total || 0} total klien
+          </p>
         </div>
         <button
           onClick={handleAdd}
@@ -233,213 +244,219 @@ export default function ClientsPage() {
         )}
       </div>
 
-      {/* Results count */}
-      <div className="text-xs text-[#9CA3AF]">
-        <p>
-          Menampilkan {filteredClients.length > 0 ? startIndex + 1 : 0}-{Math.min(endIndex, filteredClients.length)} dari {filteredClients.length} klien
-        </p>
-      </div>
-
-      {/* Desktop Table */}
-      {!isMobile ? (
-        <div className="rounded-xl border border-[#E5E7EB] bg-white overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB]">
-                  <th className="text-left py-3 px-4 font-medium text-[#6B7280]">Name</th>
-                  <th className="text-left py-3 px-4 font-medium text-[#6B7280]">Phone</th>
-                  <th className="text-left py-3 px-4 font-medium text-[#6B7280]">Email</th>
-                  <th className="text-center py-3 px-4 font-medium text-[#6B7280]">Total Bookings</th>
-                  <th className="text-right py-3 px-4 font-medium text-[#6B7280]">Total Spent</th>
-                  <th className="text-left py-3 px-4 font-medium text-[#6B7280]">Last Visit</th>
-                  <th className="text-center py-3 px-4 font-medium text-[#6B7280]">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedClients.map((client) => (
-                  <tr
+      {isLoading ? (
+          <div className="flex justify-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-gray-300" />
+          </div>
+      ) : (
+          <>
+            {/* Desktop Table */}
+            {!isMobile ? (
+                <div className="rounded-xl border border-[#E5E7EB] bg-white overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                    <thead>
+                        <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB]">
+                        <th className="text-left py-3 px-4 font-medium text-[#6B7280]">Name</th>
+                        <th className="text-left py-3 px-4 font-medium text-[#6B7280]">Phone</th>
+                        <th className="text-left py-3 px-4 font-medium text-[#6B7280]">Email</th>
+                        <th className="text-center py-3 px-4 font-medium text-[#6B7280]">Total Bookings</th>
+                        <th className="text-right py-3 px-4 font-medium text-[#6B7280]">Total Spent</th>
+                        <th className="text-left py-3 px-4 font-medium text-[#6B7280]">Last Visit</th>
+                        <th className="text-center py-3 px-4 font-medium text-[#6B7280]">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {clients.map((client: any) => (
+                        <tr
+                            key={client.id}
+                            onClick={() => router.push(`/dashboard/clients/${client.id}`)}
+                            className="border-b border-[#E5E7EB] last:border-0 hover:bg-[#F9FAFB] cursor-pointer transition-colors"
+                        >
+                            <td className="py-3 px-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-full bg-[#F5ECEC] flex items-center justify-center text-xs font-semibold text-[#7A1F1F] shrink-0">
+                                {getInitials(client.name)}
+                                </div>
+                                <span className="font-semibold text-[#111827]">{client.name}</span>
+                            </div>
+                            </td>
+                            <td className="py-3 px-4">
+                            <a
+                                href={`https://wa.me/${formatPhoneForWA(client.phone)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="flex items-center gap-2 text-[#6B7280] hover:text-[#7A1F1F] transition-colors"
+                            >
+                                <Phone className="h-3.5 w-3.5" />
+                                <span>{client.phone}</span>
+                            </a>
+                            </td>
+                            <td className="py-3 px-4">
+                            {client.email ? (
+                                <a
+                                href={`mailto:${client.email}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="flex items-center gap-2 text-[#6B7280] hover:text-[#7A1F1F] transition-colors"
+                                >
+                                <Mail className="h-3.5 w-3.5" />
+                                <span className="truncate max-w-[200px]">{client.email}</span>
+                                </a>
+                            ) : (
+                                <span className="text-[#9CA3AF]">—</span>
+                            )}
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                            <span className="inline-flex items-center justify-center min-w-[28px] h-7 px-2 rounded-full bg-blue-50 text-xs font-semibold text-blue-700">
+                                {client.totalBookings || 0}
+                            </span>
+                            </td>
+                            <td className="py-3 px-4 text-right font-semibold text-[#111827]">
+                            {formatCurrency(client.totalSpent || 0)}
+                            </td>
+                            <td className="py-3 px-4 text-[#6B7280]">
+                            {getRelativeTime(client.lastVisit)}
+                            </td>
+                            <td className="py-3 px-4">
+                            <div className="flex items-center justify-center gap-1">
+                                <button
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    router.push(`/dashboard/clients/${client.id}`)
+                                }}
+                                className="p-1.5 text-gray-500 hover:text-[#7A1F1F] hover:bg-red-50 rounded-lg transition-colors"
+                                title="View"
+                                >
+                                <Eye className="h-4 w-4" />
+                                </button>
+                                <button
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleEdit(client)
+                                }}
+                                className="p-1.5 text-gray-500 hover:text-[#7A1F1F] hover:bg-red-50 rounded-lg transition-colors"
+                                title="Edit"
+                                >
+                                <Edit className="h-4 w-4" />
+                                </button>
+                                {canDelete && (
+                                <button
+                                    onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleDeleteClick(client)
+                                    }}
+                                    className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Delete"
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </button>
+                                )}
+                            </div>
+                            </td>
+                        </tr>
+                        ))}
+                    </tbody>
+                    </table>
+                </div>
+                </div>
+            ) : (
+                /* Mobile Cards */
+                <div className="space-y-3">
+                {clients.map((client: any) => (
+                    <div
                     key={client.id}
                     onClick={() => router.push(`/dashboard/clients/${client.id}`)}
-                    className="border-b border-[#E5E7EB] last:border-0 hover:bg-[#F9FAFB] cursor-pointer transition-colors"
-                  >
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-[#F5ECEC] flex items-center justify-center text-xs font-semibold text-[#7A1F1F] shrink-0">
-                          {getInitials(client.name)}
+                    className="p-4 rounded-xl border border-[#E5E7EB] bg-white hover:shadow-sm transition-shadow"
+                    >
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-[#F5ECEC] flex items-center justify-center text-sm font-semibold text-[#7A1F1F] shrink-0">
+                            {getInitials(client.name)}
                         </div>
-                        <span className="font-semibold text-[#111827]">{client.name}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <a
+                        <div>
+                            <p className="text-sm font-semibold text-[#111827]">{client.name}</p>
+                        </div>
+                        </div>
+                        <button
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            handleEdit(client)
+                        }}
+                        className="p-1 text-gray-400 hover:text-gray-600"
+                        >
+                        <Edit className="h-5 w-5" />
+                        </button>
+                    </div>
+
+                    {/* Body */}
+                    <div className="space-y-2 text-xs mb-3">
+                        <a
                         href={`https://wa.me/${formatPhoneForWA(client.phone)}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="flex items-center gap-2 text-[#6B7280] hover:text-[#7A1F1F] transition-colors"
-                      >
-                        <Phone className="h-3.5 w-3.5" />
-                        <span>{client.phone}</span>
-                      </a>
-                    </td>
-                    <td className="py-3 px-4">
-                      {client.email ? (
-                        <a
-                          href={`mailto:${client.email}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="flex items-center gap-2 text-[#6B7280] hover:text-[#7A1F1F] transition-colors"
+                        className="flex items-center gap-2 text-[#6B7280] hover:text-[#7A1F1F]"
                         >
-                          <Mail className="h-3.5 w-3.5" />
-                          <span className="truncate max-w-[200px]">{client.email}</span>
+                        <Phone className="h-3 w-3" /> {client.phone}
                         </a>
-                      ) : (
-                        <span className="text-[#9CA3AF]">—</span>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <span className="inline-flex items-center justify-center min-w-[28px] h-7 px-2 rounded-full bg-blue-50 text-xs font-semibold text-blue-700">
-                        {client.totalBookings}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right font-semibold text-[#111827]">
-                      {formatCurrency(client.totalSpent)}
-                    </td>
-                    <td className="py-3 px-4 text-[#6B7280]">
-                      {getRelativeTime(client.lastVisit)}
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            router.push(`/dashboard/clients/${client.id}`)
-                          }}
-                          className="p-1.5 text-gray-500 hover:text-[#7A1F1F] hover:bg-red-50 rounded-lg transition-colors"
-                          title="View"
+                        {client.email && (
+                        <a
+                            href={`mailto:${client.email}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex items-center gap-2 text-[#6B7280] hover:text-[#7A1F1F] truncate"
                         >
-                          <Eye className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleEdit(client)
-                          }}
-                          className="p-1.5 text-gray-500 hover:text-[#7A1F1F] hover:bg-red-50 rounded-lg transition-colors"
-                          title="Edit"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        {canDelete && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleDeleteClick(client)
-                            }}
-                            className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                            <Mail className="h-3 w-3" /> {client.email}
+                        </a>
                         )}
-                      </div>
-                    </td>
-                  </tr>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="flex items-center justify-between pt-3 border-t border-[#E5E7EB]">
+                        <div className="text-xs text-[#6B7280]">
+                        <span className="font-medium">{client.totalBookings || 0} bookings</span>
+                        <span className="mx-1">•</span>
+                        <span className="font-medium text-[#7A1F1F]">{formatCurrency(client.totalSpent || 0)}</span>
+                        </div>
+                        <div className="text-xs text-[#9CA3AF]">
+                        {getRelativeTime(client.lastVisit)}
+                        </div>
+                    </div>
+                    </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : (
-        /* Mobile Cards */
-        <div className="space-y-3">
-          {paginatedClients.map((client) => (
-            <div
-              key={client.id}
-              onClick={() => router.push(`/dashboard/clients/${client.id}`)}
-              className="p-4 rounded-xl border border-[#E5E7EB] bg-white hover:shadow-sm transition-shadow"
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-[#F5ECEC] flex items-center justify-center text-sm font-semibold text-[#7A1F1F] shrink-0">
-                    {getInitials(client.name)}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-[#111827]">{client.name}</p>
-                  </div>
                 </div>
-                <button
-                  onClick={(e) => e.stopPropagation()}
-                  className="p-1 text-gray-400 hover:text-gray-600"
-                >
-                  <MoreHorizontal className="h-5 w-5" />
-                </button>
-              </div>
+            )}
 
-              {/* Body */}
-              <div className="space-y-2 text-xs mb-3">
-                <a
-                  href={`https://wa.me/${formatPhoneForWA(client.phone)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="flex items-center gap-2 text-[#6B7280] hover:text-[#7A1F1F]"
-                >
-                  <Phone className="h-3 w-3" /> {client.phone}
-                </a>
-                {client.email && (
-                  <a
-                    href={`mailto:${client.email}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="flex items-center gap-2 text-[#6B7280] hover:text-[#7A1F1F] truncate"
-                  >
-                    <Mail className="h-3 w-3" /> {client.email}
-                  </a>
+            {/* Empty State */}
+            {clients.length === 0 && (
+                <div className="text-center py-16 bg-white rounded-xl border border-[#E5E7EB]">
+                <Users className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500 mb-4">
+                    {search ? "Tidak ada client ditemukan" : "Belum ada client"}
+                </p>
+                {!search && (
+                    <button
+                    onClick={handleAdd}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#7A1F1F] text-white text-sm font-medium hover:bg-[#9B3333] transition-colors"
+                    >
+                    <Plus className="h-4 w-4" />
+                    Tambah Client Pertama
+                    </button>
                 )}
-              </div>
-
-              {/* Footer */}
-              <div className="flex items-center justify-between pt-3 border-t border-[#E5E7EB]">
-                <div className="text-xs text-[#6B7280]">
-                  <span className="font-medium">{client.totalBookings} bookings</span>
-                  <span className="mx-1">•</span>
-                  <span className="font-medium text-[#7A1F1F]">{formatCurrency(client.totalSpent)}</span>
                 </div>
-                <div className="text-xs text-[#9CA3AF]">
-                  {getRelativeTime(client.lastVisit)}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+            )}
 
-      {/* Empty State */}
-      {filteredClients.length === 0 && (
-        <div className="text-center py-16 bg-white rounded-xl border border-[#E5E7EB]">
-          <Users className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500 mb-4">
-            {search ? "Tidak ada client ditemukan" : "Belum ada client"}
-          </p>
-          {!search && (
-            <button
-              onClick={handleAdd}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#7A1F1F] text-white text-sm font-medium hover:bg-[#9B3333] transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-              Tambah Client Pertama
-            </button>
-          )}
-        </div>
+            {/* Pagination */}
+            {pagination && (
+                <Pagination
+                    currentPage={currentPage}
+                    totalPages={pagination.totalPages}
+                    onPageChange={setCurrentPage}
+                />
+            )}
+          </>
       )}
-
-      {/* Pagination */}
-      <Pagination
-        currentPage={currentPage}
-        totalPages={totalPages}
-        onPageChange={setCurrentPage}
-      />
 
       {/* Add/Edit Client Modal */}
       <Modal
@@ -450,85 +467,83 @@ export default function ClientsPage() {
         }}
         title={editModalOpen ? "Edit Client" : "Add New Client"}
         description={editModalOpen ? "Update client information" : "Add a new client to your database"}
+        onConfirm={saveClient}
+        isLoading={isSubmitting}
+        confirmLabel={editModalOpen ? "Update" : "Save"}
       >
-        <div className="space-y-4 py-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-gray-700">
               Nama Lengkap <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all"
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all placeholder:text-gray-400"
               placeholder="Masukkan nama lengkap"
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-gray-700">
               Nomor WhatsApp <span className="text-red-500">*</span>
             </label>
             <input
               type="tel"
               value={formData.phone}
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all"
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all placeholder:text-gray-400"
               placeholder="08xxxxxxxxxx"
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-gray-700">Email</label>
             <input
               type="email"
               value={formData.email || ""}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all"
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all placeholder:text-gray-400"
               placeholder="email@example.com"
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Instagram</label>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-gray-700">Instagram</label>
             <input
               type="text"
               value={formData.instagram || ""}
               onChange={(e) => setFormData({ ...formData, instagram: e.target.value })}
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all"
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all placeholder:text-gray-400"
               placeholder="@username"
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Alamat</label>
+          <div className="space-y-1.5 md:col-span-2">
+            <label className="text-xs font-medium text-gray-700">Alamat</label>
             <textarea
-              rows={3}
+              rows={2}
               value={formData.address || ""}
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all resize-none"
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all resize-none placeholder:text-gray-400"
               placeholder="Alamat lengkap client"
+            />
+          </div>
+
+           <div className="space-y-1.5 md:col-span-2">
+            <label className="text-xs font-medium text-gray-700">Catatan</label>
+            <textarea
+              rows={2}
+              value={formData.notes || ""}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all resize-none placeholder:text-gray-400"
+              placeholder="Internal notes..."
             />
           </div>
         </div>
 
-        <div className="flex items-center gap-3 mt-6">
-          <button
-            onClick={() => {
-              setAddModalOpen(false)
-              setEditModalOpen(false)
-            }}
-            className="flex-1 px-4 py-2.5 rounded-lg border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={saveClient}
-            className="flex-1 px-4 py-2.5 rounded-lg bg-[#7A1F1F] text-white font-medium hover:bg-[#9B3333] transition-colors"
-          >
-            {editModalOpen ? "Update" : "Save"}
-          </button>
-        </div>
+
       </Modal>
 
       {/* Delete Confirmation Modal */}
@@ -537,8 +552,8 @@ export default function ClientsPage() {
           isOpen={deleteModalOpen}
           onClose={() => setDeleteModalOpen(false)}
           title={`Hapus client ${selectedClient.name}?`}
-          description="Booking history akan tetap ada, tapi client tidak bisa dipilih lagi untuk booking baru."
-          confirmLabel="Delete"
+          description="Booking history client ini akan tetap tersimpan (jika ada), namun client tidak bisa dipilih lagi. Jika client memiliki booking aktif, mungkin tidak bisa dihapus."
+          confirmLabel={isSubmitting ? "Deleting..." : "Delete"}
           onConfirm={confirmDelete}
           variant="danger"
         />

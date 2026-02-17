@@ -3,10 +3,11 @@ import { usePathname } from "next/navigation"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { getInitials } from "@/lib/utils"
-import { mockCurrentUser, mockActivities } from "@/lib/mock-data"
+import { useAuth } from "@/lib/hooks/use-auth"
+import { useActivities } from "@/lib/hooks/use-activities"
 import { USER_ROLE_MAP } from "@/lib/constants"
 import { Breadcrumb } from "./breadcrumb"
-import { Bell, Search, Menu, X } from "lucide-react"
+import { Bell, Search, Menu, X, Loader2 } from "lucide-react"
 import { ActivityLogItem } from "@/components/shared/activity-log-item"
 
 interface HeaderProps {
@@ -15,6 +16,8 @@ interface HeaderProps {
 
 export function Header({ onMenuClick }: HeaderProps) {
   const pathname = usePathname()
+  const { user } = useAuth()
+  const { activities, isLoading: isActivitiesLoading } = useActivities(5)
   const [showActivities, setShowActivities] = useState(false)
   const activityRef = useRef<HTMLDivElement>(null)
 
@@ -38,11 +41,11 @@ export function Header({ onMenuClick }: HeaderProps) {
     return lastSegment.charAt(0).toUpperCase() + lastSegment.slice(1)
   }
 
-  // Get today's activities
+  // Get today's activities (already limited to 5 by hook params for dropdown)
   const today = new Date().toISOString().split("T")[0]
-  const todaysActivities = mockActivities.filter(
-    (activity) => activity.timestamp.startsWith(today)
-  ).slice(0, 5) // Limit to 5 for dropdown
+  const todaysActivities = activities.filter(
+    (activity) => activity.timestamp.toString().startsWith(today)
+  )
 
   return (
     <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm border-b border-[#E5E7EB] h-16">
@@ -105,7 +108,11 @@ export function Header({ onMenuClick }: HeaderProps) {
                 </div>
                 
                 <div className="max-h-[320px] overflow-y-auto">
-                  {todaysActivities.length > 0 ? (
+                  {isActivitiesLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                    </div>
+                  ) : todaysActivities.length > 0 ? (
                     <div className="divide-y divide-[#E5E7EB]">
                       {todaysActivities.map((activity) => (
                         <div key={activity.id} className="px-4 hover:bg-[#F9FAFB] transition-colors">
@@ -136,14 +143,14 @@ export function Header({ onMenuClick }: HeaderProps) {
           {/* User Avatar (desktop) */}
           <div className="hidden lg:flex items-center gap-2 ml-2 pl-3 border-l border-[#E5E7EB]">
             <div className="flex items-center justify-center w-8 h-8 rounded-full bg-[#F5ECEC] text-[#7A1F1F] text-xs font-semibold">
-              {getInitials(mockCurrentUser.name)}
+              {getInitials(user?.name || "User")}
             </div>
             <div className="hidden xl:block">
               <p className="text-sm font-medium text-[#111827] leading-tight">
-                {mockCurrentUser.name}
+                {user?.name || "User"}
               </p>
               <p className="text-[11px] text-[#9CA3AF]">
-                {USER_ROLE_MAP[mockCurrentUser.role].label}
+                {user?.role ? USER_ROLE_MAP[user.role].label : "Staff"}
               </p>
             </div>
           </div>

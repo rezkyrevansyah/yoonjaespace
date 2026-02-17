@@ -42,14 +42,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { name } = await request.json()
+  const { name, description, isActive } = await request.json()
 
   if (!name) {
     return NextResponse.json({ error: 'Nama harus diisi' }, { status: 400 })
   }
 
   const background = await prisma.background.create({
-    data: { name },
+    data: {
+      name,
+      description: description || null,
+      isActive: isActive !== undefined ? isActive : true
+    },
   })
 
   return NextResponse.json(background, { status: 201 })

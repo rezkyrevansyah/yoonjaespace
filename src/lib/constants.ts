@@ -78,6 +78,10 @@ export const EXPENSE_CATEGORY_MAP: Record<ExpenseCategory, { label: string; icon
   UTILITIES: { label: "Utilitas", icon: "Zap" },
   MARKETING: { label: "Marketing", icon: "Megaphone" },
   SALARY: { label: "Gaji", icon: "Users" },
+  PRINT_VENDOR: { label: "Vendor Cetak", icon: "Printer" },
+  PACKAGING: { label: "Packaging", icon: "Package" },
+  SHIPPING: { label: "Pengiriman", icon: "Truck" },
+  OPERATIONAL: { label: "Operasional", icon: "Settings" },
   OTHER: { label: "Lainnya", icon: "MoreHorizontal" },
 }
 
@@ -90,54 +94,69 @@ export const SIDEBAR_MENU = [
     label: "Dashboard",
     href: "/dashboard",
     icon: "LayoutDashboard",
+    roles: ["OWNER", "ADMIN"] as const,
+  },
+  {
+    label: "Today's Schedule",
+    href: "/dashboard",
+    icon: "CalendarCheck",
+    roles: ["PHOTOGRAPHER"] as const,
   },
   {
     label: "Bookings",
     href: "/dashboard/bookings",
     icon: "CalendarCheck",
+    roles: ["OWNER", "ADMIN", "PACKAGING_STAFF"] as const,
   },
   {
     label: "Calendar",
     href: "/dashboard/calendar",
     icon: "Calendar",
+    roles: ["OWNER", "ADMIN"] as const,
   },
   {
     label: "Clients",
     href: "/dashboard/clients",
     icon: "Users",
+    roles: ["OWNER", "ADMIN"] as const,
   },
   {
     label: "Reminders",
     href: "/dashboard/reminders",
     icon: "Bell",
-    badge: 3,
+    roles: ["OWNER", "ADMIN"] as const,
   },
   {
     label: "Finance",
     href: "/dashboard/finance",
     icon: "Wallet",
+    roles: ["OWNER"] as const,
   },
   {
     label: "Commissions",
     href: "/dashboard/commissions",
     icon: "Award",
+    roles: ["OWNER"] as const,
   },
   {
     label: "Activities",
     href: "/dashboard/activities",
     icon: "Activity",
+    roles: ["OWNER", "ADMIN"] as const,
   },
   {
     label: "Settings",
     href: "/dashboard/settings",
     icon: "Settings",
+    roles: ["OWNER"] as const,
   },
   {
     label: "User Management",
     href: "/dashboard/users",
     icon: "ShieldCheck",
+    roles: ["OWNER"] as const,
   },
-] as const
+]
 
 export const MOBILE_NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard", icon: "LayoutDashboard" },

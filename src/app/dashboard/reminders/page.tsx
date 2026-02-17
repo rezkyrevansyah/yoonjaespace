@@ -10,35 +10,50 @@ import {
   MessageCircle,
   AlertCircle,
   Clock,
-  CheckCircle
+  CheckCircle,
+  Loader2,
+  Check,
+  RotateCcw
 } from "lucide-react"
-import { mockBookings } from "@/lib/mock-data"
+import { useReminders } from "@/lib/hooks/use-reminders"
+import { useReminderCount } from "@/lib/hooks/use-reminder-count"
 import { formatDate, getInitials } from "@/lib/utils"
 import { useMobile } from "@/lib/hooks/use-mobile"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { apiPatch } from "@/lib/api-client"
+import { useToast } from "@/lib/hooks/use-toast"
 
 type TabFilter = "today" | "tomorrow" | "week" | "all"
-
-// Mock current time for testing - adjust as needed
-const MOCK_CURRENT_TIME = new Date("2026-02-15T07:00:00") // Saturday, Feb 15, 2026, 07:00 AM
 
 export default function RemindersPage() {
   const isMobile = useMobile()
   const [activeTab, setActiveTab] = useState<TabFilter>("today")
+  const { reminders, isLoading, isError, refresh } = useReminders(activeTab)
+  const { refresh: refreshCount } = useReminderCount()
+  const { showToast } = useToast()
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
 
-  // Get day name in Indonesian
-  const getDayName = (date: Date) => {
-    const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"]
-    return days[date.getDay()]
+  const handleMarkReminded = async (bookingId: string, reminded: boolean) => {
+    setUpdatingId(bookingId)
+    try {
+      const { error } = await apiPatch(`/api/bookings/${bookingId}/remind`, { reminded })
+      if (error) throw new Error(error)
+
+      await refresh()
+      await refreshCount()
+      showToast(reminded ? "Berhasil menandai sudah diremind" : "Status reminder dikembalikan", "success")
+    } catch (err: any) {
+      showToast(err.message || "Gagal mengupdate status reminder", "error")
+    } finally {
+      setUpdatingId(null)
+    }
   }
 
-  // Calculate hours/minutes left
-  const getTimeLeft = (sessionDate: string, sessionTime: string) => {
-    const [hours, minutes] = sessionTime.split(":").map(Number)
-    const sessionDateTime = new Date(sessionDate)
-    sessionDateTime.setHours(hours, minutes, 0, 0)
+  // Calculate hours/minutes left using real time
+  const getTimeLeft = (date: string, startTime: string) => {
+    const sessionDateTime = new Date(startTime) // Full ISO string from API usually preferred, but let's see
 
-    const diffMs = sessionDateTime.getTime() - MOCK_CURRENT_TIME.getTime()
+    const diffMs = sessionDateTime.getTime() - Date.now()
     const diffMins = Math.floor(diffMs / (1000 * 60))
     const diffHours = diffMins / 60
 
@@ -52,26 +67,23 @@ export default function RemindersPage() {
   }
 
   // Format time left display
-  const formatTimeLeft = (timeLeft: ReturnType<typeof getTimeLeft>) => {
-    if (timeLeft.isPast) {
-      if (timeLeft.isOngoing) return "Sedang berlangsung"
+  const formatTimeLeft = (hoursUntilSession: number) => {
+    if (hoursUntilSession < 0) {
+      if (hoursUntilSession > -2) return "Sedang berlangsung"
       return "Lewat"
     }
 
-    if (timeLeft.hours < 1) {
-      return `${timeLeft.minutes} menit lagi`
+    if (hoursUntilSession < 1) {
+      const minutes = Math.round(hoursUntilSession * 60)
+      return `${minutes} menit lagi`
     }
 
-    if (timeLeft.minutes === 0) {
-      return `${timeLeft.hours} jam lagi`
-    }
-
-    return `${timeLeft.hours}.${Math.floor(timeLeft.minutes / 6)} jam lagi`
+    return `${Math.floor(hoursUntilSession)} jam lagi`
   }
 
   // Get color for time left badge
-  const getTimeLeftColor = (timeLeft: ReturnType<typeof getTimeLeft>) => {
-    if (timeLeft.isPast) {
+  const getTimeLeftColor = (hours: number) => {
+    if (hours < 0) {
       return {
         bg: "bg-red-50",
         text: "text-red-700",
@@ -80,7 +92,7 @@ export default function RemindersPage() {
       }
     }
 
-    if (timeLeft.hours < 2) {
+    if (hours < 2) {
       return {
         bg: "bg-red-50",
         text: "text-red-700",
@@ -89,7 +101,7 @@ export default function RemindersPage() {
       }
     }
 
-    if (timeLeft.hours < 6) {
+    if (hours < 6) {
       return {
         bg: "bg-amber-50",
         text: "text-amber-700",
@@ -106,64 +118,24 @@ export default function RemindersPage() {
     }
   }
 
-  // Generate WhatsApp reminder link
-  const generateWALink = (booking: (typeof mockBookings)[0]) => {
-    const phone = booking.client.phone.replace(/^0/, '62')
-    const sessionDate = new Date(booking.sessionDate)
-    const dayName = getDayName(sessionDate)
-    const dateStr = formatDate(booking.sessionDate)
-    const statusLink = `${window.location.origin}/status/${booking.slug}`
+  // No filteredBookings useMemo needed, handled by hook and data shape
 
-    const message = `Halo ${booking.client.name},
-
-Ini reminder untuk sesi foto kamu di Yoonjaespace:
-📅 ${dayName}, ${dateStr} pukul ${booking.sessionTime}
-📦 Paket: ${booking.package.name}
-📍 Yoonjaespace Studio
-
-Ditunggu ya! 😊
-
-Cek status booking kamu: ${statusLink}`
-
-    return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
+  if (isLoading) {
+    return (
+      <div className="flex h-[50vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+      </div>
+    )
   }
 
-  // Filter bookings
-  const filteredBookings = useMemo(() => {
-    const now = MOCK_CURRENT_TIME
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const tomorrow = new Date(today)
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    const nextWeek = new Date(today)
-    nextWeek.setDate(nextWeek.getDate() + 7)
-
-    return mockBookings
-      .filter(b => {
-        // Only show non-cancelled bookings
-        if (b.status === "CANCELLED") return false
-
-        const sessionDate = new Date(b.sessionDate)
-        const sessionDateOnly = new Date(sessionDate.getFullYear(), sessionDate.getMonth(), sessionDate.getDate())
-
-        // Filter by tab
-        if (activeTab === "today") {
-          return sessionDateOnly.getTime() === today.getTime()
-        } else if (activeTab === "tomorrow") {
-          return sessionDateOnly.getTime() === tomorrow.getTime()
-        } else if (activeTab === "week") {
-          return sessionDateOnly >= today && sessionDateOnly < nextWeek
-        } else {
-          // All upcoming bookings
-          return sessionDateOnly >= today
-        }
-      })
-      .sort((a, b) => {
-        // Sort by date and time (earliest first)
-        const dateA = new Date(`${a.sessionDate}T${a.sessionTime}`)
-        const dateB = new Date(`${b.sessionDate}T${b.sessionTime}`)
-        return dateA.getTime() - dateB.getTime()
-      })
-  }, [activeTab])
+  if (isError) {
+    return (
+      <div className="flex h-[50vh] flex-col items-center justify-center text-red-500">
+        <AlertCircle className="h-10 w-10 mb-2" />
+        <p>Gagal memuat reminders</p>
+      </div>
+    )
+  }
 
   const tabs: { key: TabFilter; label: string }[] = [
     { key: "today", label: "Today" },
@@ -192,7 +164,7 @@ Cek status booking kamu: ${statusLink}`
           <div>
             <h1 className="text-2xl font-semibold text-[#111827]">Reminders</h1>
             <p className="text-sm text-[#6B7280] mt-1">
-              {filteredBookings.length} upcoming session{filteredBookings.length !== 1 ? "s" : ""}
+              {reminders.length} upcoming session{reminders.length !== 1 ? "s" : ""}
             </p>
           </div>
         </div>
@@ -232,12 +204,10 @@ Cek status booking kamu: ${statusLink}`
                 </tr>
               </thead>
               <tbody>
-                {filteredBookings.map((booking) => {
-                  const timeLeft = getTimeLeft(booking.sessionDate, booking.sessionTime)
-                  const timeColor = getTimeLeftColor(timeLeft)
-                  const TimeIcon = timeColor.icon
-                  const sessionDate = new Date(booking.sessionDate)
-                  const dayName = getDayName(sessionDate)
+                {reminders.map((item) => {
+                  const { booking, hoursUntilSession, waLink } = item
+                  const date = new Date(booking.date)
+                  const dayName = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"][date.getDay()]
 
                   return (
                     <tr
@@ -275,7 +245,7 @@ Cek status booking kamu: ${statusLink}`
                         <div className="flex items-center gap-2 text-[#6B7280]">
                           <Calendar className="h-3.5 w-3.5" />
                           <span>
-                            {dayName}, {formatDate(booking.sessionDate)} • {booking.sessionTime}
+                            {dayName}, {formatDate(booking.date)} • {formatDate(booking.startTime, 'HH:mm')}
                           </span>
                         </div>
                       </td>
@@ -292,24 +262,51 @@ Cek status booking kamu: ${statusLink}`
 
                       {/* Hours Left */}
                       <td className="py-3 px-4">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${timeColor.bg} ${timeColor.text} ${timeColor.border}`}>
-                          <TimeIcon className="h-3 w-3" />
-                          {formatTimeLeft(timeLeft)}
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${getTimeLeftColor(hoursUntilSession).bg} ${getTimeLeftColor(hoursUntilSession).text} ${getTimeLeftColor(hoursUntilSession).border}`}>
+                          {(() => {
+                            const color = getTimeLeftColor(hoursUntilSession)
+                            const Icon = color.icon
+                            return <Icon className="h-3 w-3" />
+                          })()}
+                          {formatTimeLeft(hoursUntilSession)}
                         </span>
                       </td>
 
                       {/* Action */}
                       <td className="py-3 px-4">
-                        <div className="flex justify-center">
-                          <a
-                            href={generateWALink(booking)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-medium hover:bg-green-700 transition-colors"
-                          >
-                            <MessageCircle className="h-3.5 w-3.5" />
-                            Send WA Reminder
-                          </a>
+                        <div className="flex justify-center gap-2">
+                          {booking.remindedAt ? (
+                            <button
+                              onClick={() => handleMarkReminded(booking.id, false)}
+                              disabled={updatingId === booking.id}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-xs font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
+                              title="Tandai belum diremind"
+                            >
+                              <RotateCcw className="h-3.5 w-3.5" />
+                              Undo
+                            </button>
+                          ) : (
+                            <>
+                              <a
+                                href={waLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-medium hover:bg-green-700 transition-colors"
+                              >
+                                <MessageCircle className="h-3.5 w-3.5" />
+                                WA
+                              </a>
+                              <button
+                                onClick={() => handleMarkReminded(booking.id, true)}
+                                disabled={updatingId === booking.id}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+                                title="Tandai sudah diremind"
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                                Done
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -322,12 +319,12 @@ Cek status booking kamu: ${statusLink}`
       ) : (
         /* Mobile Cards */
         <div className="space-y-3">
-          {filteredBookings.map((booking) => {
-            const timeLeft = getTimeLeft(booking.sessionDate, booking.sessionTime)
-            const timeColor = getTimeLeftColor(timeLeft)
+          {reminders.map((item) => {
+            const { booking, hoursUntilSession, waLink } = item
+            const timeColor = getTimeLeftColor(hoursUntilSession)
             const TimeIcon = timeColor.icon
-            const sessionDate = new Date(booking.sessionDate)
-            const dayName = getDayName(sessionDate)
+            const date = new Date(booking.date)
+            const dayName = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"][date.getDay()]
 
             return (
               <div
@@ -354,7 +351,7 @@ Cek status booking kamu: ${statusLink}`
                 <div className="space-y-2 text-xs mb-3">
                   <div className="flex items-center gap-2 text-[#6B7280]">
                     <Calendar className="h-3 w-3" />
-                    <span>{dayName}, {formatDate(booking.sessionDate)} • {booking.sessionTime}</span>
+                    <span>{dayName}, {formatDate(booking.date)} • {formatDate(booking.startTime, 'HH:mm')}</span>
                   </div>
                   <div className="flex items-center gap-2 text-[#6B7280]">
                     <PackageIcon className="h-3 w-3" />
@@ -375,17 +372,39 @@ Cek status booking kamu: ${statusLink}`
                 <div className="flex items-center justify-between pt-3 border-t border-[#E5E7EB]">
                   <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${timeColor.bg} ${timeColor.text} ${timeColor.border}`}>
                     <TimeIcon className="h-3 w-3" />
-                    {formatTimeLeft(timeLeft)}
+                    {formatTimeLeft(hoursUntilSession)}
                   </span>
-                  <a
-                    href={generateWALink(booking)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-medium hover:bg-green-700 transition-colors"
-                  >
-                    <MessageCircle className="h-3.5 w-3.5" />
-                    WA
-                  </a>
+                  <div className="flex gap-2">
+                    {booking.remindedAt ? (
+                      <button
+                        onClick={() => handleMarkReminded(booking.id, false)}
+                        disabled={updatingId === booking.id}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-xs font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        Undo
+                      </button>
+                    ) : (
+                      <>
+                        <a
+                          href={waLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-medium hover:bg-green-700 transition-colors"
+                        >
+                          <MessageCircle className="h-3.5 w-3.5" />
+                          WA
+                        </a>
+                        <button
+                          onClick={() => handleMarkReminded(booking.id, true)}
+                          disabled={updatingId === booking.id}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             )
@@ -394,7 +413,7 @@ Cek status booking kamu: ${statusLink}`
       )}
 
       {/* Empty State */}
-      {filteredBookings.length === 0 && (
+      {reminders.length === 0 && !isLoading && (
         <div className="text-center py-16 bg-white rounded-xl border border-[#E5E7EB]">
           <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500 mb-4">{getEmptyStateText()}</p>
@@ -407,10 +426,6 @@ Cek status booking kamu: ${statusLink}`
         </div>
       )}
 
-      {/* Current Time Info (for testing) */}
-      <div className="text-xs text-gray-400 text-center">
-        Mock current time: {MOCK_CURRENT_TIME.toLocaleString("id-ID")}
-      </div>
     </div>
   )
 }

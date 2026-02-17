@@ -33,13 +33,27 @@ export async function GET(request: NextRequest) {
 
   const result = await Promise.all(
     staff.map(async (s) => {
-      const bookingCount = await prisma.booking.count({
+      // Get bookings for this month
+      const bookings = await prisma.booking.findMany({
         where: {
           handledById: s.id,
           date: { gte: startDate, lt: endDate },
           status: { not: 'CANCELLED' },
         },
+        select: {
+          id: true,
+          bookingCode: true,
+          totalAmount: true,
+          paymentStatus: true,
+          client: { select: { name: true } },
+          package: { select: { name: true } },
+        }
       })
+
+      const bookingCount = bookings.length
+      const revenueGenerated = bookings.reduce((sum, b) => 
+        sum + (b.paymentStatus === 'PAID' ? b.totalAmount : 0), 0
+      )
 
       // Get existing commission record
       const commission = await prisma.commission.findUnique({
@@ -55,8 +69,16 @@ export async function GET(request: NextRequest) {
       return {
         staff: s,
         bookingCount,
+        revenueGenerated,
+        bookings,
         commission: commission
-          ? { id: commission.id, amount: commission.amount, notes: commission.notes }
+          ? { 
+              id: commission.id, 
+              amount: commission.amount, 
+              notes: commission.notes,
+              isPaid: !!commission.paidAt,
+              paidAt: commission.paidAt 
+            }
           : null,
       }
     })
@@ -84,7 +106,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { userId, month, year, amount, notes } = await request.json()
+  const { userId, month, year, amount, notes, isPaid } = await request.json()
 
   if (!userId || !month || !year || amount === undefined) {
     return NextResponse.json(
@@ -114,6 +136,7 @@ export async function POST(request: NextRequest) {
       amount,
       totalBookings,
       notes: notes || null,
+      paidAt: isPaid ? new Date() : null,
     },
     create: {
       userId,
@@ -122,6 +145,7 @@ export async function POST(request: NextRequest) {
       amount,
       totalBookings,
       notes: notes || null,
+      paidAt: isPaid ? new Date() : null,
     },
     include: {
       user: { select: { name: true } },

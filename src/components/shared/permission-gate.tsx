@@ -2,7 +2,7 @@
 
 import { ReactNode } from "react"
 import { UserRole } from "@/lib/types" // Adjust path if needed
-import { mockCurrentUser } from "@/lib/mock-data" // In real app, useAuth() hook
+import { useAuth } from "@/lib/hooks/use-auth"
 
 interface PermissionGateProps {
   allowedRoles: UserRole[]
@@ -15,10 +15,11 @@ export function PermissionGate({
   children,
   fallback = null,
 }: PermissionGateProps) {
-  // In a real application, get the current user from auth context/hook
-  const userRole = mockCurrentUser.role
+  const { user, isLoading } = useAuth()
 
-  if (allowedRoles.includes(userRole)) {
+  if (isLoading) return null
+
+  if (user && allowedRoles.includes(user.role)) {
     return <>{children}</>
   }
 

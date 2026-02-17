@@ -19,12 +19,16 @@ import {
   Calendar,
   Plus
 } from "lucide-react"
-import { mockClients, mockBookings, mockCurrentUser } from "@/lib/mock-data"
 import { formatCurrency, formatDate, getInitials } from "@/lib/utils"
 import { useToast } from "@/lib/hooks/use-toast"
 import { useMobile } from "@/lib/hooks/use-mobile"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { Modal } from "@/components/shared/modal"
+import { useClient } from "@/lib/hooks/use-client"
+import { useAuth } from "@/lib/hooks/use-auth"
+import { apiPatch, apiDelete } from "@/lib/api-client"
+import { Loader2, AlertCircle } from "lucide-react"
+import type { Client } from "@/lib/types"
 
 type ClientFormData = {
   id: string
@@ -40,14 +44,16 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   const router = useRouter()
   const { showToast } = useToast()
   const isMobile = useMobile()
+  const { user } = useAuth()
 
-  const [client, setClient] = useState(() => mockClients.find((c) => c.id === id))
+  const { client, isLoading, isError, mutate } = useClient(id)
+  
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Form state
-  const [formData, setFormData] = useState<ClientFormData>({
-    id: "",
+  const [formData, setFormData] = useState<Partial<Client>>({
     name: "",
     phone: "",
     email: "",
@@ -55,30 +61,28 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
     address: ""
   })
 
-  if (!client) {
+  if (isLoading) {
     return (
-      <div className="page-container text-center py-16">
-        <p className="text-lg font-medium text-[#111827]">Client tidak ditemukan</p>
-        <Link href="/dashboard/clients" className="text-sm text-[#7A1F1F] hover:text-[#9B3333] mt-2 inline-block">
+      <div className="flex h-[50vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+      </div>
+    )
+  }
+
+  if (isError || !client) {
+    return (
+      <div className="flex h-[50vh] flex-col items-center justify-center text-red-500">
+        <AlertCircle className="h-10 w-10 mb-2" />
+        <p>Client tidak ditemukan</p>
+        <Link href="/dashboard/clients" className="text-sm text-[#7A1F1F] hover:text-[#9B3333] mt-2 inline-block font-medium">
           Kembali ke daftar client
         </Link>
       </div>
     )
   }
 
-  const clientBookings = useMemo(() => mockBookings.filter((b) => b.client.id === id), [id])
-  const totalBookings = clientBookings.filter(b => b.status !== "CANCELLED").length
-  const totalSpent = clientBookings
-    .filter((b) => b.status !== "CANCELLED")
-    .reduce((sum, b) => sum + b.paidAmount, 0)
-
-  const lastVisit = useMemo(() => {
-    const completedBookings = [...clientBookings]
-      .filter(b => b.status !== "CANCELLED")
-      .sort((a, b) => new Date(b.sessionDate).getTime() - new Date(a.sessionDate).getTime())
-
-    return completedBookings.length > 0 ? completedBookings[0].sessionDate : null
-  }, [clientBookings])
+  const { totalBookings, totalSpent, lastVisit } = client.summary
+  const clientBookings = client.bookings
 
   // Get relative time
   const getRelativeTime = (dateStr: string | null) => {
@@ -103,12 +107,11 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   }
 
   // Permissions
-  const canDelete = mockCurrentUser.role === "OWNER"
+  const canDelete = user?.role === "OWNER"
 
   // Handlers
   const handleEdit = () => {
     setFormData({
-      id: client.id,
       name: client.name,
       phone: client.phone,
       email: client.email || "",
@@ -122,30 +125,41 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
     setDeleteModalOpen(true)
   }
 
-  const saveClient = () => {
+  const saveClient = async () => {
     if (!formData.name || !formData.phone) {
       showToast("Nama dan nomor WhatsApp wajib diisi", "warning")
       return
     }
 
-    // Update client
-    setClient({
-      ...client,
-      name: formData.name,
-      phone: formData.phone,
-      email: formData.email || null,
-      instagram: formData.instagram || null,
-      address: formData.address || null
-    })
-
-    showToast(`Client ${formData.name} berhasil diupdate`, "success")
-    setEditModalOpen(false)
+    setIsSubmitting(true)
+    try {
+      const res = await apiPatch(`/api/clients/${id}`, formData)
+      if (res.error) throw new Error(res.error)
+      
+      showToast(`Client ${formData.name} berhasil diupdate`, "success")
+      setEditModalOpen(false)
+      mutate()
+    } catch (err: any) {
+      showToast(err.message || "Gagal mengupdate client", "error")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
-  const confirmDelete = () => {
-    showToast(`Client ${client.name} berhasil dihapus`, "success")
-    setDeleteModalOpen(false)
-    router.push("/dashboard/clients")
+  const confirmDelete = async () => {
+    setIsSubmitting(true)
+    try {
+      const res = await apiDelete(`/api/clients/${id}`)
+      if (res.error) throw new Error(res.error)
+      
+      showToast(`Client ${client.name} berhasil dihapus`, "success")
+      setDeleteModalOpen(false)
+      router.push("/dashboard/clients")
+    } catch (err: any) {
+      showToast(err.message || "Gagal menghapus client", "error")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -364,8 +378,8 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
                             <td className="py-3 px-3">
                               <span className="font-mono text-[#7A1F1F] font-medium">{booking.bookingCode}</span>
                             </td>
-                            <td className="py-3 px-3 text-gray-600">{formatDate(booking.sessionDate)}</td>
-                            <td className="py-3 px-3 text-gray-600">{booking.sessionTime}</td>
+                            <td className="py-3 px-3 text-gray-600">{formatDate(booking.date)}</td>
+                            <td className="py-3 px-3 text-gray-600">{formatDate(booking.startTime, 'HH:mm')}</td>
                             <td className="py-3 px-3 text-gray-900">{booking.package.name}</td>
                             <td className="py-3 px-3">
                               <StatusBadge status={booking.status} size="sm" />
@@ -374,7 +388,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
                               <StatusBadge status={booking.paymentStatus} type="payment" size="sm" />
                             </td>
                             <td className="py-3 px-3 text-right font-semibold text-gray-900">
-                              {formatCurrency(booking.totalPrice)}
+                              {formatCurrency(booking.totalAmount)}
                             </td>
                           </tr>
                         ))}
@@ -402,14 +416,14 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
                           <div className="flex items-center gap-3 text-xs text-[#6B7280]">
                             <span className="flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
-                              {formatDate(booking.sessionDate)}
+                              {formatDate(booking.date)}
                             </span>
-                            <span>{booking.sessionTime}</span>
+                            <span>{formatDate(booking.startTime, 'HH:mm')}</span>
                           </div>
                           <div className="flex items-center justify-between mt-2">
                             <StatusBadge status={booking.paymentStatus} type="payment" size="sm" />
                             <span className="text-sm font-semibold text-[#7A1F1F]">
-                              {formatCurrency(booking.totalPrice)}
+                              {formatCurrency(booking.totalAmount)}
                             </span>
                           </div>
                         </div>
@@ -474,7 +488,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
             <input
               type="email"
-              value={formData.email}
+              value={formData.email || ""}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all"
               placeholder="email@example.com"
@@ -485,7 +499,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Instagram</label>
             <input
               type="text"
-              value={formData.instagram}
+              value={formData.instagram || ""}
               onChange={(e) => setFormData({ ...formData, instagram: e.target.value })}
               className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all"
               placeholder="@username"
@@ -496,7 +510,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Alamat</label>
             <textarea
               rows={3}
-              value={formData.address}
+              value={formData.address || ""}
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
               className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all resize-none"
               placeholder="Alamat lengkap client"
@@ -507,15 +521,17 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
         <div className="flex items-center gap-3 mt-6">
           <button
             onClick={() => setEditModalOpen(false)}
+            disabled={isSubmitting}
             className="flex-1 px-4 py-2.5 rounded-lg border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={saveClient}
-            className="flex-1 px-4 py-2.5 rounded-lg bg-[#7A1F1F] text-white font-medium hover:bg-[#9B3333] transition-colors"
+            disabled={isSubmitting}
+            className="flex-1 px-4 py-2.5 rounded-lg bg-[#7A1F1F] text-white font-medium hover:bg-[#9B3333] transition-colors disabled:opacity-70"
           >
-            Update
+            {isSubmitting ? "Updating..." : "Update"}
           </button>
         </div>
       </Modal>

@@ -30,7 +30,13 @@ export async function GET(request: NextRequest) {
     orderBy: { createdAt: 'desc' },
   })
 
-  return NextResponse.json(vouchers)
+  // Ensure uppercase for frontend types
+  const result = vouchers.map(v => ({
+    ...v,
+    discountType: v.discountType.toUpperCase()
+  }))
+
+  return NextResponse.json(result)
 }
 
 // POST — Create voucher
@@ -68,7 +74,7 @@ export async function POST(request: NextRequest) {
     data: {
       code: code.toUpperCase(),
       description: description || null,
-      discountType: discountType || 'fixed',
+      discountType: (discountType || 'FIXED').toUpperCase(),
       discountValue,
       minPurchase: minPurchase || null,
       maxUsage: maxUsage || null,

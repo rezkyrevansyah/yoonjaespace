@@ -3,11 +3,12 @@
 import { useState, useMemo } from "react"
 import Link from "next/link"
 import { Award, CalendarCheck, ChevronDown, ChevronUp, Users } from "lucide-react"
-import { mockStaff, mockBookings } from "@/lib/mock-data"
+import { useCommissions } from "@/lib/hooks/use-commissions"
 import { formatCurrency, getInitials } from "@/lib/utils"
 import { USER_ROLE_MAP } from "@/lib/constants"
 import { useMobile } from "@/lib/hooks/use-mobile"
 import { useToast } from "@/lib/hooks/use-toast"
+import { Loader2, AlertCircle } from "lucide-react"
 import type { UserRole } from "@/lib/types"
 
 interface CommissionData {
@@ -21,50 +22,18 @@ interface CommissionData {
   isPaid: boolean
 }
 
-// Mock commission data for February 2026
-const initialCommissionData: CommissionData[] = [
-  {
-    staffId: "usr-002",
-    staffName: "Rizky Pratama",
-    role: "ADMIN",
-    bookingsHandled: 5,
-    revenueGenerated: 2500000,
-    commissionAmount: 500000,
-    notes: "Bonus performa",
-    isPaid: true
-  },
-  {
-    staffId: "usr-003",
-    staffName: "Andi Wijaya",
-    role: "PHOTOGRAPHER",
-    bookingsHandled: 3,
-    revenueGenerated: 1200000,
-    commissionAmount: 300000,
-    notes: "",
-    isPaid: false
-  },
-  {
-    staffId: "usr-004",
-    staffName: "Siti Nurhaliza",
-    role: "PACKAGING_STAFF",
-    bookingsHandled: 2,
-    revenueGenerated: 800000,
-    commissionAmount: 100000,
-    notes: "",
-    isPaid: false
-  }
-]
 
 export default function CommissionsPage() {
   const isMobile = useMobile()
   const { showToast } = useToast()
 
+  const now = new Date()
   // Period state
-  const [selectedMonth, setSelectedMonth] = useState(2) // February
-  const [selectedYear, setSelectedYear] = useState(2026)
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1)
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear())
 
-  // Commission data state
-  const [commissions, setCommissions] = useState<CommissionData[]>(initialCommissionData)
+  // Fetch from API
+  const { data: staffStats, isLoading, isError, saveCommission } = useCommissions(selectedMonth, selectedYear)
 
   // Expanded detail view
   const [expandedStaffId, setExpandedStaffId] = useState<string | null>(null)
@@ -91,41 +60,13 @@ export default function CommissionsPage() {
   // Get year options (2024-2026)
   const yearOptions = [2024, 2025, 2026]
 
-  // Get non-owner staff
-  const staffList = useMemo(() => {
-    return mockStaff.filter(s => s.role !== "OWNER" && s.isActive)
-  }, [])
+  // No staffList needed, using hook data
 
-  // Calculate bookings handled and revenue for each staff in selected period
-  const staffStats = useMemo(() => {
-    return staffList.map(staff => {
-      const staffBookings = mockBookings.filter(b => {
-        if (b.status === "CANCELLED" || !b.photographer) return false
-        if (b.photographer.id !== staff.id) return false
-
-        const bookingDate = new Date(b.sessionDate)
-        return bookingDate.getMonth() + 1 === selectedMonth && bookingDate.getFullYear() === selectedYear
-      })
-
-      const revenue = staffBookings.reduce((sum, b) => sum + b.paidAmount, 0)
-
-      // Get commission data for this staff
-      const commissionData = commissions.find(c => c.staffId === staff.id)
-
-      return {
-        staff,
-        bookingsHandled: staffBookings.length,
-        revenueGenerated: revenue,
-        commissionAmount: commissionData?.commissionAmount || 0,
-        notes: commissionData?.notes || "",
-        isPaid: commissionData?.isPaid || false,
-        bookings: staffBookings
-      }
-    })
-  }, [staffList, selectedMonth, selectedYear, commissions])
+  // No staffStats useMemo needed, handled by hook
 
   // Initialize editing state for a staff
   const initEditingState = (staffId: string, data: { commissionAmount: number; notes: string; isPaid: boolean }) => {
+    if (editingStaff[staffId]) return
     setEditingStaff(prev => ({
       ...prev,
       [staffId]: data
@@ -133,7 +74,7 @@ export default function CommissionsPage() {
   }
 
   // Handle save commission
-  const handleSaveCommission = (staffId: string, staffName: string) => {
+  const handleSaveCommission = async (staffId: string, staffName: string) => {
     const editData = editingStaff[staffId]
     if (!editData) {
       showToast("Data commission tidak valid", "warning")
@@ -145,33 +86,21 @@ export default function CommissionsPage() {
       return
     }
 
-    // Update commission data
-    setCommissions(prev => {
-      const existing = prev.find(c => c.staffId === staffId)
-      if (existing) {
-        return prev.map(c => c.staffId === staffId ? {
-          ...c,
-          commissionAmount: editData.commissionAmount,
-          notes: editData.notes,
-          isPaid: editData.isPaid
-        } : c)
-      } else {
-        const staff = staffList.find(s => s.id === staffId)
-        if (!staff) return prev
-        return [...prev, {
-          staffId,
-          staffName: staff.name,
-          role: staff.role,
-          bookingsHandled: 0,
-          revenueGenerated: 0,
-          commissionAmount: editData.commissionAmount,
-          notes: editData.notes,
-          isPaid: editData.isPaid
-        }]
-      }
-    })
+    try {
+      const res = await saveCommission({
+        userId: staffId,
+        month: selectedMonth,
+        year: selectedYear,
+        amount: editData.commissionAmount,
+        notes: editData.notes,
+        isPaid: editData.isPaid
+      })
 
-    showToast(`Commission untuk ${staffName} berhasil disimpan`, "success")
+      if (res.error) throw new Error(res.error)
+      showToast(`Commission untuk ${staffName} berhasil disimpan`, "success")
+    } catch (err: any) {
+      showToast(err.message || "Gagal menyimpan commission", "error")
+    }
   }
 
   // Toggle expanded view
@@ -179,18 +108,22 @@ export default function CommissionsPage() {
     setExpandedStaffId(expandedStaffId === staffId ? null : staffId)
   }
 
-  // Total commission summary
-  const totalCommissions = useMemo(() => {
-    return staffStats.reduce((sum, s) => sum + s.commissionAmount, 0)
-  }, [staffStats])
+  if (isLoading) {
+    return (
+      <div className="flex h-[50vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+      </div>
+    )
+  }
 
-  const paidCommissions = useMemo(() => {
-    return staffStats.filter(s => s.isPaid).reduce((sum, s) => sum + s.commissionAmount, 0)
-  }, [staffStats])
-
-  const unpaidCommissions = useMemo(() => {
-    return staffStats.filter(s => !s.isPaid).reduce((sum, s) => sum + s.commissionAmount, 0)
-  }, [staffStats])
+  if (isError) {
+    return (
+      <div className="flex h-[50vh] flex-col items-center justify-center text-red-500">
+        <AlertCircle className="h-10 w-10 mb-2" />
+        <p>Gagal memuat data commission</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -236,20 +169,26 @@ export default function CommissionsPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl border border-[#E5E7EB] p-5 shadow-sm">
           <p className="text-sm text-[#6B7280]">Total Commission</p>
-          <p className="text-2xl font-bold text-[#111827] mt-2">{formatCurrency(totalCommissions)}</p>
+          <p className="text-2xl font-bold text-[#111827] mt-2">
+            {formatCurrency(staffStats.reduce((sum, s) => sum + (s.commission?.amount || 0), 0))}
+          </p>
           <p className="text-xs text-[#6B7280] mt-1">{staffStats.length} staff</p>
         </div>
 
         <div className="bg-white rounded-xl border border-[#E5E7EB] p-5 shadow-sm">
           <p className="text-sm text-[#6B7280]">Paid</p>
-          <p className="text-2xl font-bold text-green-600 mt-2">{formatCurrency(paidCommissions)}</p>
-          <p className="text-xs text-green-600 mt-1">{staffStats.filter(s => s.isPaid).length} staff</p>
+          <p className="text-2xl font-bold text-green-600 mt-2">
+            {formatCurrency(staffStats.filter(s => s.commission?.isPaid).reduce((sum, s) => sum + (s.commission?.amount || 0), 0))}
+          </p>
+          <p className="text-xs text-green-600 mt-1">{staffStats.filter(s => s.commission?.isPaid).length} staff</p>
         </div>
 
         <div className="bg-white rounded-xl border border-[#E5E7EB] p-5 shadow-sm">
           <p className="text-sm text-[#6B7280]">Unpaid</p>
-          <p className="text-2xl font-bold text-red-600 mt-2">{formatCurrency(unpaidCommissions)}</p>
-          <p className="text-xs text-red-600 mt-1">{staffStats.filter(s => !s.isPaid).length} staff</p>
+          <p className="text-2xl font-bold text-red-600 mt-2">
+            {formatCurrency(staffStats.filter(s => !s.commission?.isPaid).reduce((sum, s) => sum + (s.commission?.amount || 0), 0))}
+          </p>
+          <p className="text-xs text-red-600 mt-1">{staffStats.filter(s => !s.commission?.isPaid).length} staff</p>
         </div>
       </div>
 
@@ -260,17 +199,17 @@ export default function CommissionsPage() {
             const roleConfig = USER_ROLE_MAP[item.staff.role]
             const isExpanded = expandedStaffId === item.staff.id
             const editData = editingStaff[item.staff.id] || {
-              commissionAmount: item.commissionAmount,
-              notes: item.notes,
-              isPaid: item.isPaid
+              commissionAmount: item.commission?.amount || 0,
+              notes: item.commission?.notes || "",
+              isPaid: item.commission?.isPaid || false
             }
 
             // Initialize editing state if not exists
             if (!editingStaff[item.staff.id]) {
               initEditingState(item.staff.id, {
-                commissionAmount: item.commissionAmount,
-                notes: item.notes,
-                isPaid: item.isPaid
+                commissionAmount: item.commission?.amount || 0,
+                notes: item.commission?.notes || "",
+                isPaid: item.commission?.isPaid || false
               })
             }
 
@@ -301,7 +240,7 @@ export default function CommissionsPage() {
                         <CalendarCheck className="h-4 w-4" />
                         <span>Bookings Handled</span>
                       </div>
-                      <span className="font-medium text-[#111827]">{item.bookingsHandled}</span>
+                      <span className="font-medium text-[#111827]">{item.bookingCount}</span>
                     </div>
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-[#6B7280]">Revenue Generated</span>
@@ -410,7 +349,7 @@ export default function CommissionsPage() {
                         >
                           <div className="flex items-center justify-between mb-1">
                             <span className="font-mono text-xs text-[#7A1F1F] font-medium">{booking.bookingCode}</span>
-                            <span className="text-xs font-semibold text-green-600">{formatCurrency(booking.paidAmount)}</span>
+                            <span className="text-xs font-semibold text-green-600">{formatCurrency(booking.totalAmount)}</span>
                           </div>
                           <p className="text-sm text-[#111827] font-medium">{booking.client.name}</p>
                           <p className="text-xs text-[#6B7280]">{booking.package.name}</p>

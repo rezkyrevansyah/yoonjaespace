@@ -82,13 +82,14 @@ export async function GET(request: NextRequest) {
       start: startDate,
       end: endDate,
     },
-    income: totalIncome,
-    expense: totalExpense,
-    grossProfit: totalIncome - totalExpense,
+    totalIncome,
+    totalExpense,
+    netProfit: totalIncome - totalExpense,
     expenseByCategory,
     bookingStats: {
       total: totalBookings,
       cancelled: cancelledBookings,
     },
+    incomeByMonth: [] // Optional: implement if needed for charts
   })
 }

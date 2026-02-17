@@ -79,3 +79,24 @@ export async function apiPatch<T>(
 export async function apiDelete<T>(endpoint: string): Promise<ApiResponse<T>> {
   return apiClient<T>(endpoint, { method: 'DELETE' })
 }
+
+/**
+ * SWR Fetcher
+ * Throws error if request fails, suitable for useSWR
+ */
+export async function fetcher<T>(url: string): Promise<T> {
+  const res = await fetch(url)
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    const error = new Error(errorData.error || errorData.message || 'An error occurred while fetching the data.')
+    // Attach extra info to the error object.
+    // @ts-ignore
+    error.info = errorData
+    // @ts-ignore
+    error.status = res.status
+    throw error
+  }
+
+  return res.json()
+}
