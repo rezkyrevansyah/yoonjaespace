@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { name, description, price, duration, maxPeople } = await request.json()
+  const { name, description, price, duration, maxPeople, category } = await request.json()
 
   if (!name || price === undefined || !duration) {
     return NextResponse.json(
@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
       price,
       duration,
       maxPeople: maxPeople || 1,
+      category: category || 'MAIN', // SESI 11
     },
   })
 

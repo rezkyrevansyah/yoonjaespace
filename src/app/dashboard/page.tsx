@@ -19,7 +19,9 @@ import {
   CalendarX,
   CheckCircle,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Calendar,
+  Bell
 } from "lucide-react"
 
 export default function DashboardPage() {
@@ -106,14 +108,82 @@ export default function DashboardPage() {
     },
   ]
 
+  // Quick Menu items
+  const quickMenuItems = [
+    {
+      label: "Buat Booking Baru",
+      icon: Plus,
+      href: "/dashboard/bookings?action=add",
+      bgColor: "bg-[#7A1F1F]",
+      textColor: "text-white",
+      iconColor: "text-white",
+      description: "Tambah booking klien baru"
+    },
+    {
+      label: "Lihat Booking",
+      icon: CalendarCheck,
+      href: "/dashboard/bookings",
+      bgColor: "bg-blue-50",
+      textColor: "text-blue-700",
+      iconColor: "text-blue-600",
+      description: "Kelola semua booking"
+    },
+    {
+      label: "Lihat Kalender",
+      icon: Calendar,
+      href: "/dashboard/calendar",
+      bgColor: "bg-purple-50",
+      textColor: "text-purple-700",
+      iconColor: "text-purple-600",
+      description: "Jadwal foto hari ini"
+    },
+    {
+      label: "Lihat Reminder",
+      icon: Bell,
+      href: "/dashboard/reminders",
+      bgColor: "bg-orange-50",
+      textColor: "text-orange-700",
+      iconColor: "text-orange-600",
+      description: "Notifikasi & pengingat"
+    },
+  ]
+
   return (
     <div className="space-y-6">
       {/* Section A: Welcome Banner */}
       <div>
-        <h1 className="text-xl lg:text-2xl font-semibold text-[#111827]" style={{ fontFamily: "var(--font-poppins)" }}>
+        <h1 className="text-xl lg:text-2xl font-semibold text-[#111827]">
           Selamat datang, {user?.name || 'User'}! 👋
         </h1>
         <p className="text-sm text-[#6B7280] mt-1">{todayFormatted}</p>
+      </div>
+
+      {/* Quick Menu */}
+      <div>
+        <h2 className="text-base font-semibold text-[#111827] mb-3">Menu Cepat</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+          {quickMenuItems.map((item) => (
+            <Link
+              key={item.label}
+              href={item.href}
+              className="group bg-white rounded-xl border border-[#E5E7EB] p-4 hover:shadow-lg hover:border-[#7A1F1F]/20 transition-all duration-200"
+            >
+              <div className="flex flex-col items-center text-center space-y-2">
+                <div className={`w-12 h-12 rounded-xl ${item.bgColor} flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                  <item.icon className={`h-6 w-6 ${item.iconColor}`} />
+                </div>
+                <div>
+                  <p className={`text-sm font-semibold ${item.textColor === 'text-white' ? 'text-[#111827]' : item.textColor}`}>
+                    {item.label}
+                  </p>
+                  <p className="text-xs text-[#6B7280] mt-0.5">
+                    {item.description}
+                  </p>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
       </div>
 
       {/* Section B: Monthly Stats */}

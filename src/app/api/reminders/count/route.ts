@@ -23,6 +23,8 @@ export async function GET(request: NextRequest) {
     const todayEnd = new Date(todayStart)
     todayEnd.setDate(todayEnd.getDate() + 1)
 
+    // Count should match the Today tab logic:
+    // All bookings today (including past sessions) that are not cancelled or closed
     const count = await prisma.booking.count({
       where: {
         date: {
@@ -32,7 +34,7 @@ export async function GET(request: NextRequest) {
         status: {
           notIn: ['CANCELLED', 'CLOSED']
         },
-        remindedAt: null // Only count those not yet reminded
+        // Remove remindedAt filter so badge shows ALL today's bookings
       }
     })
 

@@ -3,6 +3,7 @@ import { fetcher, apiPost, apiPatch, apiDelete } from '@/lib/api-client'
 import { StaffUser } from '@/lib/types'
 import { useToast } from '@/lib/hooks/use-toast'
 import { useState } from 'react'
+import { optimisticAdd, optimisticUpdate, optimisticDelete } from '@/lib/optimistic-updates'
 
 export function useUsers() {
   const { data, error, isLoading, mutate } = useSWR<StaffUser[]>('/api/users', fetcher)
@@ -11,14 +12,21 @@ export function useUsers() {
 
   const createUser = async (userData: any) => {
     setIsMutating(true)
+    showToast(`Creating user...`, 'info') // Instant feedback
     try {
-      const { data: newUser, error } = await apiPost<StaffUser>('/api/users', userData)
-      if (error) throw new Error(error)
-      
-      if (newUser) {
-        await mutate([...(data || []), newUser], false)
-        showToast(`User ${newUser.name} created successfully`, 'success')
+      // Optimistic update - UI updates INSTANTLY!
+      const success = await optimisticAdd(
+        mutate,
+        data,
+        { ...userData, id: `temp-${Date.now()}`, createdAt: new Date().toISOString() } as StaffUser,
+        () => apiPost<StaffUser>('/api/users', userData)
+      )
+
+      if (success) {
+        showToast(`User ${userData.name} created successfully`, 'success')
         return true
+      } else {
+        throw new Error('Failed to create user')
       }
     } catch (err: any) {
       showToast(err.message || 'Failed to create user', 'error')
@@ -30,14 +38,22 @@ export function useUsers() {
 
   const updateUser = async (id: string, userData: any) => {
     setIsMutating(true)
+    showToast(`Updating user...`, 'info') // Instant feedback
     try {
-      const { data: updatedUser, error } = await apiPatch<StaffUser>(`/api/users/${id}`, userData)
-      if (error) throw new Error(error)
+      // Optimistic update - UI updates INSTANTLY!
+      const success = await optimisticUpdate(
+        mutate,
+        data,
+        id,
+        userData,
+        () => apiPatch<StaffUser>(`/api/users/${id}`, userData)
+      )
 
-      if (updatedUser) {
-        await mutate((data || []).map(u => u.id === id ? updatedUser : u), false)
-        showToast(`User ${updatedUser.name} updated successfully`, 'success')
+      if (success) {
+        showToast(`User updated successfully`, 'success')
         return true
+      } else {
+        throw new Error('Failed to update user')
       }
     } catch (err: any) {
       showToast(err.message || 'Failed to update user', 'error')
@@ -49,13 +65,22 @@ export function useUsers() {
 
   const deleteUser = async (id: string, name: string) => {
     setIsMutating(true)
+    showToast(`Deleting user...`, 'info') // Instant feedback
     try {
-      const { error } = await apiDelete(`/api/users/${id}`)
-      if (error) throw new Error(error)
+      // Optimistic delete - UI updates INSTANTLY!
+      const success = await optimisticDelete(
+        mutate,
+        data,
+        id,
+        () => apiDelete(`/api/users/${id}`)
+      )
 
-      await mutate((data || []).filter(u => u.id !== id), false)
-      showToast(`User ${name} deleted successfully`, 'success')
-      return true
+      if (success) {
+        showToast(`User ${name} deleted successfully`, 'success')
+        return true
+      } else {
+        throw new Error('Failed to delete user')
+      }
     } catch (err: any) {
       showToast(err.message || 'Failed to delete user', 'error')
       return false

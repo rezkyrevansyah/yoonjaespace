@@ -1,7 +1,12 @@
 import { createClient } from '@/utils/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
-import { parseReminderTemplate, DEFAULT_REMINDER_TEMPLATE } from '@/lib/utils/reminder-template'
+import {
+  parseReminderTemplate,
+  DEFAULT_REMINDER_TEMPLATE,
+  DEFAULT_THANK_YOU_PAYMENT_TEMPLATE,
+  DEFAULT_THANK_YOU_SESSION_TEMPLATE
+} from '@/lib/utils/reminder-template'
 
 // GET — Get bookings that need reminder (today & tomorrow)
 export async function GET(request: NextRequest) {
@@ -19,7 +24,7 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url)
-  const type = searchParams.get('type') || 'today' // today, tomorrow, all
+  const type = searchParams.get('type') || 'today' // today, tomorrow, week, all
 
   const today = new Date()
   const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
@@ -28,17 +33,24 @@ export async function GET(request: NextRequest) {
   const endOfWeek = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 7)
 
   let dateFilter: any
+  let statusFilter: any
 
   if (type === 'today') {
+    // Today tab: show all bookings today (including past sessions on same day)
     dateFilter = { gte: startOfToday, lt: startOfTomorrow }
+    // Only show active bookings (not cancelled or closed)
+    statusFilter = { notIn: ['CANCELLED', 'CLOSED'] }
   } else if (type === 'tomorrow') {
     dateFilter = { gte: startOfTomorrow, lt: endOfTomorrow }
+    statusFilter = { notIn: ['CANCELLED', 'CLOSED'] }
   } else if (type === 'week') {
+    // This Week tab: show all bookings this week (including past sessions)
     dateFilter = { gte: startOfToday, lt: endOfWeek }
+    statusFilter = { notIn: ['CANCELLED', 'CLOSED'] }
   } else {
-    // All upcoming (next 30 days)
-    const endOfMonth = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 30)
-    dateFilter = { gte: startOfToday, lt: endOfMonth }
+    // All tab: show ALL history without date filter
+    dateFilter = undefined
+    statusFilter = { notIn: ['CANCELLED'] } // Show everything except cancelled
   }
 
   // Get custom reminder template from settings
@@ -46,6 +58,17 @@ export async function GET(request: NextRequest) {
     where: { key: 'reminder_message_template' }
   })
   const template = templateSetting?.value || DEFAULT_REMINDER_TEMPLATE
+
+  // Get thank you templates from settings
+  const thankYouPaymentSetting = await prisma.studioSetting.findUnique({
+    where: { key: 'thank_you_payment_template' }
+  })
+  const thankYouPaymentTemplate = thankYouPaymentSetting?.value || DEFAULT_THANK_YOU_PAYMENT_TEMPLATE
+
+  const thankYouSessionSetting = await prisma.studioSetting.findUnique({
+    where: { key: 'thank_you_session_template' }
+  })
+  const thankYouSessionTemplate = thankYouSessionSetting?.value || DEFAULT_THANK_YOU_SESSION_TEMPLATE
 
   // Get studio name from settings
   const studioNameSetting = await prisma.studioSetting.findUnique({
@@ -58,14 +81,14 @@ export async function GET(request: NextRequest) {
 
   const bookings = await prisma.booking.findMany({
     where: {
-      date: dateFilter,
-      status: { in: ['BOOKED', 'PAID'] },
+      ...(dateFilter && { date: dateFilter }),
+      status: statusFilter,
     },
     include: {
       client: true,
       package: true,
     },
-    orderBy: { startTime: 'asc' },
+    orderBy: { startTime: 'desc' }, // Latest bookings first for 'all' tab
   })
 
   // Generate WA reminder links using custom template
@@ -84,8 +107,8 @@ export async function GET(request: NextRequest) {
     // Generate client page link
     const clientPageLink = `${baseUrl}/status/${b.publicSlug}`
 
-    // Parse template with booking data
-    const message = parseReminderTemplate(template, {
+    // Template data for all message types
+    const templateData = {
       clientName: b.client.name,
       date: dateStr,
       time: timeStr,
@@ -93,10 +116,19 @@ export async function GET(request: NextRequest) {
       studioName: studioName,
       numberOfPeople: b.numberOfPeople,
       clientPageLink: clientPageLink,
-    })
+    }
+
+    // Parse reminder message
+    const message = parseReminderTemplate(template, templateData)
+
+    // Parse thank you messages
+    const thankYouPaymentMessage = parseReminderTemplate(thankYouPaymentTemplate, templateData)
+    const thankYouSessionMessage = parseReminderTemplate(thankYouSessionTemplate, templateData)
 
     const phone = b.client.phone.replace(/^0/, '62').replace(/[^0-9]/g, '')
     const waLink = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
+    const waThankYouPaymentLink = `https://wa.me/${phone}?text=${encodeURIComponent(thankYouPaymentMessage)}`
+    const waThankYouSessionLink = `https://wa.me/${phone}?text=${encodeURIComponent(thankYouSessionMessage)}`
 
     // Hitung jam dari sekarang
     const diffMs = b.startTime.getTime() - Date.now()
@@ -107,6 +139,10 @@ export async function GET(request: NextRequest) {
       hoursUntilSession: diffHours,
       waLink,
       reminderMessage: message,
+      waThankYouPaymentLink,
+      waThankYouSessionLink,
+      thankYouPaymentMessage,
+      thankYouSessionMessage,
     }
   })
 

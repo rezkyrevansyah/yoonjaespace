@@ -22,7 +22,7 @@ export async function PATCH(
   }
 
   const body = await request.json()
-  const { name, description, price, duration, maxPeople, isActive } = body
+  const { name, description, price, duration, maxPeople, isActive, category } = body
 
   const updated = await prisma.package.update({
     where: { id },
@@ -33,6 +33,7 @@ export async function PATCH(
       ...(duration !== undefined && { duration }),
       ...(maxPeople !== undefined && { maxPeople }),
       ...(isActive !== undefined && { isActive }),
+      ...(category !== undefined && { category }), // SESI 11
     },
   })
 

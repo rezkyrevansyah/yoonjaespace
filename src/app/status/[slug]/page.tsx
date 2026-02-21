@@ -27,6 +27,9 @@ import {
   Box,
   Send,
   Loader2,
+  ChevronDown,
+  ChevronUp,
+  Navigation,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { BookingStatus, PrintOrderStatus, PaymentStatus } from "@/lib/types"
@@ -59,6 +62,10 @@ interface BookingData {
     phone: string
     instagram: string
     operatingHours: any
+    logoUrl?: string
+    mapsUrl?: string
+    studioPhotoUrl?: string
+    footerText?: string
   }
 }
 
@@ -133,58 +140,38 @@ const getTimelineSteps = (booking: BookingData): TimelineStep[] => {
         : undefined,
   })
 
-  // If Print Order Exists, inject print steps
+  // SESI 14: Simplified Print Order - Only show customer-relevant steps
   if (booking.printOrder) {
     const po = booking.printOrder
-    const printFlow: PrintOrderStatus[] = [
-      "WAITING_CLIENT_SELECTION",
-      "SENT_TO_VENDOR",
-      "PRINTING_IN_PROGRESS",
-      "PRINT_RECEIVED",
-      "PACKAGING",
-      "SHIPPED", 
-      "COMPLETED",
-    ]
-    
-    // Note: API/Prisma enum might differ slightly from logic here.
-    // Prisma: WAITING_CLIENT_SELECTION, SENT_TO_VENDOR, PRINTING_IN_PROGRESS, PRINT_RECEIVED, PACKAGING, SHIPPED, COMPLETED
-    // My code earlier used simple strings.
-    // Let's map strict prisma names if needed, or stick to what frontend uses.
-    // Frontend uses: WAITING_SELECTION, SENT_TO_VENDOR, PRINTING, PACKAGING, SHIPPED, COMPLETED
-    // Prisma enum: WAITING_CLIENT_SELECTION, SENT_TO_VENDOR, PRINTING_IN_PROGRESS, PRINT_RECEIVED, PACKAGING, SHIPPED, COMPLETED
-    // Use types from lib/types. Be careful.
-    
-    // I need to map Prisma statuses to step index.
-    // Map correct Prisma statuses to step index.
-    // Map correct Prisma statuses to step index.
+
+    // Simplified status mapping for customer view
+    // Combine internal vendor steps into one "Printing in Progress" step
     const printStatusMap: Record<string, number> = {
         WAITING_CLIENT_SELECTION: 0,
         SENT_TO_VENDOR: 1,
-        PRINTING_IN_PROGRESS: 2,
-        PRINT_RECEIVED: 3,
-        PACKAGING: 4,
-        SHIPPED: 5,
-        COMPLETED: 6
+        PRINTING_IN_PROGRESS: 1,  // Combined
+        PRINT_RECEIVED: 1,         // Combined
+        PACKAGING: 1,              // Combined
+        SHIPPED: 2,
+        COMPLETED: 3
     }
-    
+
     const currentPrintIdx = printStatusMap[po.status] ?? 0
 
     const getPrintStepStatus = (stepIdx: number): "completed" | "current" | "upcoming" => {
-      if (currentStatusIdx < 3 && booking.status !== 'PHOTOS_DELIVERED' && booking.status !== 'CLOSED') return "upcoming" 
+      if (currentStatusIdx < 3 && booking.status !== 'PHOTOS_DELIVERED' && booking.status !== 'CLOSED') return "upcoming"
 
       if (stepIdx < currentPrintIdx) return "completed"
       if (stepIdx === currentPrintIdx) return "current"
       return "upcoming"
     }
 
+    // SESI 14: Simplified print steps - remove internal vendor steps
     const printStepsConfig = [
         { id: "waiting_selection", label: "Photo Selection", icon: Users, idx: 0 },
-        { id: "sent_vendor", label: "Sent to Vendor", icon: Send, idx: 1 },
-        { id: "printing", label: "Printing", icon: Printer, idx: 2 }, 
-        { id: "received", label: "Received", icon: Box, idx: 3 }, // Added Received step
-        { id: "packaging", label: "Packaging", icon: Box, idx: 4 },
-        { id: "shipped", label: "Shipped", icon: Truck, idx: 5 },
-        { id: "completed", label: "Order Completed", icon: CheckCircle, idx: 6 },
+        { id: "printing", label: "Printing in Progress", icon: Printer, idx: 1 },
+        { id: "shipped", label: "Shipped", icon: Truck, idx: 2 },
+        { id: "completed", label: "Order Completed", icon: CheckCircle, idx: 3 },
     ]
 
     printStepsConfig.forEach(s => {
@@ -216,6 +203,9 @@ export default function PublicStatusPage({ params }: { params: Promise<{ slug: s
   const [booking, setBooking] = useState<BookingData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+
+  // SESI 14: Collapsible timeline state
+  const [isTimelineExpanded, setIsTimelineExpanded] = useState(false)
 
   useEffect(() => {
     if (!slug) return
@@ -280,12 +270,12 @@ export default function PublicStatusPage({ params }: { params: Promise<{ slug: s
       <div className="max-w-[480px] mx-auto w-full">
         {/* Section 1: Header */}
         <div className="pt-8 pb-6 px-4 text-center">
-          <div className="relative w-[80px] h-[80px] mx-auto mb-3">
-             <Image 
-                src="/logo_yoonjae.png" 
-                alt="Yoonjaespace Logo" 
-                fill 
-                className="object-contain"
+          <div className="relative w-[80px] h-[80px] mx-auto mb-3 rounded-full ring-2 ring-[#7A1F1F]/10 ring-offset-4 overflow-hidden bg-white shadow-sm">
+             <Image
+                src={(booking.studio.logoUrl && booking.studio.logoUrl.trim() !== '') ? booking.studio.logoUrl : "/logo_yoonjae.png"}
+                alt="Yoonjaespace Logo"
+                fill
+                className="object-cover rounded-full"
                 priority
              />
           </div>
@@ -308,61 +298,87 @@ export default function PublicStatusPage({ params }: { params: Promise<{ slug: s
         <div className="px-4 space-y-6">
           {/* Section 3: Status Timeline */}
           <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <h3 className="text-sm font-semibold text-gray-900 mb-6 flex items-center gap-2">
-                <Clock className="w-4 h-4 text-[#7A1F1F]" />
-                Status Timeline
-            </h3>
-            
+            <div className="flex items-center justify-between mb-6">
+                <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-[#7A1F1F]" />
+                    Status Timeline
+                </h3>
+                <button
+                    onClick={() => setIsTimelineExpanded(!isTimelineExpanded)}
+                    className="flex items-center gap-1 text-xs text-gray-500 hover:text-[#7A1F1F] transition-colors"
+                >
+                    {isTimelineExpanded ? (
+                        <>
+                            <span>Collapse</span>
+                            <ChevronUp className="w-4 h-4" />
+                        </>
+                    ) : (
+                        <>
+                            <span>Expand</span>
+                            <ChevronDown className="w-4 h-4" />
+                        </>
+                    )}
+                </button>
+            </div>
+
             <div className="relative pl-2">
-                {timelineSteps.map((step, index) => {
-                    const isLast = index === timelineSteps.length - 1
-                    const isCompleted = step.status === "completed"
-                    const isCurrent = step.status === "current"
-                    
-                    return (
-                        <div key={step.id} className="flex gap-4 relative pb-8 last:pb-0">
-                            {/* Vertical Line */}
-                            {!isLast && (
+                {timelineSteps
+                    .filter((step, index) => {
+                        // When collapsed, only show current step
+                        if (!isTimelineExpanded) {
+                            return step.status === "current";
+                        }
+                        return true;
+                    })
+                    .map((step, index, filteredSteps) => {
+                        const isLast = index === filteredSteps.length - 1
+                        const isCompleted = step.status === "completed"
+                        const isCurrent = step.status === "current"
+
+                        return (
+                            <div key={step.id} className="flex gap-4 relative pb-8 last:pb-0">
+                                {/* Vertical Line */}
+                                {!isLast && (
+                                    <div className={cn(
+                                        "absolute left-[11px] top-8 bottom-0 w-[2px]",
+                                        isCompleted ? "bg-[#7A1F1F]" : "border-l-2 border-dashed border-gray-200 ml-[1px]"
+                                    )} />
+                                )}
+
+                                {/* Icon Circle */}
                                 <div className={cn(
-                                    "absolute left-[11px] top-8 bottom-0 w-[2px]",
-                                    isCompleted ? "bg-[#7A1F1F]" : "border-l-2 border-dashed border-gray-200 ml-[1px]"
-                                )} />
-                            )}
+                                    "relative z-10 w-6 h-6 rounded-full flex items-center justify-center shrink-0 ring-offset-2",
+                                    isCompleted ? "bg-[#7A1F1F] text-white" :
+                                    isCurrent ? "bg-white border-2 border-[#7A1F1F] text-[#7A1F1F] ring-2 ring-[#7A1F1F]/20 animate-pulse" :
+                                    "bg-white border-2 border-gray-200 text-gray-300"
+                                )}>
+                                    <step.icon className="w-3.5 h-3.5" />
+                                </div>
 
-                            {/* Icon Circle */}
-                            <div className={cn(
-                                "relative z-10 w-6 h-6 rounded-full flex items-center justify-center shrink-0 ring-offset-2",
-                                isCompleted ? "bg-[#7A1F1F] text-white" : 
-                                isCurrent ? "bg-white border-2 border-[#7A1F1F] text-[#7A1F1F] ring-2 ring-[#7A1F1F]/20 animate-pulse" : 
-                                "bg-white border-2 border-gray-200 text-gray-300"
-                            )}>
-                                <step.icon className="w-3.5 h-3.5" />
-                            </div>
-
-                            {/* Content */}
-                            <div className="flex-1 -mt-1">
-                                <div className="flex justify-between items-start">
-                                    <p className={cn(
-                                        "text-sm font-medium",
-                                        isCompleted || isCurrent ? "text-[#7A1F1F]" : "text-gray-400"
-                                    )}>
-                                        {step.label}
-                                    </p>
-                                    {step.date && (
-                                        <span className="text-xs text-gray-500 whitespace-nowrap ml-2">
-                                            {step.date}
-                                        </span>
+                                {/* Content */}
+                                <div className="flex-1 -mt-1">
+                                    <div className="flex justify-between items-start">
+                                        <p className={cn(
+                                            "text-sm font-medium",
+                                            isCompleted || isCurrent ? "text-[#7A1F1F]" : "text-gray-400"
+                                        )}>
+                                            {step.label}
+                                        </p>
+                                        {step.date && (
+                                            <span className="text-xs text-gray-500 whitespace-nowrap ml-2">
+                                                {step.date}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {isCurrent && (
+                                        <p className="text-xs text-[#7A1F1F]/80 mt-0.5 font-medium">
+                                            Status saat ini
+                                        </p>
                                     )}
                                 </div>
-                                {isCurrent && (
-                                    <p className="text-xs text-[#7A1F1F]/80 mt-0.5 font-medium">
-                                        Status saat ini
-                                    </p>
-                                )}
                             </div>
-                        </div>
-                    )
-                })}
+                        )
+                    })}
             </div>
           </section>
 
@@ -373,10 +389,10 @@ export default function PublicStatusPage({ params }: { params: Promise<{ slug: s
                 <ImageIcon className="w-5 h-5 text-[#7A1F1F]" />
                 <h3 className="font-semibold text-gray-900">Your Photos</h3>
               </div>
-              
+
               {booking.photoLink ? (
                 <div className="space-y-3">
-                    <Link 
+                    <Link
                         href={booking.photoLink.startsWith('http') ? booking.photoLink : `https://${booking.photoLink}`}
                         target="_blank"
                         className="flex items-center justify-center w-full px-4 py-3 bg-[#7A1F1F] text-white font-medium rounded-xl hover:bg-[#601818] transition-colors shadow-sm"
@@ -394,6 +410,25 @@ export default function PublicStatusPage({ params }: { params: Promise<{ slug: s
                    <p className="text-sm text-gray-500">Foto sedang diproses upload...</p>
                 </div>
               )}
+            </section>
+          )}
+
+          {/* Thank You WhatsApp Button - Show when photos are delivered */}
+          {(booking.status === "PHOTOS_DELIVERED" || booking.status === "CLOSED") && booking.photoLink && (
+            <section className="bg-gradient-to-br from-[#FFF5F5] to-white rounded-2xl border border-[#7A1F1F]/10 p-5">
+              <div className="text-center space-y-3">
+                <p className="text-sm text-gray-600">
+                  Love your photos? Share your happiness with us! 💕
+                </p>
+                <Link
+                  href={`https://wa.me/${booking.studio.phone?.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(`Thank you for choosing ${booking.studio.name}! We hope you love your photos! 💕`)}`}
+                  target="_blank"
+                  className="flex items-center justify-center w-full px-4 py-3 bg-gradient-to-r from-[#25D366] to-[#128C7E] text-white font-medium rounded-xl hover:from-[#20BA5A] hover:to-[#0F7A6B] transition-all shadow-sm"
+                >
+                  <MessageCircle className="w-4 h-4 mr-2" />
+                  Send Thank You Message
+                </Link>
+              </div>
             </section>
           )}
 
@@ -507,7 +542,21 @@ export default function PublicStatusPage({ params }: { params: Promise<{ slug: s
                 <MapPin className="w-5 h-5 text-gray-600" />
                 <h3 className="font-semibold text-gray-900">{booking.studio.name}</h3>
             </div>
-            
+
+            {/* Studio Photo */}
+            {booking.studio.studioPhotoUrl && (
+              <div className="mb-4 rounded-xl overflow-hidden border border-gray-200">
+                <div className="relative w-full h-48">
+                  <Image
+                    src={booking.studio.studioPhotoUrl}
+                    alt={`${booking.studio.name} Studio`}
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="space-y-3 text-sm">
                 <p className="text-gray-600 flex items-start gap-3">
                     <span className="shrink-0 mt-0.5"><MapPin className="w-4 h-4 text-gray-400" /></span>
@@ -517,13 +566,20 @@ export default function PublicStatusPage({ params }: { params: Promise<{ slug: s
                     <span className="shrink-0 mt-0.5"><Clock className="w-4 h-4 text-gray-400" /></span>
                     {booking.studio.operatingHours?.open} - {booking.studio.operatingHours?.close}
                 </p>
-                <div className="flex gap-3 mt-4">
-                     <Link href={booking.studio.instagram || '#'} target="_blank" className="flex-1 bg-white border border-gray-200 py-2 rounded-lg flex items-center justify-center gap-2 text-xs font-medium text-gray-700 hover:bg-gray-50">
+
+                {/* Action Buttons Grid */}
+                <div className="grid grid-cols-2 gap-2 mt-4">
+                     <Link href={booking.studio.instagram || '#'} target="_blank" className="bg-white border border-gray-200 py-2 rounded-lg flex items-center justify-center gap-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors">
                         <Instagram className="w-4 h-4" /> Instagram
                      </Link>
-                     <Link href={`https://wa.me/${booking.studio.phone?.replace(/[^0-9]/g, "")}`} target="_blank" className="flex-1 bg-white border border-gray-200 py-2 rounded-lg flex items-center justify-center gap-2 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                     <Link href={`https://wa.me/${booking.studio.phone?.replace(/[^0-9]/g, "")}`} target="_blank" className="bg-white border border-gray-200 py-2 rounded-lg flex items-center justify-center gap-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors">
                         <Phone className="w-4 h-4" /> WhatsApp
                      </Link>
+                     {booking.studio.mapsUrl && (
+                       <Link href={booking.studio.mapsUrl} target="_blank" className="col-span-2 bg-[#7A1F1F] text-white py-2 rounded-lg flex items-center justify-center gap-2 text-xs font-medium hover:bg-[#601818] transition-colors">
+                          <Navigation className="w-4 h-4" /> Open in Google Maps
+                       </Link>
+                     )}
                 </div>
             </div>
           </section>
@@ -531,11 +587,11 @@ export default function PublicStatusPage({ params }: { params: Promise<{ slug: s
           {/* Section 8: Footer */}
           <div className="pt-6 pb-4 text-center space-y-6">
             <p className="text-[#7A1F1F] text-sm italic">
-                Thank you for choosing {booking.studio.name}! 💕
+                {booking.studio.footerText || `Thank you for choosing ${booking.studio.name}! 💕`}
             </p>
-            
-            <Link 
-                href={`https://wa.me/${booking.studio.phone?.replace(/[^0-9]/g, "")}?text=Halo%2C%20saya%20ingin%20booking%20lagi!`} 
+
+            <Link
+                href={`https://wa.me/${booking.studio.phone?.replace(/[^0-9]/g, "")}?text=Halo%2C%20saya%20ingin%20booking%20lagi!`}
                 className="flex items-center justify-center w-full px-4 py-3 bg-[#7A1F1F] text-white font-medium rounded-xl hover:bg-[#601818] transition-colors shadow-lg shadow-[#7A1F1F]/20"
             >
                 <MessageCircle className="w-4 h-4 mr-2" />

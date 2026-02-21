@@ -273,7 +273,7 @@ export default function InvoicePage() {
                  <div className="flex flex-col gap-4">
                       <div className="flex items-center gap-3">
                           <Image
-                            src="/logo_yoonjae.png"
+                            src={(studio?.logoUrl && studio.logoUrl.trim() !== '') ? studio.logoUrl : "/logo_yoonjae.png"}
                             alt="Yoonjae Space"
                             width={50}
                             height={50}

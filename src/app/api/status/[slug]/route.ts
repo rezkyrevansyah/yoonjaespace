@@ -68,6 +68,10 @@ export async function GET(
       phone: settingsMap['studio_phone'] || '',
       instagram: settingsMap['studio_instagram'] || '',
       operatingHours: settingsMap['operating_hours'] || { open: '08:00', close: '20:00' },
+      logoUrl: settingsMap['studio_logo_url'] || '',
+      mapsUrl: settingsMap['studio_maps_url'] || '',
+      studioPhotoUrl: settingsMap['studio_photo_url'] || '',
+      footerText: settingsMap['studio_footer_text'] || '',
     },
   })
 }

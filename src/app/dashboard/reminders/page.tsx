@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState } from "react"
 import Link from "next/link"
 import {
   Bell,
@@ -13,7 +13,9 @@ import {
   CheckCircle,
   Loader2,
   Check,
-  RotateCcw
+  RotateCcw,
+  Heart,
+  Sparkles
 } from "lucide-react"
 import { useReminders } from "@/lib/hooks/use-reminders"
 import { useReminderCount } from "@/lib/hooks/use-reminder-count"
@@ -46,23 +48,6 @@ export default function RemindersPage() {
       showToast(err.message || "Gagal mengupdate status reminder", "error")
     } finally {
       setUpdatingId(null)
-    }
-  }
-
-  // Calculate hours/minutes left using real time
-  const getTimeLeft = (date: string, startTime: string) => {
-    const sessionDateTime = new Date(startTime) // Full ISO string from API usually preferred, but let's see
-
-    const diffMs = sessionDateTime.getTime() - Date.now()
-    const diffMins = Math.floor(diffMs / (1000 * 60))
-    const diffHours = diffMins / 60
-
-    return {
-      totalMinutes: diffMins,
-      hours: Math.floor(diffHours),
-      minutes: diffMins % 60,
-      isPast: diffMins < 0,
-      isOngoing: diffMins >= -120 && diffMins <= 0 // Within 2 hours of start time
     }
   }
 
@@ -274,7 +259,7 @@ export default function RemindersPage() {
 
                       {/* Action */}
                       <td className="py-3 px-4">
-                        <div className="flex justify-center gap-2">
+                        <div className="flex justify-center gap-1.5 flex-wrap">
                           {booking.remindedAt ? (
                             <button
                               onClick={() => handleMarkReminded(booking.id, false)}
@@ -291,22 +276,43 @@ export default function RemindersPage() {
                                 href={waLink}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-medium hover:bg-green-700 transition-colors"
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-green-600 text-white text-xs font-medium hover:bg-green-700 transition-colors"
+                                title="Kirim Reminder"
                               >
                                 <MessageCircle className="h-3.5 w-3.5" />
-                                WA
+                                Remind
                               </a>
                               <button
                                 onClick={() => handleMarkReminded(booking.id, true)}
                                 disabled={updatingId === booking.id}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
                                 title="Tandai sudah diremind"
                               >
                                 <Check className="h-3.5 w-3.5" />
-                                Done
                               </button>
                             </>
                           )}
+                          {/* Thank You Buttons */}
+                          <a
+                            href={item.waThankYouPaymentLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-purple-600 text-white text-xs font-medium hover:bg-purple-700 transition-colors"
+                            title="Say Thank You (Payment)"
+                          >
+                            <Heart className="h-3.5 w-3.5" />
+                            Pay
+                          </a>
+                          <a
+                            href={item.waThankYouSessionLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-pink-600 text-white text-xs font-medium hover:bg-pink-700 transition-colors"
+                            title="Say Thank You (After Session)"
+                          >
+                            <Sparkles className="h-3.5 w-3.5" />
+                            Session
+                          </a>
                         </div>
                       </td>
                     </tr>
@@ -369,41 +375,66 @@ export default function RemindersPage() {
                 </div>
 
                 {/* Footer */}
-                <div className="flex items-center justify-between pt-3 border-t border-[#E5E7EB]">
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${timeColor.bg} ${timeColor.text} ${timeColor.border}`}>
-                    <TimeIcon className="h-3 w-3" />
-                    {formatTimeLeft(hoursUntilSession)}
-                  </span>
-                  <div className="flex gap-2">
-                    {booking.remindedAt ? (
-                      <button
-                        onClick={() => handleMarkReminded(booking.id, false)}
-                        disabled={updatingId === booking.id}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-xs font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
-                      >
-                        <RotateCcw className="h-3.5 w-3.5" />
-                        Undo
-                      </button>
-                    ) : (
-                      <>
-                        <a
-                          href={waLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-medium hover:bg-green-700 transition-colors"
-                        >
-                          <MessageCircle className="h-3.5 w-3.5" />
-                          WA
-                        </a>
+                <div className="space-y-2 pt-3 border-t border-[#E5E7EB]">
+                  <div className="flex items-center justify-between">
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${timeColor.bg} ${timeColor.text} ${timeColor.border}`}>
+                      <TimeIcon className="h-3 w-3" />
+                      {formatTimeLeft(hoursUntilSession)}
+                    </span>
+                    <div className="flex gap-1.5">
+                      {booking.remindedAt ? (
                         <button
-                          onClick={() => handleMarkReminded(booking.id, true)}
+                          onClick={() => handleMarkReminded(booking.id, false)}
                           disabled={updatingId === booking.id}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-xs font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
                         >
-                          <Check className="h-3.5 w-3.5" />
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          Undo
                         </button>
-                      </>
-                    )}
+                      ) : (
+                        <>
+                          <a
+                            href={waLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-green-600 text-white text-xs font-medium hover:bg-green-700 transition-colors"
+                          >
+                            <MessageCircle className="h-3.5 w-3.5" />
+                            Remind
+                          </a>
+                          <button
+                            onClick={() => handleMarkReminded(booking.id, true)}
+                            disabled={updatingId === booking.id}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  {/* Thank You Buttons Row */}
+                  <div className="flex gap-1.5">
+                    <a
+                      href={item.waThankYouPaymentLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-purple-600 text-white text-xs font-medium hover:bg-purple-700 transition-colors"
+                      title="Say Thank You (Payment)"
+                    >
+                      <Heart className="h-3.5 w-3.5" />
+                      Thank You (Pay)
+                    </a>
+                    <a
+                      href={item.waThankYouSessionLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-pink-600 text-white text-xs font-medium hover:bg-pink-700 transition-colors"
+                      title="Say Thank You (After Session)"
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Thank You (Session)
+                    </a>
                   </div>
                 </div>
               </div>

@@ -35,6 +35,13 @@ export async function GET() {
     dayOff: typeof raw.day_off === 'string' ? [raw.day_off] : (raw.day_off || []),
     defaultPaymentStatus: raw.default_payment_status?.toUpperCase() || 'UNPAID',
     reminderMessageTemplate: raw.reminder_message_template || 'Halo {{clientName}}, ini reminder untuk sesi foto kamu di {{studioName}} pada {{date}} pukul {{time}}. Paket: {{packageName}}. Ditunggu ya! 😊\n\nCek status booking kamu di: {{clientPageLink}}',
+    thankYouPaymentTemplate: raw.thank_you_payment_template || 'Terima kasih {{clientName}} sudah melakukan pembayaran untuk sesi foto di {{studioName}}! 🙏\n\nSesi foto kamu dijadwalkan pada {{date}} pukul {{time}}.\nPaket: {{packageName}}\n\nDitunggu kehadirannya ya! Kalau ada pertanyaan, jangan ragu untuk chat kami.\n\nCek status booking: {{clientPageLink}}',
+    thankYouSessionTemplate: raw.thank_you_session_template || 'Halo {{clientName}}, terima kasih sudah memilih {{studioName}} untuk sesi foto kamu! 🙏✨\n\nKami harap kamu puas dengan hasilnya. Jangan lupa cek status booking untuk melihat update foto kamu:\n{{clientPageLink}}\n\nSampai jumpa lagi! 😊',
+    logoUrl: raw.studio_logo_url || '',
+    mapsUrl: raw.studio_maps_url || '',
+    studioPhotoUrl: raw.studio_photo_url || '',
+    footerText: raw.studio_footer_text || '',
+    timeIntervalMinutes: raw.timeIntervalMinutes || '30',  // SESI 10
   }
 
   return NextResponse.json(result)
@@ -67,6 +74,13 @@ export async function PATCH(request: NextRequest) {
   if (body.dayOff !== undefined) dbUpdates.day_off = JSON.stringify(body.dayOff)
   if (body.defaultPaymentStatus !== undefined) dbUpdates.default_payment_status = body.defaultPaymentStatus.toLowerCase()
   if (body.reminderMessageTemplate !== undefined) dbUpdates.reminder_message_template = body.reminderMessageTemplate
+  if (body.thankYouPaymentTemplate !== undefined) dbUpdates.thank_you_payment_template = body.thankYouPaymentTemplate
+  if (body.thankYouSessionTemplate !== undefined) dbUpdates.thank_you_session_template = body.thankYouSessionTemplate
+  if (body.logoUrl !== undefined) dbUpdates.studio_logo_url = body.logoUrl
+  if (body.mapsUrl !== undefined) dbUpdates.studio_maps_url = body.mapsUrl
+  if (body.studioPhotoUrl !== undefined) dbUpdates.studio_photo_url = body.studioPhotoUrl
+  if (body.footerText !== undefined) dbUpdates.studio_footer_text = body.footerText
+  if (body.timeIntervalMinutes !== undefined) dbUpdates.timeIntervalMinutes = body.timeIntervalMinutes  // SESI 10
 
   if (body.openTime !== undefined || body.closeTime !== undefined) {
     // Get current operating_hours

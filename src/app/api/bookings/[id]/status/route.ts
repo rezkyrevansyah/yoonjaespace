@@ -18,7 +18,7 @@ export async function PATCH(
 
   const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
 
-  if (!dbUser || !['OWNER', 'ADMIN'].includes(dbUser.role)) {
+  if (!dbUser || !dbUser.isActive) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -28,6 +28,46 @@ export async function PATCH(
 
   if (!existing) {
     return NextResponse.json({ error: 'Booking tidak ditemukan' }, { status: 404 })
+  }
+
+  // Role-based permission check for status changes
+  if (status) {
+    const role = dbUser.role
+
+    // PHOTOGRAPHER restrictions:
+    // - Can only change from SHOOT_DONE onwards
+    // - CANNOT change from PAID to SHOOT_DONE
+    if (role === 'PHOTOGRAPHER') {
+      // If current status is PAID, photographer cannot change it
+      if (existing.status === 'PAID') {
+        return NextResponse.json({
+          error: 'Photographer tidak dapat mengubah status dari Paid. Hubungi Admin.'
+        }, { status: 403 })
+      }
+
+      // Photographer can only set to SHOOT_DONE or PHOTOS_DELIVERED
+      if (!['SHOOT_DONE', 'PHOTOS_DELIVERED'].includes(status)) {
+        return NextResponse.json({
+          error: 'Photographer hanya dapat mengubah status ke Shot atau Delivered'
+        }, { status: 403 })
+      }
+    }
+
+    // PACKAGING_STAFF can only set to PHOTOS_DELIVERED
+    if (role === 'PACKAGING_STAFF') {
+      if (status !== 'PHOTOS_DELIVERED') {
+        return NextResponse.json({
+          error: 'Packaging staff hanya dapat mengubah status ke Delivered'
+        }, { status: 403 })
+      }
+    }
+
+    // Only OWNER and ADMIN can change payment status
+    if (paymentStatus && !['OWNER', 'ADMIN'].includes(role)) {
+      return NextResponse.json({
+        error: 'Hanya Owner dan Admin yang dapat mengubah status pembayaran'
+      }, { status: 403 })
+    }
   }
 
   const updateData: Prisma.BookingUpdateInput = {}

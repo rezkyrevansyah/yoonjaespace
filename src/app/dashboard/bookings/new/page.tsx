@@ -18,7 +18,9 @@ import {
   Ticket,
   Users,
   Loader2,
-  FileText
+  FileText,
+  Calendar,
+  DollarSign
 } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 // import { toast } from "sonner"
@@ -48,6 +50,8 @@ type ClientFormData = {
   email: string
   instagram: string
   address: string
+  domisili: string  // SESI 10
+  leads: string     // SESI 10
 }
 
 type AddOnItem = {
@@ -76,6 +80,11 @@ export default function NewBookingPage() {
   const { customFields } = useCustomFields()
   const { settings } = useStudioSettings()
 
+  // --- 0. Booking Mode (for Owner only) ---
+  const [bookingMode, setBookingMode] = useState<"new" | "old">("new")
+  const [customCreatedAt, setCustomCreatedAt] = useState("")
+  const [customCreatedTime, setCustomCreatedTime] = useState("")
+
   // --- 1. Client Info ---
   const [clientMode, setClientMode] = useState<"new" | "search">("new")
   const [phoneSearch, setPhoneSearch] = useState("")
@@ -89,6 +98,8 @@ export default function NewBookingPage() {
     email: "",
     instagram: "",
     address: "",
+    domisili: "",  // SESI 10
+    leads: "",     // SESI 10
   })
 
   const handlePhoneSearch = async () => {
@@ -121,6 +132,8 @@ export default function NewBookingPage() {
       email: foundClient.email || "",
       instagram: foundClient.instagram || "",
       address: foundClient.address || "",
+      domisili: foundClient.domisili || "",
+      leads: foundClient.leads || "",
     })
   }
 
@@ -129,7 +142,7 @@ export default function NewBookingPage() {
     setFoundClient(null)
     setPhoneSearch("")
     setSearchError("")
-    setClientForm({ name: "", phone: "", email: "", instagram: "", address: "" })
+    setClientForm({ name: "", phone: "", email: "", instagram: "", address: "", domisili: "", leads: "" })
   }
 
 
@@ -159,8 +172,32 @@ export default function NewBookingPage() {
   // --- 3. Session Details ---
   const [packageId, setPackageId] = useState("")
   const [backgroundId, setBackgroundId] = useState("")
+  const [backgroundIds, setBackgroundIds] = useState<string[]>([]) // SESI 11: Multiple backgrounds
   const [numPeople, setNumPeople] = useState<number | string>(1)
   const [photoFor, setPhotoFor] = useState("")
+  const [photoForCustom, setPhotoForCustom] = useState("") // SESI 11: Custom text for OTHER
+
+  // SESI 10: Calculate end time based on package duration
+  const calculatedEndTime = useMemo(() => {
+    if (!sessionTime || !packageId) return ""
+
+    const selectedPackage = packages.find((p: Package) => p.id === packageId)
+    if (!selectedPackage) return ""
+
+    // Parse start time (HH:MM format)
+    const [hours, minutes] = sessionTime.split(':').map(Number)
+    const startDate = new Date()
+    startDate.setHours(hours, minutes, 0, 0)
+
+    // Add package duration (in minutes)
+    const endDate = new Date(startDate.getTime() + selectedPackage.duration * 60000)
+
+    // Format as HH:MM
+    const endHours = endDate.getHours().toString().padStart(2, '0')
+    const endMinutes = endDate.getMinutes().toString().padStart(2, '0')
+
+    return `${endHours}:${endMinutes}`
+  }, [sessionTime, packageId, packages])
   const [notes, setNotes] = useState("")
 
   // --- 4. Add-ons ---
@@ -297,6 +334,9 @@ export default function NewBookingPage() {
   const [isMobileSummaryOpen, setIsMobileSummaryOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // --- SESI 11: Mobile Tab Navigation ---
+  const [mobileTab, setMobileTab] = useState<"client" | "schedule" | "details" | "pricing">("client")
+
   // --- Submit ---
   const handleSubmit = async () => {
     // Basic validation
@@ -304,9 +344,19 @@ export default function NewBookingPage() {
         showToast("Mohon lengkapi data client", "warning")
         return
     }
-    if (!sessionDate || !sessionTime || !packageId || !backgroundId) {
+    // SESI 11: Support both single and multiple background selection
+    const hasBackground = backgroundIds.length > 0 || backgroundId
+    if (!sessionDate || !sessionTime || !packageId || !hasBackground) {
         showToast("Mohon lengkapi detail sesi", "warning")
         return
+    }
+
+    // Validate custom created date for old booking mode
+    if (user?.role === "OWNER" && bookingMode === "old") {
+        if (!customCreatedAt || !customCreatedTime) {
+            showToast("Mohon isi tanggal dan waktu dibuat untuk Booking Lama", "warning")
+            return
+        }
     }
 
     setIsSubmitting(true)
@@ -318,20 +368,20 @@ export default function NewBookingPage() {
         const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60000)
 
         // Construct Payload for /api/bookings POST
-        const payload = {
+        const payload: any = {
             clientId: clientForm.id,
             clientName: clientForm.name,
             clientPhone: clientForm.phone,
             clientEmail: clientForm.email,
-            
+
             date: sessionDate, // YYYY-MM-DD
             startTime: startDateTime.toISOString(),
             endTime: endDateTime.toISOString(),
-            
+
             packageId,
-            backgroundIds: [backgroundId],
+            backgroundIds: backgroundIds.length > 0 ? backgroundIds : [backgroundId], // SESI 11: Multiple backgrounds
             numberOfPeople: typeof numPeople === 'string' ? (parseInt(numPeople) || 1) : numPeople,
-            photoFor: photoFor || undefined,
+            photoFor: photoFor === "OTHER" ? photoForCustom : (photoFor || undefined), // SESI 11: Use custom text for OTHER
             bts: false,
 
             addOns: addOns.map(a => ({
@@ -339,11 +389,11 @@ export default function NewBookingPage() {
                 quantity: a.quantity,
                 unitPrice: a.unitPrice
             })),
-            
-            
+
+
             discountAmount,
             discountNote: discountReason || (appliedVoucher ? `Voucher: ${appliedVoucher.code}` : undefined),
-            
+
             handledById: staffId,
             notes,
 
@@ -351,6 +401,12 @@ export default function NewBookingPage() {
                 fieldId,
                 value
             }))
+        }
+
+        // Add custom createdAt for old booking mode (Owner only)
+        if (user?.role === "OWNER" && bookingMode === "old" && customCreatedAt && customCreatedTime) {
+            const customCreatedDateTime = new Date(`${customCreatedAt}T${customCreatedTime}`)
+            payload.createdAt = customCreatedDateTime.toISOString()
         }
 
         const res = await apiPost<any>("/api/bookings", payload)
@@ -390,18 +446,142 @@ export default function NewBookingPage() {
         >
           <ArrowLeft className="h-5 w-5" />
         </Link>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-bold text-gray-900">Create New Booking</h1>
           <p className="text-sm text-gray-500">Buat booking baru untuk client</p>
+        </div>
+      </div>
+
+      {/* Booking Mode Toggle (Owner Only) */}
+      {user?.role === "OWNER" && (
+        <div className="mb-6 bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">Tipe Booking</h3>
+          <div className="flex gap-2 p-1 bg-gray-100 rounded-xl w-fit">
+            <button
+              onClick={() => setBookingMode("new")}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                bookingMode === "new"
+                  ? "bg-white text-[#7A1F1F] shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Booking Baru
+            </button>
+            <button
+              onClick={() => setBookingMode("old")}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                bookingMode === "old"
+                  ? "bg-white text-[#7A1F1F] shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Booking Lama
+            </button>
+          </div>
+
+          {bookingMode === "old" && (
+            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
+              <div className="flex items-start gap-2 mb-3">
+                <AlertCircle className="h-4 w-4 text-yellow-600 mt-0.5 shrink-0" />
+                <div className="text-sm text-yellow-800">
+                  <p className="font-medium">Mode Booking Lama</p>
+                  <p className="text-xs mt-1">Anda dapat mengisi tanggal pembuatan booking secara manual untuk mencatat booking yang dibuat sebelumnya.</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Tanggal Dibuat <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={customCreatedAt}
+                    onChange={(e) => setCustomCreatedAt(e.target.value)}
+                    max={new Date().toISOString().split('T')[0]}
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Waktu Dibuat <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="time"
+                    value={customCreatedTime}
+                    onChange={(e) => setCustomCreatedTime(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* SESI 11: Mobile Tab Navigation */}
+      <div className="lg:hidden mb-6 bg-white rounded-2xl border border-gray-100 p-2 shadow-sm sticky top-0 z-40">
+        <div className="grid grid-cols-4 gap-1">
+          <button
+            onClick={() => setMobileTab("client")}
+            className={cn(
+              "flex flex-col items-center gap-1 py-3 px-2 rounded-xl text-xs font-medium transition-all",
+              mobileTab === "client"
+                ? "bg-[#7A1F1F] text-white shadow-md"
+                : "text-gray-500 hover:bg-gray-50"
+            )}
+          >
+            <User className="h-5 w-5" />
+            <span>Client</span>
+          </button>
+          <button
+            onClick={() => setMobileTab("schedule")}
+            className={cn(
+              "flex flex-col items-center gap-1 py-3 px-2 rounded-xl text-xs font-medium transition-all",
+              mobileTab === "schedule"
+                ? "bg-[#7A1F1F] text-white shadow-md"
+                : "text-gray-500 hover:bg-gray-50"
+            )}
+          >
+            <Calendar className="h-5 w-5" />
+            <span>Schedule</span>
+          </button>
+          <button
+            onClick={() => setMobileTab("details")}
+            className={cn(
+              "flex flex-col items-center gap-1 py-3 px-2 rounded-xl text-xs font-medium transition-all",
+              mobileTab === "details"
+                ? "bg-[#7A1F1F] text-white shadow-md"
+                : "text-gray-500 hover:bg-gray-50"
+            )}
+          >
+            <Sparkles className="h-5 w-5" />
+            <span>Details</span>
+          </button>
+          <button
+            onClick={() => setMobileTab("pricing")}
+            className={cn(
+              "flex flex-col items-center gap-1 py-3 px-2 rounded-xl text-xs font-medium transition-all",
+              mobileTab === "pricing"
+                ? "bg-[#7A1F1F] text-white shadow-md"
+                : "text-gray-500 hover:bg-gray-50"
+            )}
+          >
+            <DollarSign className="h-5 w-5" />
+            <span>Pricing</span>
+          </button>
         </div>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-8 items-start">
         {/* LEFT COLUMN - FORM */}
         <div className="flex-1 w-full space-y-8">
-          
+
           {/* SECTION 1: CLIENT INFO */}
-          <section className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+          <section className={cn(
+            "bg-white rounded-2xl border border-gray-100 p-6 shadow-sm",
+            mobileTab !== "client" && "hidden lg:block"
+          )}>
             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <User className="h-5 w-5 text-[#7A1F1F]" />
               Client Information
@@ -472,7 +652,7 @@ export default function NewBookingPage() {
                 {clientForm.id && (
                   <div className="mt-3 p-3 border border-green-200 bg-green-50 rounded-xl flex items-center justify-between">
                     <span className="text-sm font-medium text-green-700">Client dipilih: {clientForm.name}</span>
-                    <button onClick={() => { setClientForm({ name: "", phone: "", email: "", instagram: "", address: "" }); setFoundClient(null) }} className="text-xs text-gray-500 hover:text-red-500">Batalkan</button>
+                    <button onClick={() => { setClientForm({ name: "", phone: "", email: "", instagram: "", address: "", domisili: "", leads: "" }); setFoundClient(null) }} className="text-xs text-gray-500 hover:text-red-500">Batalkan</button>
                   </div>
                 )}
               </div>
@@ -533,55 +713,128 @@ export default function NewBookingPage() {
                     className={`w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all resize-none ${clientForm.id ? "bg-gray-50 text-gray-600" : ""}`}
                   />
                 </div>
+
+                {/* SESI 10: New Fields */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Domisili</label>
+                  <input
+                    type="text"
+                    placeholder="Kota/Kabupaten"
+                    value={clientForm.domisili}
+                    readOnly={!!clientForm.id}
+                    onChange={(e) => setClientForm({...clientForm, domisili: e.target.value})}
+                    className={`w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all ${clientForm.id ? "bg-gray-50 text-gray-600" : ""}`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Leads (Sumber)</label>
+                  <input
+                    type="text"
+                    placeholder="Instagram, TikTok, Referral, dll"
+                    value={clientForm.leads}
+                    readOnly={!!clientForm.id}
+                    onChange={(e) => setClientForm({...clientForm, leads: e.target.value})}
+                    className={`w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all ${clientForm.id ? "bg-gray-50 text-gray-600" : ""}`}
+                  />
+                </div>
               </div>
             )}
           </section>
 
           {/* SECTION 2: SCHEDULE */}
-          <section className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+          <section className={cn(
+            "bg-white rounded-2xl border border-gray-100 p-6 shadow-sm",
+            mobileTab !== "schedule" && "hidden lg:block"
+          )}>
              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <Clock className="h-5 w-5 text-[#7A1F1F]" />
               Schedule
             </h2>
             
+            {/* Date Selection */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Tanggal Sesi <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                value={sessionDate}
+                onChange={(e) => setSessionDate(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all"
+              />
+              {isDayOff && (
+                <div className="mt-2 flex items-start gap-2 p-3 bg-yellow-50 text-yellow-800 rounded-lg text-sm">
+                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                  <p>Warning: <strong>{isDayOff}</strong> adalah hari libur studio.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Time Slots Selection */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Pilih Waktu Mulai <span className="text-red-500">*</span>
+              </label>
+              <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
+                {(() => {
+                  const timeInterval = settings?.timeIntervalMinutes ? parseInt(settings.timeIntervalMinutes) : 30
+                  const slotsPerHour = 60 / timeInterval
+                  const totalSlots = (21 - 8) * slotsPerHour // 8:00 - 20:00
+
+                  return Array.from({ length: totalSlots }).map((_, i) => {
+                    const totalMinutes = 8 * 60 + i * timeInterval
+                    const hour = Math.floor(totalMinutes / 60)
+                    const min = totalMinutes % 60
+                    const time = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`
+                    const isSelected = sessionTime === time
+
+                    return (
+                      <button
+                        key={time}
+                        type="button"
+                        onClick={() => setSessionTime(time)}
+                        className={cn(
+                          "px-3 py-2 rounded-lg text-sm font-medium transition-all border",
+                          isSelected
+                            ? "bg-[#7A1F1F] text-white border-[#7A1F1F] shadow-md"
+                            : "bg-white text-gray-700 border-gray-200 hover:border-[#7A1F1F] hover:bg-[#F5ECEC]"
+                        )}
+                      >
+                        {time}
+                      </button>
+                    )
+                  })
+                })()}
+              </div>
+            </div>
+
+            {/* Start & End Time Display */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Tanggal Sesi <span className="text-red-500">*</span></label>
-                  <input
-                    type="date"
-                    value={sessionDate}
-                    onChange={(e) => setSessionDate(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all"
-                  />
-                  {isDayOff && (
-                    <div className="mt-2 flex items-start gap-2 p-3 bg-yellow-50 text-yellow-800 rounded-lg text-sm">
-                       <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                       <p>Warning: <strong>{isDayOff}</strong> adalah hari libur studio.</p>
-                    </div>
-                  )}
-               </div>
-               <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Waktu Sesi <span className="text-red-500">*</span></label>
-                  <select
-                    value={sessionTime}
-                    onChange={(e) => setSessionTime(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all appearance-none cursor-pointer bg-white"
-                  >
-                    <option value="">Pilih Waktu</option>
-                    {Array.from({ length: 25 }).map((_, i) => {
-                      const hour = Math.floor(i / 2) + 8 // start 8:00
-                      const min = i % 2 === 0 ? "00" : "30"
-                      const time = `${hour.toString().padStart(2, '0')}:${min}`
-                      if (hour > 20) return null
-                      return <option key={time} value={time}>{time}</option>
-                    })}
-                  </select>
-               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Waktu Mulai</label>
+                <div className="px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-gray-700">
+                  {sessionTime || "-"}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Waktu Selesai (Estimasi)</label>
+                <div className="px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-gray-700">
+                  {calculatedEndTime || "-"}
+                </div>
+                {calculatedEndTime && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Berdasarkan durasi paket ({packages.find((p: Package) => p.id === packageId)?.duration || 0} menit)
+                  </p>
+                )}
+              </div>
             </div>
           </section>
 
           {/* SECTION 3: SESSION DETAILS */}
-          <section className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+          <section className={cn(
+            "bg-white rounded-2xl border border-gray-100 p-6 shadow-sm",
+            mobileTab !== "details" && "hidden lg:block"
+          )}>
              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-[#7A1F1F]" />
               Session Details
@@ -594,33 +847,107 @@ export default function NewBookingPage() {
                     value={packageId}
                     onChange={(e) => {
                         setPackageId(e.target.value)
-                        // Auto update people count if needed?
                     }}
                     className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all appearance-none cursor-pointer bg-white"
                   >
-                    <option value="">Pilih Paket Utama</option>
-                    {packages.map((p: Package) => (
-                        <option key={p.id} value={p.id}>
-                            {p.name} — {formatCurrency(p.price)}
-                        </option>
-                    ))}
+                    <option value="">-- Pilih Paket --</option>
+
+                    {/* SESI 11: Group packages by category */}
+                    {(() => {
+                      const categoryLabels: Record<string, string> = {
+                        MAIN: "Paket Utama",
+                        BIRTHDAY_SMASH: "Paket Birthday Smash",
+                        PROFESSIONAL: "Paket Profesional",
+                        STUDIO_ONLY: "Paket Studio Only",
+                        ADDON: "Add On",
+                        OTHER: "Lainnya"
+                      }
+
+                      // Group packages by category
+                      const grouped = packages.reduce((acc: Record<string, Package[]>, pkg: Package) => {
+                        const cat = pkg.category || 'MAIN'
+                        if (!acc[cat]) acc[cat] = []
+                        acc[cat].push(pkg)
+                        return acc
+                      }, {})
+
+                      // Render optgroups in order
+                      const categoryOrder = ['MAIN', 'BIRTHDAY_SMASH', 'PROFESSIONAL', 'STUDIO_ONLY', 'ADDON', 'OTHER']
+
+                      return categoryOrder.map(cat => {
+                        if (!grouped[cat] || grouped[cat].length === 0) return null
+                        return (
+                          <optgroup key={cat} label={categoryLabels[cat]}>
+                            {grouped[cat].map((p: Package) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name} — {formatCurrency(p.price)}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )
+                      })
+                    })()}
                   </select>
+
+                  {/* SESI 11: Show package duration */}
+                  {selectedPackage && (
+                    <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
+                      <Clock className="h-4 w-4 text-[#7A1F1F]" />
+                      <span>Durasi: <strong>{selectedPackage.duration} menit</strong></span>
+                      {selectedPackage.editedPhotos > 0 && (
+                        <span className="text-gray-400">• {selectedPackage.editedPhotos} foto edit</span>
+                      )}
+                    </div>
+                  )}
+               </div>
+
+               {/* SESI 11: Multiple Background Selection */}
+               <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2.5">
+                    Backdrop <span className="text-red-500">*</span>
+                    <span className="text-xs font-normal text-gray-500 ml-2">(Bisa pilih lebih dari 1)</span>
+                  </label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {backgrounds.map((b: Background) => {
+                      const isSelected = backgroundIds.includes(b.id)
+                      return (
+                        <label
+                          key={b.id}
+                          className={cn(
+                            "flex items-center gap-2 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all",
+                            isSelected
+                              ? "border-[#7A1F1F] bg-[#F5ECEC]"
+                              : "border-gray-200 hover:border-[#7A1F1F]/40 bg-white"
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setBackgroundIds([...backgroundIds, b.id])
+                                // Keep old single select for backward compatibility
+                                if (backgroundIds.length === 0) setBackgroundId(b.id)
+                              } else {
+                                setBackgroundIds(backgroundIds.filter(id => id !== b.id))
+                                if (backgroundId === b.id) setBackgroundId(backgroundIds.filter(id => id !== b.id)[0] || "")
+                              }
+                            }}
+                            className="w-4 h-4 text-[#7A1F1F] rounded focus:ring-[#7A1F1F]"
+                          />
+                          <span className={cn(
+                            "text-sm font-medium",
+                            isSelected ? "text-[#7A1F1F]" : "text-gray-700"
+                          )}>
+                            {b.name}
+                          </span>
+                        </label>
+                      )
+                    })}
+                  </div>
                </div>
 
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Backdrop <span className="text-red-500">*</span></label>
-                      <select
-                        value={backgroundId}
-                        onChange={(e) => setBackgroundId(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all appearance-none cursor-pointer bg-white"
-                      >
-                        <option value="">Pilih Background</option>
-                        {backgrounds.map((b: Background) => (
-                            <option key={b.id} value={b.id}>{b.name}</option>
-                        ))}
-                      </select>
-                  </div>
                   <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">Jumlah Orang <span className="text-red-500">*</span></label>
                       <input
@@ -650,9 +977,15 @@ export default function NewBookingPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Photo For</label>
                    <select
                      value={photoFor}
-                     onChange={(e) => setPhotoFor(e.target.value)}
+                     onChange={(e) => {
+                       setPhotoFor(e.target.value)
+                       if (e.target.value !== "OTHER") {
+                         setPhotoForCustom("")
+                       }
+                     }}
                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all appearance-none cursor-pointer bg-white"
                    >
+                        <option value="">-- Pilih Kategori --</option>
                         <option value="BIRTHDAY">Birthday</option>
                         <option value="GRADUATION">Graduation</option>
                         <option value="FAMILY">Family</option>
@@ -660,8 +993,19 @@ export default function NewBookingPage() {
                         <option value="LINKEDIN">LinkedIn / Professional</option>
                         <option value="PAS_PHOTO">Pas Photo</option>
                         <option value="STUDIO_ONLY">Studio Only</option>
-                        <option value="OTHER">Other</option>
+                        <option value="OTHER">Other (Custom)</option>
                    </select>
+
+                   {/* SESI 11: Show custom text input when OTHER is selected */}
+                   {photoFor === "OTHER" && (
+                     <input
+                       type="text"
+                       placeholder="Ketik kategori foto (contoh: Prewedding, Maternity, dll)"
+                       value={photoForCustom}
+                       onChange={(e) => setPhotoForCustom(e.target.value)}
+                       className="w-full mt-2 px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all"
+                     />
+                   )}
                </div>
 
                 <div>
@@ -679,7 +1023,10 @@ export default function NewBookingPage() {
 
           {/* SECTION 4: CUSTOM FIELDS (Dynamic) */}
           {customFields && customFields.length > 0 && (
-             <section className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+             <section className={cn(
+               "bg-white rounded-2xl border border-gray-100 p-6 shadow-sm",
+               mobileTab !== "details" && "hidden lg:block"
+             )}>
                 <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                     <FileText className="h-5 w-5 text-[#7A1F1F]" />
                     Additional Details
@@ -739,8 +1086,11 @@ export default function NewBookingPage() {
              </section>
           )}
 
-          {/* SECTION 4: ADD-ONS */}
-          <section className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+          {/* SECTION 5: ADD-ONS */}
+          <section className={cn(
+            "bg-white rounded-2xl border border-gray-100 p-6 shadow-sm",
+            mobileTab !== "pricing" && "hidden lg:block"
+          )}>
              <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                     <Plus className="h-5 w-5 text-[#7A1F1F]" />
@@ -847,8 +1197,11 @@ export default function NewBookingPage() {
              )}
           </section>
 
-          {/* SECTION 5: DISCOUNT */}
-          <section className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+          {/* SECTION 6: DISCOUNT */}
+          <section className={cn(
+            "bg-white rounded-2xl border border-gray-100 p-6 shadow-sm",
+            mobileTab !== "pricing" && "hidden lg:block"
+          )}>
              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <Ticket className="h-5 w-5 text-[#7A1F1F]" />
               Discount
@@ -933,8 +1286,11 @@ export default function NewBookingPage() {
             )}
           </section>
 
-           {/* SECTION 6: STAFF */}
-           <section className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+           {/* SECTION 7: STAFF */}
+           <section className={cn(
+             "bg-white rounded-2xl border border-gray-100 p-6 shadow-sm",
+             mobileTab !== "pricing" && "hidden lg:block"
+           )}>
              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
               <Users className="h-4 w-4" />
               Staff in Charge

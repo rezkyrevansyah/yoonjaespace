@@ -9,6 +9,10 @@ export interface ReminderData {
   hoursUntilSession: number
   waLink: string
   reminderMessage: string
+  waThankYouPaymentLink: string
+  waThankYouSessionLink: string
+  thankYouPaymentMessage: string
+  thankYouSessionMessage: string
 }
 
 export function useReminders(type: string = 'today') {

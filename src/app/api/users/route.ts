@@ -20,6 +20,15 @@ export async function GET() {
 
   const users = await prisma.user.findMany({
     orderBy: { createdAt: 'desc' },
+    include: {
+      customRole: {
+        select: {
+          id: true,
+          name: true,
+          isSystem: true,
+        }
+      }
+    }
   })
 
   return NextResponse.json(users)
@@ -40,10 +49,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { name, email, password, role } = await request.json()
+  const { name, email, password, role, customRoleId } = await request.json()
 
-  if (!name || !email || !password || !role) {
+  if (!name || !email || !password) {
     return NextResponse.json({ error: 'Semua field harus diisi' }, { status: 400 })
+  }
+
+  if (!customRoleId && !role) {
+    return NextResponse.json({ error: 'Role harus dipilih' }, { status: 400 })
   }
 
   // Create di Supabase Auth
@@ -63,8 +76,18 @@ export async function POST(request: NextRequest) {
       id: authUser.user.id,
       name,
       email,
-      role,
+      role: role || 'ADMIN', // fallback for backward compatibility
+      customRoleId: customRoleId || null,
     },
+    include: {
+      customRole: {
+        select: {
+          id: true,
+          name: true,
+          isSystem: true,
+        }
+      }
+    }
   })
 
   return NextResponse.json(newUser, { status: 201 })

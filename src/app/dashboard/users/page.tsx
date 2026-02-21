@@ -19,14 +19,9 @@ import { USER_ROLE_MAP } from "@/lib/constants"
 import { useMobile } from "@/lib/hooks/use-mobile"
 import { useToast } from "@/lib/hooks/use-toast"
 import { useUsers } from "@/lib/hooks/use-users"
+import { useRoles } from "@/lib/hooks/use-roles"
 import { Modal } from "@/components/shared/modal"
 import type { StaffUser, UserRole } from "@/lib/types"
-
-const AVAILABLE_ROLES: { value: UserRole; label: string }[] = [
-  { value: "ADMIN", label: "Admin" },
-  { value: "PHOTOGRAPHER", label: "Photographer" },
-  { value: "PACKAGING_STAFF", label: "Packaging Staff" }
-]
 
 interface UserFormData {
   name: string
@@ -35,6 +30,7 @@ interface UserFormData {
   password: string
   confirmPassword: string
   role: UserRole
+  customRoleId?: string
   isActive: boolean
 }
 
@@ -43,6 +39,7 @@ export default function UsersPage() {
   const { showToast } = useToast()
   const { user: currentUser } = useAuth()
   const { users, isLoading, createUser, updateUser, deleteUser } = useUsers()
+  const { roles } = useRoles()
 
   // Modals
   const [addModalOpen, setAddModalOpen] = useState(false)
@@ -81,6 +78,11 @@ export default function UsersPage() {
       return
     }
 
+    if (!userForm.customRoleId) {
+      showToast("Mohon pilih role", "warning")
+      return
+    }
+
     if (userForm.password.length < 8) {
       showToast("Password minimal 8 karakter", "warning")
       return
@@ -103,6 +105,7 @@ export default function UsersPage() {
       phone: userForm.phone || "",
       password: userForm.password,
       role: userForm.role!,
+      customRoleId: userForm.customRoleId,
       isActive: userForm.isActive !== undefined ? userForm.isActive : true
     })
 
@@ -143,6 +146,7 @@ export default function UsersPage() {
       name: userForm.name,
       phone: userForm.phone,
       role: userForm.role,
+      customRoleId: userForm.customRoleId,
       isActive: userForm.isActive,
       ...(resetPassword && newPassword ? { password: newPassword } : {})
     })
@@ -170,9 +174,30 @@ export default function UsersPage() {
       return
     }
 
-    await deleteUser(userToDelete.id, userToDelete.name)
-    setDeleteModalOpen(false)
-    setUserToDelete(null)
+    const success = await deleteUser(userToDelete.id, userToDelete.name)
+    if (success) {
+      setDeleteModalOpen(false)
+      setUserToDelete(null)
+    }
+  }
+
+  // Handle deactivate user (as alternative to delete)
+  const handleDeactivateUser = async () => {
+    if (!userToDelete) return
+
+    const success = await updateUser(userToDelete.id, {
+      name: userToDelete.name,
+      phone: userToDelete.phone,
+      role: userToDelete.role,
+      customRoleId: userToDelete.customRoleId,
+      isActive: false,
+    })
+
+    if (success) {
+      showToast(`User ${userToDelete.name} telah dinonaktifkan`, "success")
+      setDeleteModalOpen(false)
+      setUserToDelete(null)
+    }
   }
 
   // Open edit modal
@@ -183,6 +208,7 @@ export default function UsersPage() {
       email: user.email,
       phone: user.phone,
       role: user.role,
+      customRoleId: user.customRoleId,
       isActive: user.isActive,
       password: "",
       confirmPassword: ""
@@ -255,7 +281,11 @@ export default function UsersPage() {
             </thead>
             <tbody>
               {users.map((user) => {
-                const roleConfig = USER_ROLE_MAP[user.role] || { label: user.role, color: "#6B7280", bgColor: "#F3F4F6" }
+                // Use custom role name if available, otherwise fallback to USER_ROLE_MAP
+                const roleDisplay = user.customRole?.name || USER_ROLE_MAP[user.role]?.label || user.role
+                const roleConfig = user.customRole
+                  ? { label: roleDisplay, color: "#7A1F1F", bgColor: "#F5ECEC" }
+                  : USER_ROLE_MAP[user.role] || { label: user.role, color: "#6B7280", bgColor: "#F3F4F6" }
                 const isOwner = user.role === "OWNER"
                 const isCurrentUser = user.id === currentUser?.id
 
@@ -349,7 +379,11 @@ export default function UsersPage() {
         /* Mobile Cards */
         <div className="space-y-3">
           {users.map((user) => {
-            const roleConfig = USER_ROLE_MAP[user.role] || { label: user.role, color: "#6B7280", bgColor: "#F3F4F6" }
+            // Use custom role name if available, otherwise fallback to USER_ROLE_MAP
+            const roleDisplay = user.customRole?.name || USER_ROLE_MAP[user.role]?.label || user.role
+            const roleConfig = user.customRole
+              ? { label: roleDisplay, color: "#7A1F1F", bgColor: "#F5ECEC" }
+              : USER_ROLE_MAP[user.role] || { label: user.role, color: "#6B7280", bgColor: "#F3F4F6" }
             const isOwner = user.role === "OWNER"
             const isCurrentUser = user.id === currentUser?.id
 
@@ -519,12 +553,23 @@ export default function UsersPage() {
             <div>
               <label className="block text-sm font-medium text-[#111827] mb-1">Role *</label>
               <select
-                value={userForm.role}
-                onChange={(e) => setUserForm({ ...userForm, role: e.target.value as UserRole })}
+                value={userForm.customRoleId || ''}
+                onChange={(e) => {
+                  const selectedRole = roles?.find(r => r.id === e.target.value)
+                  setUserForm({
+                    ...userForm,
+                    customRoleId: e.target.value,
+                    role: selectedRole?.name.toUpperCase().replace(/\s+/g, '_') as UserRole
+                  })
+                }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-[#7A1F1F]"
               >
-                {AVAILABLE_ROLES.map(role => (
-                  <option key={role.value} value={role.value}>{role.label}</option>
+                <option value="">Pilih Role</option>
+                {roles?.map(role => (
+                  <option key={role.id} value={role.id}>
+                    {role.name}
+                    {role.isSystem && ' (System)'}
+                  </option>
                 ))}
               </select>
             </div>
@@ -611,15 +656,24 @@ export default function UsersPage() {
             <div>
               <label className="block text-sm font-medium text-[#111827] mb-1">Role</label>
               <select
-                value={userForm.role}
-                onChange={(e) => setUserForm({ ...userForm, role: e.target.value as UserRole })}
+                value={userForm.customRoleId || editingUser.customRoleId || ''}
+                onChange={(e) => {
+                  const selectedRole = roles?.find(r => r.id === e.target.value)
+                  setUserForm({
+                    ...userForm,
+                    customRoleId: e.target.value,
+                    role: selectedRole?.name.toUpperCase().replace(/\s+/g, '_') as UserRole
+                  })
+                }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-[#7A1F1F]"
+                disabled={editingUser.role === "OWNER" && currentUser?.role !== "OWNER"}
               >
-                {editingUser.role === "OWNER" && (
-                  <option value="OWNER">Owner</option>
-                )}
-                {AVAILABLE_ROLES.map(role => (
-                  <option key={role.value} value={role.value}>{role.label}</option>
+                <option value="">Pilih Role</option>
+                {roles?.map(role => (
+                  <option key={role.id} value={role.id}>
+                    {role.name}
+                    {role.isSystem && ' (System)'}
+                  </option>
                 ))}
               </select>
             </div>
@@ -708,17 +762,56 @@ export default function UsersPage() {
             setUserToDelete(null)
           }}
           title={`Hapus User "${userToDelete.name}"?`}
-          description={
-            userToDelete.role === "OWNER"
-              ? "Owner tidak bisa dihapus."
-              : userToDelete.id === currentUser?.id
-              ? "Anda tidak bisa menghapus akun sendiri."
-              : "User akan dihapus permanent. Booking history yang di-handle user ini akan tetap ada."
-          }
-          confirmLabel="Delete"
-          variant="danger"
-          onConfirm={handleDeleteUser}
-        />
+          size="md"
+        >
+          <div className="space-y-4">
+            {userToDelete.role === "OWNER" ? (
+              <p className="text-sm text-[#6B7280]">Owner tidak bisa dihapus.</p>
+            ) : userToDelete.id === currentUser?.id ? (
+              <p className="text-sm text-[#6B7280]">Anda tidak bisa menghapus akun sendiri.</p>
+            ) : (
+              <>
+                <div className="p-3 rounded-lg bg-yellow-50 border border-yellow-200">
+                  <p className="text-sm text-yellow-800">
+                    ⚠️ <strong>Perhatian:</strong> Jika user ini memiliki data terkait (bookings, commissions, activities),
+                    user tidak bisa dihapus. Silakan <strong>nonaktifkan</strong> user sebagai gantinya.
+                  </p>
+                </div>
+                <p className="text-sm text-[#6B7280]">
+                  Apakah Anda yakin ingin menghapus user ini? Data user akan dihapus permanent.
+                </p>
+              </>
+            )}
+
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => {
+                  setDeleteModalOpen(false)
+                  setUserToDelete(null)
+                }}
+                className="flex-1 px-4 py-2.5 rounded-lg border border-[#E5E7EB] text-[#6B7280] font-medium hover:bg-[#F9FAFB] transition-colors"
+              >
+                Cancel
+              </button>
+              {userToDelete.role !== "OWNER" && userToDelete.id !== currentUser?.id && (
+                <>
+                  <button
+                    onClick={handleDeactivateUser}
+                    className="flex-1 px-4 py-2.5 rounded-lg bg-orange-600 text-white font-medium hover:bg-orange-700 transition-colors"
+                  >
+                    Deactivate
+                  </button>
+                  <button
+                    onClick={handleDeleteUser}
+                    className="flex-1 px-4 py-2.5 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 transition-colors"
+                  >
+                    Delete
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   )

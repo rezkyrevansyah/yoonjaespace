@@ -39,6 +39,7 @@ export async function GET(
         address: settingsMap['studio_address'] || '',
         phone: settingsMap['studio_phone'] || '',
         instagram: settingsMap['studio_instagram'] || '',
+        logoUrl: settingsMap['studio_logo_url'] || '',
       },
     })
   } catch (error: any) {

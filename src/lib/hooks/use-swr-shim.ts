@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 
 interface SWROptions {
-  refreshInterval?: number
+  refreshInterval?: number | any
   [key: string]: any
 }
 

@@ -17,7 +17,9 @@ import {
   ArrowUp,
   ArrowDown,
   MessageSquare,
-  Sparkles
+  Sparkles,
+  Upload,
+  Image as ImageIcon
 } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import { useMobile } from "@/lib/hooks/use-mobile"
@@ -52,7 +54,8 @@ const FIELD_TYPES = [
   { value: "TEXT", label: "Text" },
   { value: "SELECT", label: "Select" },
   { value: "CHECKBOX", label: "Checkbox" },
-  { value: "NUMBER", label: "Number" }
+  { value: "NUMBER", label: "Number" },
+  { value: "URL", label: "URL/Link" }
 ]
 
 export default function SettingsPage() {
@@ -88,8 +91,11 @@ export default function SettingsPage() {
   // --- General Settings Handlers ---
   const handleSaveStudioInfo = async () => {
     if (!settings) return
+    console.log('💾 Saving settings:', studioInfoForm)
+    console.log('⏱️  timeIntervalMinutes:', studioInfoForm.timeIntervalMinutes)
     const success = await updateSettings(studioInfoForm)
     if (success) {
+      console.log('✅ Settings saved successfully')
       // settings is updated via hook mutation
     }
   }
@@ -116,18 +122,139 @@ export default function SettingsPage() {
     setTemplateError("")
   }
 
+  const handleSaveThankYouPaymentTemplate = async () => {
+    const validation = validateTemplate(thankYouPaymentTemplate)
+    if (!validation.isValid) {
+      setThankYouPaymentError(validation.error || "Template tidak valid")
+      showToast(validation.error || "Template tidak valid", "error")
+      return
+    }
+
+    setThankYouPaymentError("")
+    const success = await updateSettings({ thankYouPaymentTemplate })
+    if (success) {
+      showToast("Template Thank You (Payment) berhasil disimpan", "success")
+    }
+  }
+
+  const handleThankYouPaymentChange = (value: string) => {
+    setThankYouPaymentTemplate(value)
+    setThankYouPaymentError("")
+  }
+
+  const handleSaveThankYouSessionTemplate = async () => {
+    const validation = validateTemplate(thankYouSessionTemplate)
+    if (!validation.isValid) {
+      setThankYouSessionError(validation.error || "Template tidak valid")
+      showToast(validation.error || "Template tidak valid", "error")
+      return
+    }
+
+    setThankYouSessionError("")
+    const success = await updateSettings({ thankYouSessionTemplate })
+    if (success) {
+      showToast("Template Thank You (Session) berhasil disimpan", "success")
+    }
+  }
+
+  const handleThankYouSessionChange = (value: string) => {
+    setThankYouSessionTemplate(value)
+    setThankYouSessionError("")
+  }
+
+  // Logo upload handlers
+  const handleLogoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp']
+    if (!validTypes.includes(file.type)) {
+      showToast("File harus berformat PNG, JPG, atau WebP", "error")
+      return
+    }
+
+    // Validate file size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      showToast("Ukuran file maksimal 5MB", "error")
+      return
+    }
+
+    setLogoFile(file)
+    // Create preview URL
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setLogoPreview(reader.result as string)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleUploadLogo = async () => {
+    if (!logoFile) {
+      showToast("Pilih file logo terlebih dahulu", "warning")
+      return
+    }
+
+    setIsUploadingLogo(true)
+    try {
+      const formData = new FormData()
+      formData.append('logo', logoFile)
+
+      const response = await fetch('/api/settings/logo', {
+        method: 'POST',
+        body: formData
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to upload logo')
+      }
+
+      showToast("Logo berhasil diupload!", "success")
+      // Reset form
+      setLogoFile(null)
+      setLogoPreview("")
+      // Refresh settings to get new logo URL
+      window.location.reload()
+    } catch (err: any) {
+      showToast(err.message || "Gagal upload logo", "error")
+    } finally {
+      setIsUploadingLogo(false)
+    }
+  }
+
+  const handleCancelLogoUpload = () => {
+    setLogoFile(null)
+    setLogoPreview("")
+  }
+
   // We need useEffect to sync settings to local form state
   const [studioInfoForm, setStudioInfoForm] = useState<any>({})
   const [reminderTemplate, setReminderTemplate] = useState<string>("")
+  const [thankYouPaymentTemplate, setThankYouPaymentTemplate] = useState<string>("")
+  const [thankYouSessionTemplate, setThankYouSessionTemplate] = useState<string>("")
   const [templateError, setTemplateError] = useState<string>("")
+  const [thankYouPaymentError, setThankYouPaymentError] = useState<string>("")
+  const [thankYouSessionError, setThankYouSessionError] = useState<string>("")
   const [showTemplatePreview, setShowTemplatePreview] = useState(false)
+  const [showThankYouPaymentPreview, setShowThankYouPaymentPreview] = useState(false)
+  const [showThankYouSessionPreview, setShowThankYouSessionPreview] = useState(false)
+
+  // Logo upload state
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoPreview, setLogoPreview] = useState<string>("")
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false)
 
   useEffect(() => {
     if (settings && Object.keys(studioInfoForm).length === 0) {
+        console.log('🔄 Initializing settings form:', settings)
         setStudioInfoForm(settings)
         setReminderTemplate(settings.reminderMessageTemplate || "")
+        setThankYouPaymentTemplate(settings.thankYouPaymentTemplate || "")
+        setThankYouSessionTemplate(settings.thankYouSessionTemplate || "")
     }
-  }, [settings])
+  }, [settings, studioInfoForm])
 
   // --- CRUD Helpers ---
   const handleCreate = async (url: string, data: any, mutateFn: Function, name: string) => {
@@ -363,7 +490,8 @@ export default function SettingsPage() {
       TEXT: { bg: "bg-blue-50", text: "text-blue-700" },
       SELECT: { bg: "bg-purple-50", text: "text-purple-700" },
       CHECKBOX: { bg: "bg-green-50", text: "text-green-700" },
-      NUMBER: { bg: "bg-amber-50", text: "text-amber-700" }
+      NUMBER: { bg: "bg-amber-50", text: "text-amber-700" },
+      URL: { bg: "bg-indigo-50", text: "text-indigo-700" }
     }
     return colors[type] || colors.TEXT
   }
@@ -488,9 +616,9 @@ export default function SettingsPage() {
              <div>
               <label className="block text-sm font-medium text-[#111827] mb-2">Default Payment Status</label>
               <button
-                onClick={() => setStudioInfoForm((prev: any) => ({ 
-                    ...prev, 
-                    defaultPaymentStatus: (prev.defaultPaymentStatus || settings.defaultPaymentStatus) === "PAID" ? "UNPAID" : "PAID" 
+                onClick={() => setStudioInfoForm((prev: any) => ({
+                    ...prev,
+                    defaultPaymentStatus: (prev.defaultPaymentStatus || settings.defaultPaymentStatus) === "PAID" ? "UNPAID" : "PAID"
                 }))}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   (studioInfoForm.defaultPaymentStatus || settings.defaultPaymentStatus) === "PAID"
@@ -500,6 +628,35 @@ export default function SettingsPage() {
               >
                 {(studioInfoForm.defaultPaymentStatus || settings.defaultPaymentStatus) === "PAID" ? "Paid" : "Unpaid"}
               </button>
+            </div>
+
+            {/* SESI 10: Time Interval Setting */}
+            <div>
+              <label className="block text-sm font-medium text-[#111827] mb-2">
+                Time Slot Interval (Minutes)
+                <span className="block text-xs text-gray-500 font-normal mt-1">
+                  Interval waktu untuk time slots di booking schedule (contoh: 15, 30, 60)
+                </span>
+              </label>
+              <input
+                type="number"
+                min="5"
+                max="120"
+                step="5"
+                placeholder="30"
+                value={studioInfoForm.timeIntervalMinutes || settings.timeIntervalMinutes || "30"}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value) || 30
+                  // Validate: must be between 5 and 120
+                  if (value >= 5 && value <= 120) {
+                    setStudioInfoForm((prev: any) => ({ ...prev, timeIntervalMinutes: e.target.value }))
+                  }
+                }}
+                className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Minimal: 5 menit | Maksimal: 120 menit | Disarankan: 15, 30, atau 60 menit
+              </p>
             </div>
           </div>
 
@@ -511,6 +668,121 @@ export default function SettingsPage() {
             >
               {isSaving ? "Saving..." : "Save Changes"}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Logo Upload Section */}
+      {activeTab === "general" && settings && (
+        <div className="bg-white rounded-xl border border-[#E5E7EB] p-6 shadow-sm">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2.5 bg-indigo-50 rounded-lg">
+              <ImageIcon className="h-5 w-5 text-indigo-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-[#111827]">Studio Logo</h2>
+              <p className="text-sm text-[#6B7280]">Upload logo studio untuk sidebar, invoice, dan halaman client</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Current Logo */}
+            <div>
+              <label className="block text-sm font-medium text-[#111827] mb-3">Current Logo</label>
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 flex items-center justify-center bg-gray-50">
+                {settings.logoUrl && settings.logoUrl.trim() !== '' ? (
+                  <img
+                    src={settings.logoUrl}
+                    alt="Studio Logo"
+                    className="max-h-32 max-w-full object-contain"
+                  />
+                ) : (
+                  <div className="text-center text-gray-400">
+                    <ImageIcon className="h-12 w-12 mx-auto mb-2" />
+                    <p className="text-sm">No logo uploaded</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Upload New Logo */}
+            <div>
+              <label className="block text-sm font-medium text-[#111827] mb-3">Upload New Logo</label>
+
+              {!logoFile ? (
+                <label className="border-2 border-dashed border-gray-300 rounded-lg p-6 flex flex-col items-center justify-center bg-gray-50 cursor-pointer hover:border-[#7A1F1F] hover:bg-[#F5ECEC] transition-colors">
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg,image/webp"
+                    onChange={handleLogoFileChange}
+                    className="hidden"
+                  />
+                  <Upload className="h-10 w-10 text-gray-400 mb-3" />
+                  <p className="text-sm font-medium text-gray-700 mb-1">Click to upload logo</p>
+                  <p className="text-xs text-gray-500">PNG, JPG, WebP (max 5MB)</p>
+                </label>
+              ) : (
+                <div className="space-y-4">
+                  {/* Preview */}
+                  <div className="border-2 border-gray-300 rounded-lg p-4 flex items-center justify-center bg-white">
+                    {logoPreview && (
+                      <img
+                        src={logoPreview}
+                        alt="Logo Preview"
+                        className="max-h-32 max-w-full object-contain"
+                      />
+                    )}
+                  </div>
+
+                  {/* File Info */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p className="text-sm font-medium text-blue-900">{logoFile.name}</p>
+                    <p className="text-xs text-blue-700 mt-1">
+                      {(logoFile.size / 1024).toFixed(1)} KB
+                    </p>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleUploadLogo}
+                      disabled={isUploadingLogo}
+                      className="flex-1 px-4 py-2 bg-[#7A1F1F] text-white rounded-lg text-sm font-medium hover:bg-[#9B3333] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {isUploadingLogo ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-4 w-4" />
+                          Upload Logo
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={handleCancelLogoUpload}
+                      disabled={isUploadingLogo}
+                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Guidelines */}
+              <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-xs text-amber-900 font-medium mb-1">Guidelines:</p>
+                <ul className="text-xs text-amber-800 space-y-0.5 list-disc list-inside">
+                  <li>Format: PNG, JPG, atau WebP</li>
+                  <li>Ukuran maksimal: 5MB</li>
+                  <li>Rekomendasi: Square atau landscape ratio</li>
+                  <li>Background transparan lebih baik (PNG)</li>
+                </ul>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -645,6 +917,234 @@ export default function SettingsPage() {
                   <p className="text-xs text-gray-600 leading-relaxed">
                     <strong className="text-gray-900">Tip:</strong> Klik variable untuk memasukkan ke template. Gunakan format <code className="bg-white px-1 py-0.5 rounded text-blue-700">{`{{namaVariable}}`}</code>
                   </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Thank You Payment Template Section */}
+      {activeTab === "general" && settings && (
+        <div className="bg-white rounded-xl border border-[#E5E7EB] p-6 shadow-sm">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2.5 bg-purple-50 rounded-lg">
+              <MessageSquare className="h-5 w-5 text-purple-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-[#111827]">Thank You Message Template (After Payment)</h2>
+              <p className="text-sm text-[#6B7280]">Customize WhatsApp thank you message setelah client melakukan pembayaran</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Template Editor */}
+            <div className="lg:col-span-2 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-[#111827] mb-2">
+                  Message Template *
+                </label>
+                <textarea
+                  value={thankYouPaymentTemplate}
+                  onChange={(e) => handleThankYouPaymentChange(e.target.value)}
+                  rows={6}
+                  placeholder="Contoh: Terima kasih {{clientName}} sudah melakukan pembayaran..."
+                  className={`w-full px-4 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 transition-all resize-none font-mono ${
+                    thankYouPaymentError
+                      ? "border-red-300 focus:ring-red-500 focus:border-red-500"
+                      : "border-gray-300 focus:ring-[#7A1F1F] focus:border-[#7A1F1F]"
+                  }`}
+                />
+                {thankYouPaymentError && (
+                  <p className="mt-2 text-sm text-red-600 flex items-center gap-1.5">
+                    <X className="h-4 w-4" />
+                    {thankYouPaymentError}
+                  </p>
+                )}
+              </div>
+
+              {/* Preview Section */}
+              <div>
+                <button
+                  onClick={() => setShowThankYouPaymentPreview(!showThankYouPaymentPreview)}
+                  className="flex items-center gap-2 text-sm font-medium text-[#7A1F1F] hover:text-[#9B3333] transition-colors mb-3"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  {showThankYouPaymentPreview ? "Hide Preview" : "Show Preview"}
+                </button>
+
+                {showThankYouPaymentPreview && (
+                  <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-4 border border-purple-200">
+                    <p className="text-xs font-semibold text-purple-900 mb-2 uppercase tracking-wide">Preview Message</p>
+                    <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+                      {parseReminderTemplate(thankYouPaymentTemplate || "", {
+                        clientName: "Budi Santoso",
+                        date: "Senin, 17 Februari 2026",
+                        time: "14:00",
+                        packageName: "Premium Photo Session",
+                        studioName: settings.name || "Yoonjaespace",
+                        numberOfPeople: 2,
+                        clientPageLink: `${typeof window !== 'undefined' ? window.location.origin : 'https://yourdomain.com'}/status/ABC123`,
+                      })}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={handleSaveThankYouPaymentTemplate}
+                  disabled={isSaving || !!thankYouPaymentError}
+                  className="px-6 py-2 bg-[#7A1F1F] text-white rounded-lg text-sm font-medium hover:bg-[#9B3333] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSaving ? "Saving..." : "Save Template"}
+                </button>
+                <button
+                  onClick={() => {
+                    setThankYouPaymentTemplate(settings.thankYouPaymentTemplate || "")
+                    setThankYouPaymentError("")
+                  }}
+                  disabled={isSaving}
+                  className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+
+            {/* Available Variables */}
+            <div className="lg:col-span-1">
+              <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-lg p-5 border border-amber-200 sticky top-4">
+                <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <Info className="h-4 w-4 text-amber-600" />
+                  Available Variables
+                </h3>
+                <div className="space-y-3">
+                  {TEMPLATE_VARIABLES.map((variable) => (
+                    <div key={variable.key} className="group cursor-pointer">
+                      <div className="bg-white rounded-md p-2.5 border border-amber-200 group-hover:border-amber-400 group-hover:shadow-sm transition-all">
+                        <code className="text-xs font-mono font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
+                          {variable.key}
+                        </code>
+                        <p className="text-xs text-gray-600 mt-1">{variable.description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Thank You Session Template Section */}
+      {activeTab === "general" && settings && (
+        <div className="bg-white rounded-xl border border-[#E5E7EB] p-6 shadow-sm">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2.5 bg-pink-50 rounded-lg">
+              <Sparkles className="h-5 w-5 text-pink-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-[#111827]">Thank You Message Template (After Session)</h2>
+              <p className="text-sm text-[#6B7280]">Customize WhatsApp thank you message setelah sesi foto selesai</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Template Editor */}
+            <div className="lg:col-span-2 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-[#111827] mb-2">
+                  Message Template *
+                </label>
+                <textarea
+                  value={thankYouSessionTemplate}
+                  onChange={(e) => handleThankYouSessionChange(e.target.value)}
+                  rows={6}
+                  placeholder="Contoh: Halo {{clientName}}, terima kasih sudah memilih {{studioName}}..."
+                  className={`w-full px-4 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 transition-all resize-none font-mono ${
+                    thankYouSessionError
+                      ? "border-red-300 focus:ring-red-500 focus:border-red-500"
+                      : "border-gray-300 focus:ring-[#7A1F1F] focus:border-[#7A1F1F]"
+                  }`}
+                />
+                {thankYouSessionError && (
+                  <p className="mt-2 text-sm text-red-600 flex items-center gap-1.5">
+                    <X className="h-4 w-4" />
+                    {thankYouSessionError}
+                  </p>
+                )}
+              </div>
+
+              {/* Preview Section */}
+              <div>
+                <button
+                  onClick={() => setShowThankYouSessionPreview(!showThankYouSessionPreview)}
+                  className="flex items-center gap-2 text-sm font-medium text-[#7A1F1F] hover:text-[#9B3333] transition-colors mb-3"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  {showThankYouSessionPreview ? "Hide Preview" : "Show Preview"}
+                </button>
+
+                {showThankYouSessionPreview && (
+                  <div className="bg-gradient-to-br from-pink-50 to-rose-50 rounded-lg p-4 border border-pink-200">
+                    <p className="text-xs font-semibold text-pink-900 mb-2 uppercase tracking-wide">Preview Message</p>
+                    <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+                      {parseReminderTemplate(thankYouSessionTemplate || "", {
+                        clientName: "Budi Santoso",
+                        date: "Senin, 17 Februari 2026",
+                        time: "14:00",
+                        packageName: "Premium Photo Session",
+                        studioName: settings.name || "Yoonjaespace",
+                        numberOfPeople: 2,
+                        clientPageLink: `${typeof window !== 'undefined' ? window.location.origin : 'https://yourdomain.com'}/status/ABC123`,
+                      })}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={handleSaveThankYouSessionTemplate}
+                  disabled={isSaving || !!thankYouSessionError}
+                  className="px-6 py-2 bg-[#7A1F1F] text-white rounded-lg text-sm font-medium hover:bg-[#9B3333] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSaving ? "Saving..." : "Save Template"}
+                </button>
+                <button
+                  onClick={() => {
+                    setThankYouSessionTemplate(settings.thankYouSessionTemplate || "")
+                    setThankYouSessionError("")
+                  }}
+                  disabled={isSaving}
+                  className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+
+            {/* Available Variables */}
+            <div className="lg:col-span-1">
+              <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-lg p-5 border border-amber-200 sticky top-4">
+                <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <Info className="h-4 w-4 text-amber-600" />
+                  Available Variables
+                </h3>
+                <div className="space-y-3">
+                  {TEMPLATE_VARIABLES.map((variable) => (
+                    <div key={variable.key} className="group cursor-pointer">
+                      <div className="bg-white rounded-md p-2.5 border border-amber-200 group-hover:border-amber-400 group-hover:shadow-sm transition-all">
+                        <code className="text-xs font-mono font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
+                          {variable.key}
+                        </code>
+                        <p className="text-xs text-gray-600 mt-1">{variable.description}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -1004,6 +1504,49 @@ export default function SettingsPage() {
                           </div>
                         </div>
 
+                        {/* Extra Time Before Session */}
+                        <div className="pt-2">
+                          <label className="flex items-start gap-3 px-4 py-3 border border-gray-300 rounded-lg">
+                            <input
+                              type="checkbox"
+                              className="w-4 h-4 text-[#7A1F1F] border-gray-300 rounded focus:ring-[#7A1F1F] mt-0.5"
+                              checked={(packageForm.extraTimeBefore || 0) > 0}
+                              onChange={e => setPackageForm({
+                                ...packageForm,
+                                extraTimeBefore: e.target.checked ? 60 : 0
+                              })}
+                            />
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-sm font-medium text-gray-900">Need Extra Time Before Session</span>
+                              </div>
+                              <p className="text-xs text-gray-500 mb-2">For MUA, outfit prep, setup, etc.</p>
+
+                              {(packageForm.extraTimeBefore || 0) > 0 && (
+                                <div className="mt-2">
+                                  <label className="block text-xs font-medium text-gray-700 mb-1">Duration (minutes)</label>
+                                  <input
+                                    type="number"
+                                    value={packageForm.extraTimeBefore || 60}
+                                    onChange={e => setPackageForm({
+                                      ...packageForm,
+                                      extraTimeBefore: parseInt(e.target.value) || 0
+                                    })}
+                                    min="0"
+                                    step="15"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#7A1F1F]"
+                                    placeholder="60"
+                                  />
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    Total time: {(packageForm.duration || 0) + (packageForm.extraTimeBefore || 0)} minutes
+                                    ({packageForm.extraTimeBefore} min prep + {packageForm.duration} min session)
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </label>
+                        </div>
+
                         <div className="pt-2">
                           <label className="flex items-center gap-3 px-4 py-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
                             <input
@@ -1084,6 +1627,48 @@ export default function SettingsPage() {
                              value={(addonForm as any).defaultPrice || ""}
                              onChange={e => setAddonForm({...addonForm, defaultPrice: parseFloat(e.target.value)} as any)}
                            />
+                         </div>
+
+                         {/* Extra Time Before Session */}
+                         <div className="pt-2">
+                           <label className="flex items-start gap-3 px-4 py-3 border border-gray-300 rounded-lg">
+                             <input
+                               type="checkbox"
+                               className="w-4 h-4 text-[#7A1F1F] border-gray-300 rounded focus:ring-[#7A1F1F] mt-0.5"
+                               checked={(addonForm.extraTimeBefore || 0) > 0}
+                               onChange={e => setAddonForm({
+                                 ...addonForm,
+                                 extraTimeBefore: e.target.checked ? 60 : 0
+                               })}
+                             />
+                             <div className="flex-1">
+                               <div className="flex items-center justify-between mb-1">
+                                 <span className="text-sm font-medium text-gray-900">Need Extra Time Before Session</span>
+                               </div>
+                               <p className="text-xs text-gray-500 mb-2">For MUA, outfit prep, setup, etc.</p>
+
+                               {(addonForm.extraTimeBefore || 0) > 0 && (
+                                 <div className="mt-2">
+                                   <label className="block text-xs font-medium text-gray-700 mb-1">Duration (minutes)</label>
+                                   <input
+                                     type="number"
+                                     value={addonForm.extraTimeBefore || 60}
+                                     onChange={e => setAddonForm({
+                                       ...addonForm,
+                                       extraTimeBefore: parseInt(e.target.value) || 0
+                                     })}
+                                     min="0"
+                                     step="15"
+                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#7A1F1F]"
+                                     placeholder="60"
+                                   />
+                                   <p className="text-xs text-gray-500 mt-1">
+                                     Extra {addonForm.extraTimeBefore} minutes will be added before session start
+                                   </p>
+                                 </div>
+                               )}
+                             </div>
+                           </label>
                          </div>
 
                          <div className="pt-2">

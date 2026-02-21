@@ -345,6 +345,7 @@ export default function BookingsPage() {
                         <th className="text-left py-3 px-4 font-medium text-[#6B7280]">Status</th>
                         <th className="text-left py-3 px-4 font-medium text-[#6B7280]">Payment</th>
                         <th className="text-left py-3 px-4 font-medium text-[#6B7280]">Handled By</th>
+                        <th className="text-left py-3 px-4 font-medium text-[#6B7280] whitespace-nowrap">Dibuat Pada</th>
                         <th className="text-right py-3 px-4 font-medium text-[#6B7280]">Total</th>
                         <th className="py-3 px-4 font-medium text-[#6B7280]">Actions</th>
                         </tr>
@@ -436,6 +437,9 @@ export default function BookingsPage() {
                             <td className="py-3 px-4 text-[#6B7280] text-sm">
                             {booking.handledBy ? booking.handledBy.name : "-" }
                             </td>
+                            <td className="py-3 px-4 text-[#6B7280] text-sm whitespace-nowrap">
+                            {formatDate(booking.createdAt, 'dd/MM/yyyy HH:mm')}
+                            </td>
                             <td className="py-3 px-4 text-right font-semibold text-[#111827]">
                             {formatCurrency(booking.totalAmount)}
                             </td>
@@ -515,16 +519,21 @@ export default function BookingsPage() {
                     </Link>
 
                     {/* Footer */}
-                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#E5E7EB]">
-                        <div className="flex items-center gap-2">
-                            <StatusBadge status={booking.paymentStatus} type="payment" size="sm" />
-                            <span className="text-xs text-[#9CA3AF]">
-                                {booking.handledBy ? booking.handledBy.name : "Belum ditugaskan" }
-                            </span>
+                    <div className="mt-3 pt-3 border-t border-[#E5E7EB] space-y-2">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <StatusBadge status={booking.paymentStatus} type="payment" size="sm" />
+                                <span className="text-xs text-[#9CA3AF]">
+                                    {booking.handledBy ? booking.handledBy.name : "Belum ditugaskan" }
+                                </span>
+                            </div>
+                            <p className="font-semibold text-base text-[#7A1F1F]">
+                            {formatCurrency(booking.totalAmount)}
+                            </p>
                         </div>
-                        <p className="font-semibold text-base text-[#7A1F1F]">
-                        {formatCurrency(booking.totalAmount)}
-                        </p>
+                        <div className="text-xs text-[#9CA3AF]">
+                            Dibuat: {formatDate(booking.createdAt, 'dd/MM/yyyy HH:mm')}
+                        </div>
                     </div>
                     </div>
                 ))}

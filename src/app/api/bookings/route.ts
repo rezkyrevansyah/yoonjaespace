@@ -4,6 +4,7 @@ import { Prisma, BookingStatus } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { nanoid } from 'nanoid'
 import { format } from 'date-fns'
+import { hasMuaAddOn, calculateMuaStartTime } from '@/lib/mua-overlap'
 
 // GET — List bookings with filters
 export async function GET(request: NextRequest) {
@@ -77,13 +78,69 @@ export async function GET(request: NextRequest) {
     prisma.booking.findMany({
       where,
       include: {
-        client: true,
-        package: true,
-        handledBy: { select: { id: true, name: true } },
-        addOns: true,
-        bookingBackgrounds: { include: { background: true } },
-        printOrder: true,
-        customFields: { include: { field: true } },
+        client: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            email: true,
+          }
+        },
+        package: {
+          select: {
+            id: true,
+            name: true,
+            price: true,
+            duration: true,
+          }
+        },
+        handledBy: {
+          select: {
+            id: true,
+            name: true,
+          }
+        },
+        addOns: {
+          select: {
+            id: true,
+            itemName: true,
+            quantity: true,
+            unitPrice: true,
+            subtotal: true,
+          }
+        },
+        bookingBackgrounds: {
+          select: {
+            id: true,
+            background: {
+              select: {
+                id: true,
+                name: true,
+              }
+            }
+          }
+        },
+        printOrder: {
+          select: {
+            id: true,
+            status: true,
+            vendorNotes: true,
+            selectedPhotos: true,
+          }
+        },
+        customFields: {
+          select: {
+            id: true,
+            value: true,
+            field: {
+              select: {
+                id: true,
+                fieldName: true,
+                fieldType: true,
+              }
+            }
+          }
+        },
       },
       orderBy: { date: 'desc' },
       skip,
@@ -148,6 +205,7 @@ export async function POST(request: NextRequest) {
     discountAmount,
     discountNote,
     customFields,
+    createdAt, // Optional: for old booking mode (Owner only)
   } = body
 
   // Validasi
@@ -219,66 +277,80 @@ export async function POST(request: NextRequest) {
   // Generate public slug
   const publicSlug = nanoid(8)
 
-  // Get default payment status
-  const defaultPaymentSetting = await prisma.studioSetting.findUnique({
-    where: { key: 'default_payment_status' },
-  })
-  const defaultPayment = defaultPaymentSetting?.value === 'paid' ? 'PAID' : 'UNPAID'
+  // Default payment status is always PAID (new requirement)
+  // Bookings are created as PAID by default
+  const defaultPayment = 'PAID'
+  const defaultStatus = 'PAID'
+  const paidAt = new Date()
+
+  // Check if booking has MUA add-on and calculate MUA start time
+  const bookingHasMua = hasMuaAddOn(addOns || [])
+  const muaStartTime = bookingHasMua ? calculateMuaStartTime(new Date(startTime)) : null
+
+  // Prepare booking data
+  const bookingData: any = {
+    bookingCode,
+    publicSlug,
+    clientId: finalClientId,
+    date: new Date(date),
+    startTime: new Date(startTime),
+    endTime: new Date(endTime),
+    packageId,
+    numberOfPeople: numberOfPeople || 1,
+    photoFor: photoFor || 'OTHER',
+    bts: bts || false,
+    status: defaultStatus,
+    paymentStatus: defaultPayment,
+    paidAt,
+    packagePrice: pkg.price,
+    discountAmount: discount,
+    discountNote: discountNote || null,
+    totalAmount,
+    notes: notes || null,
+    internalNotes: internalNotes || null,
+    handledById: body.handledById || dbUser.id,
+    muaStartTime, // Set MUA start time if MUA add-on exists
+
+    // Backgrounds
+    bookingBackgrounds: backgroundIds?.length
+      ? {
+          create: backgroundIds.map((bgId: string) => ({
+            backgroundId: bgId,
+          })),
+        }
+      : undefined,
+
+    // Add-ons
+    addOns: addOns?.length
+      ? {
+          create: addOns.map((ao: { itemName: string; quantity: number; unitPrice: number }) => ({
+            itemName: ao.itemName,
+            quantity: ao.quantity,
+            unitPrice: ao.unitPrice,
+            subtotal: ao.quantity * ao.unitPrice,
+          })),
+        }
+      : undefined,
+
+    // Custom fields
+    customFields: customFields?.length
+      ? {
+          create: customFields.map((cf: { fieldId: string; value: string }) => ({
+            fieldId: cf.fieldId,
+            value: cf.value,
+          })),
+        }
+      : undefined,
+  }
+
+  // Add custom createdAt if provided (Owner only for old bookings)
+  if (createdAt && dbUser.role === 'OWNER') {
+    bookingData.createdAt = new Date(createdAt)
+  }
 
   // Create booking
   const booking = await prisma.booking.create({
-    data: {
-      bookingCode,
-      publicSlug,
-      clientId: finalClientId,
-      date: new Date(date),
-      startTime: new Date(startTime),
-      endTime: new Date(endTime),
-      packageId,
-      numberOfPeople: numberOfPeople || 1,
-      photoFor: photoFor || 'OTHER',
-      bts: bts || false,
-      status: defaultPayment === 'PAID' ? 'PAID' : 'BOOKED',
-      paymentStatus: defaultPayment,
-      packagePrice: pkg.price,
-      discountAmount: discount,
-      discountNote: discountNote || null,
-      totalAmount,
-      notes: notes || null,
-      internalNotes: internalNotes || null,
-      handledById: body.handledById || dbUser.id,
-
-      // Backgrounds
-      bookingBackgrounds: backgroundIds?.length
-        ? {
-            create: backgroundIds.map((bgId: string) => ({
-              backgroundId: bgId,
-            })),
-          }
-        : undefined,
-
-      // Add-ons
-      addOns: addOns?.length
-        ? {
-            create: addOns.map((ao: { itemName: string; quantity: number; unitPrice: number }) => ({
-              itemName: ao.itemName,
-              quantity: ao.quantity,
-              unitPrice: ao.unitPrice,
-              subtotal: ao.quantity * ao.unitPrice,
-            })),
-          }
-        : undefined,
-
-      // Custom fields
-      customFields: customFields?.length
-        ? {
-            create: customFields.map((cf: { fieldId: string; value: string }) => ({
-              fieldId: cf.fieldId,
-              value: cf.value,
-            })),
-          }
-        : undefined,
-    },
+    data: bookingData,
     include: {
       client: true,
       package: true,
@@ -289,5 +361,5 @@ export async function POST(request: NextRequest) {
     },
   })
 
-  return NextResponse.json(booking, { status: 201 })
+  return NextResponse.json({ data: booking }, { status: 201 })
 }

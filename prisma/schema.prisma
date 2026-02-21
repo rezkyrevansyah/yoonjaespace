@@ -9,15 +9,17 @@ datasource db {
 }
 
 model User {
-  id              String       @id
+  id              String        @id
   name            String
-  email           String       @unique
-  role            Role         @default(ADMIN)
-  isActive        Boolean      @default(true)
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  email           String        @unique
+  role            Role          @default(ADMIN) // Kept for backward compatibility, will be deprecated
+  customRoleId    String?
+  customRole      CustomRole?   @relation(fields: [customRoleId], references: [id])
+  isActive        Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
   phone           String?
-  handledBookings Booking[]    @relation("HandledBy")
+  handledBookings Booking[]     @relation("HandledBy")
   commissions     Commission[]
   activities      ActivityLog[]
 
@@ -30,7 +32,9 @@ model Client {
   phone     String
   email     String?
   address   String?
+  domisili  String?   // Tambahan SESI 10
   notes     String?
+  leads     String?   // Tambahan SESI 10 (source of lead)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   instagram String?
@@ -40,18 +44,20 @@ model Client {
 }
 
 model Package {
-  id           String    @id @default(cuid())
-  name         String
-  description  String?
-  price        Float
-  duration     Int
-  maxPeople    Int       @default(1)
-  isActive     Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  allPhotos    Boolean   @default(false)
-  editedPhotos Int       @default(0)
-  bookings     Booking[]
+  id              String          @id @default(cuid())
+  name            String
+  description     String?
+  price           Float
+  duration        Int
+  maxPeople       Int             @default(1)
+  isActive        Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  allPhotos       Boolean         @default(false)
+  editedPhotos    Int             @default(0)
+  extraTimeBefore Int             @default(0) // Extra time before session (in minutes)
+  category        PackageCategory @default(MAIN) // SESI 11
+  bookings        Booking[]
 
   @@map("packages")
 }
@@ -95,6 +101,7 @@ model Booking {
   paidAt             DateTime?
   paymentProof       String?
   remindedAt         DateTime?
+  muaStartTime       DateTime? // MUA time (1 hour before session if MUA add-on exists)
   addOns             BookingAddOn[]
   bookingBackgrounds BookingBackground[]
   customFields       BookingCustomField[]
@@ -121,11 +128,12 @@ model BookingBackground {
 }
 
 model AddOnTemplate {
-  id           String   @id @default(cuid())
-  name         String
-  defaultPrice Float
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  id              String   @id @default(cuid())
+  name            String
+  defaultPrice    Float
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  extraTimeBefore Int      @default(0) // Extra time before session (in minutes)
 
   @@map("addon_templates")
 }
@@ -228,7 +236,7 @@ model BookingHistory {
 }
 
 model Commission {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   userId        String
   month         Int
   year          Int
@@ -236,9 +244,9 @@ model Commission {
   amount        Float
   notes         String?
   paidAt        DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  user          User     @relation(fields: [userId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  user          User      @relation(fields: [userId], references: [id])
 
   @@unique([userId, month, year])
   @@map("commissions")
@@ -302,6 +310,15 @@ enum PhotoFor {
   OTHER
 }
 
+enum PackageCategory {
+  MAIN
+  BIRTHDAY_SMASH
+  PROFESSIONAL
+  STUDIO_ONLY
+  ADDON
+  OTHER
+}
+
 enum PrintStatus {
   WAITING_CLIENT_SELECTION
   SENT_TO_VENDOR
@@ -330,10 +347,48 @@ model ActivityLog {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id])
-  action    String   // Login, Create Booking, Update Status, etc.
+  action    String // Login, Create Booking, Update Status, etc.
   details   String?
   type      String   @default("SYSTEM") // SYSTEM, CREATE, UPDATE, DELETE
   timestamp DateTime @default(now())
 
   @@map("activity_logs")
+}
+
+model CustomRole {
+  id          String           @id @default(cuid())
+  name        String           @unique
+  description String?
+  isSystem    Boolean          @default(false) // true for OWNER, ADMIN, etc. (can't be deleted)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  users       User[]
+  permissions RolePermission[]
+
+  @@map("custom_roles")
+}
+
+model Menu {
+  id          String           @id @default(cuid())
+  name        String           @unique // dashboard, bookings, clients, calendar, etc.
+  label       String // Display name
+  sortOrder   Int              @default(0)
+  createdAt   DateTime         @default(now())
+  permissions RolePermission[]
+
+  @@map("menus")
+}
+
+model RolePermission {
+  id        String     @id @default(cuid())
+  roleId    String
+  menuId    String
+  canView   Boolean    @default(true)
+  canEdit   Boolean    @default(false)
+  canDelete Boolean    @default(false)
+  role      CustomRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  menu      Menu       @relation(fields: [menuId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, menuId])
+  @@map("role_permissions")
 }

@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
+import { getCommissionPeriod } from '@/lib/utils/commission-period'
 
 // GET — List commissions (with auto-calculated booking count)
 export async function GET(request: NextRequest) {
@@ -27,9 +28,8 @@ export async function GET(request: NextRequest) {
     select: { id: true, name: true, role: true },
   })
 
-  // Count bookings per staff for this month
-  const startDate = new Date(year, month - 1, 1)
-  const endDate = new Date(year, month, 1)
+  // Count bookings per staff for this commission period (26th prev month - 25th current month)
+  const { startDate, endDate } = getCommissionPeriod(month, year)
 
   const result = await Promise.all(
     staff.map(async (s) => {
@@ -115,9 +115,8 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // Count bookings for reference
-  const startDate = new Date(year, month - 1, 1)
-  const endDate = new Date(year, month, 1)
+  // Count bookings for commission period (26th prev month - 25th current month)
+  const { startDate, endDate } = getCommissionPeriod(month, year)
 
   const totalBookings = await prisma.booking.count({
     where: {

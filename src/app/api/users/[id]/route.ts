@@ -22,7 +22,18 @@ export async function GET(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const targetUser = await prisma.user.findUnique({ where: { id } })
+  const targetUser = await prisma.user.findUnique({
+    where: { id },
+    include: {
+      customRole: {
+        select: {
+          id: true,
+          name: true,
+          isSystem: true,
+        }
+      }
+    }
+  })
 
   if (!targetUser) {
     return NextResponse.json({ error: 'User tidak ditemukan' }, { status: 404 })
@@ -51,7 +62,7 @@ export async function PATCH(
   }
 
   const body = await request.json()
-  const { name, role, isActive, password } = body
+  const { name, role, customRoleId, isActive, password } = body
 
   // Update password di Supabase Auth jika ada
   if (password) {
@@ -67,8 +78,18 @@ export async function PATCH(
     data: {
       ...(name && { name }),
       ...(role && { role }),
+      ...(customRoleId !== undefined && { customRoleId: customRoleId || null }),
       ...(isActive !== undefined && { isActive }),
     },
+    include: {
+      customRole: {
+        select: {
+          id: true,
+          name: true,
+          isSystem: true,
+        }
+      }
+    }
   })
 
   return NextResponse.json(updated)
@@ -98,11 +119,48 @@ export async function DELETE(
     return NextResponse.json({ error: 'Tidak bisa menghapus akun sendiri' }, { status: 400 })
   }
 
-  // Hapus dari Supabase Auth
-  await supabaseAdmin.auth.admin.deleteUser(id)
+  try {
+    // Check if user has related data
+    const userToDelete = await prisma.user.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: {
+            handledBookings: true,
+            commissions: true,
+            activities: true,
+          }
+        }
+      }
+    })
 
-  // Hapus dari database
-  await prisma.user.delete({ where: { id } })
+    if (!userToDelete) {
+      return NextResponse.json({ error: 'User tidak ditemukan' }, { status: 404 })
+    }
 
-  return NextResponse.json({ success: true })
+    // If user has related data, prevent deletion and suggest alternative
+    if (userToDelete._count.handledBookings > 0 || userToDelete._count.commissions > 0 || userToDelete._count.activities > 0) {
+      return NextResponse.json({
+        error: 'User tidak bisa dihapus karena masih memiliki data terkait (bookings, commissions, atau activities). Silakan nonaktifkan user ini sebagai gantinya.',
+        details: {
+          handledBookings: userToDelete._count.handledBookings,
+          commissions: userToDelete._count.commissions,
+          activities: userToDelete._count.activities,
+        }
+      }, { status: 400 })
+    }
+
+    // Hapus dari Supabase Auth
+    await supabaseAdmin.auth.admin.deleteUser(id)
+
+    // Hapus dari database
+    await prisma.user.delete({ where: { id } })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('[DELETE /api/users/[id]] Error:', error)
+    return NextResponse.json({
+      error: 'Gagal menghapus user. User mungkin masih memiliki data terkait.',
+    }, { status: 500 })
+  }
 }

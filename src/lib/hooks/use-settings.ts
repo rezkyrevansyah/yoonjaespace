@@ -13,6 +13,10 @@ export interface StudioSettings {
   dayOff: string[]
   defaultPaymentStatus: "PAID" | "UNPAID"
   reminderMessageTemplate: string
+  thankYouPaymentTemplate: string
+  thankYouSessionTemplate: string
+  logoUrl: string
+  timeIntervalMinutes: string  // SESI 10
 }
 
 export function useSettings() {
@@ -23,13 +27,21 @@ export function useSettings() {
   const updateSettings = async (newSettings: Partial<StudioSettings>) => {
     setIsSaving(true)
     try {
+      console.log('📤 Updating settings:', newSettings)
       const { error } = await apiPatch('/api/settings', newSettings)
       if (error) throw new Error(error)
-      
+
+      // Optimistically update local state
       await mutate({ ...data, ...newSettings } as StudioSettings, false)
+
+      // Then revalidate from server to ensure consistency
+      await mutate()
+
+      console.log('✅ Settings updated and revalidated')
       showToast('Settings updated successfully', 'success')
       return true
     } catch (err: any) {
+      console.error('❌ Settings update failed:', err)
       showToast(err.message || 'Failed to update settings', 'error')
       return false
     } finally {

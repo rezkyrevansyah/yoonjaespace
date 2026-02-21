@@ -145,15 +145,21 @@ export const SIDEBAR_MENU = [
     roles: ["OWNER", "ADMIN"] as const,
   },
   {
-    label: "Settings",
-    href: "/dashboard/settings",
-    icon: "Settings",
-    roles: ["OWNER"] as const,
-  },
-  {
     label: "User Management",
     href: "/dashboard/users",
     icon: "ShieldCheck",
+    roles: ["OWNER"] as const,
+  },
+  {
+    label: "Role Management",
+    href: "/dashboard/roles",
+    icon: "Shield",
+    roles: ["OWNER"] as const,
+  },
+  {
+    label: "Settings",
+    href: "/dashboard/settings",
+    icon: "Settings",
     roles: ["OWNER"] as const,
   },
 ]

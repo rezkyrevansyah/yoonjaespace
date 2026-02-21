@@ -9,6 +9,8 @@ import { SIDEBAR_MENU } from "@/lib/constants"
 import { getInitials } from "@/lib/utils"
 import { useAuth } from "@/lib/hooks/use-auth"
 import { useReminderCount } from "@/lib/hooks/use-reminder-count"
+import { useSettings } from "@/lib/hooks/use-settings"
+import { usePermissions } from "@/lib/hooks/use-permissions"
 import { USER_ROLE_MAP } from "@/lib/constants"
 import {
   LayoutDashboard,
@@ -20,6 +22,7 @@ import {
   Award,
   Settings,
   ShieldCheck,
+  Shield,
   LogOut,
   X,
   Activity,
@@ -35,6 +38,7 @@ const iconMap: Record<string, React.ElementType> = {
   Award,
   Settings,
   ShieldCheck,
+  Shield,
   Activity,
 }
 
@@ -48,6 +52,14 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
   const router = useRouter()
   const { user, logout } = useAuth()
   const { count: reminderCount } = useReminderCount()
+  const { settings } = useSettings()
+  const permissionsData = usePermissions()
+  const permissionsLoading = permissionsData?.isLoading ?? true
+  const getVisibleMenus = permissionsData?.getVisibleMenus ?? (() => [])
+
+  // Debug: log visible menus
+  const visibleMenus = getVisibleMenus()
+  console.log('[Sidebar] User:', user?.role, '| Permissions loading:', permissionsLoading, '| Visible menus:', visibleMenus.length)
 
   const handleLogout = async () => {
     await logout()
@@ -94,7 +106,7 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
           <div className="flex items-center gap-3 flex-1">
             <div className="relative w-10 h-10 rounded-xl overflow-hidden shrink-0 shadow-md">
               <Image
-                src="/logo_yoonjae.png"
+                src={(settings?.logoUrl && settings.logoUrl.trim() !== '') ? settings.logoUrl : "/logo_yoonjae.png"}
                 alt="Yoonjaespace Logo"
                 width={40}
                 height={40}
@@ -116,53 +128,66 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-4 px-3">
           <ul className="space-y-1">
-            {SIDEBAR_MENU.filter((item) =>
-              user?.role && (item.roles as readonly string[]).includes(user.role)
-            ).map((item) => {
-              const Icon = iconMap[item.icon]
-              const isActive =
-                item.href === "/dashboard"
-                  ? pathname === "/dashboard"
-                  : pathname.startsWith(item.href)
+            {permissionsLoading ? (
+              <li className="px-3 py-2 text-sm text-[#9CA3AF]">Loading menu...</li>
+            ) : (
+              SIDEBAR_MENU.filter((item) => {
+                // Check if user has permission to view this menu
+                const visibleMenus = getVisibleMenus()
 
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    onClick={handleLinkClick}
-                    className={cn(
-                      "relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
-                      isActive
-                        ? "bg-[#F5ECEC] text-[#7A1F1F]"
-                        : "text-[#6B7280] hover:bg-[#F9FAFB] hover:text-[#111827]"
-                    )}
-                  >
-                    {/* Left Border Indicator for Active State */}
-                    {isActive && (
-                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-7 bg-[#7A1F1F] rounded-r-full" />
-                    )}
+                // If no permissions loaded yet (API error or not configured), fallback to role-based
+                if (!visibleMenus || visibleMenus.length === 0) {
+                  return user?.role && (item.roles as readonly string[]).includes(user.role)
+                }
 
-                    {Icon && (
-                      <Icon
-                        className={cn(
-                          "h-5 w-5 shrink-0",
-                          isActive ? "text-[#7A1F1F]" : "text-[#9CA3AF]"
-                        )}
-                      />
-                    )}
-                    <span style={{ fontFamily: "var(--font-poppins)" }}>
-                      {item.label}
-                    </span>
+                const menuName = item.href.replace('/dashboard/', '').replace('/dashboard', 'dashboard')
+                return visibleMenus.some((m: any) => m.menuName === menuName)
+              }).map((item) => {
+                const Icon = iconMap[item.icon]
+                const isActive =
+                  item.href === "/dashboard"
+                    ? pathname === "/dashboard"
+                    : pathname.startsWith(item.href)
 
-                    {item.href === "/dashboard/reminders" && reminderCount > 0 ? (
-                      <span className="ml-auto inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#7A1F1F] text-[10px] font-semibold text-white">
-                        {reminderCount}
+                return (
+                  <li key={`${item.href}-${item.label}`}>
+                    <Link
+                      href={item.href}
+                      onClick={handleLinkClick}
+                      className={cn(
+                        "relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                        isActive
+                          ? "bg-[#F5ECEC] text-[#7A1F1F]"
+                          : "text-[#6B7280] hover:bg-[#F9FAFB] hover:text-[#111827]"
+                      )}
+                    >
+                      {/* Left Border Indicator for Active State */}
+                      {isActive && (
+                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-7 bg-[#7A1F1F] rounded-r-full" />
+                      )}
+
+                      {Icon && (
+                        <Icon
+                          className={cn(
+                            "h-5 w-5 shrink-0",
+                            isActive ? "text-[#7A1F1F]" : "text-[#9CA3AF]"
+                          )}
+                        />
+                      )}
+                      <span style={{ fontFamily: "var(--font-poppins)" }}>
+                        {item.label}
                       </span>
-                    ) : null}
-                  </Link>
-                </li>
-              )
-            })}
+
+                      {item.href === "/dashboard/reminders" && reminderCount > 0 ? (
+                        <span className="ml-auto inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#7A1F1F] text-[10px] font-semibold text-white">
+                          {reminderCount}
+                        </span>
+                      ) : null}
+                    </Link>
+                  </li>
+                )
+              })
+            )}
           </ul>
         </nav>
 

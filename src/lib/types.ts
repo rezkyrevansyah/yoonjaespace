@@ -38,6 +38,12 @@ export interface StaffUser {
   email: string
   phone: string
   role: UserRole
+  customRoleId?: string
+  customRole?: {
+    id: string
+    name: string
+    isSystem: boolean
+  }
   isActive: boolean
   createdAt: string
 }
@@ -49,10 +55,14 @@ export interface Client {
   email: string | null
   instagram: string | null
   address: string | null
+  domisili: string | null  // SESI 10
   notes: string | null
+  leads: string | null      // SESI 10
   totalBookings: number
   createdAt: string
 }
+
+export type PackageCategory = "MAIN" | "BIRTHDAY_SMASH" | "PROFESSIONAL" | "STUDIO_ONLY" | "ADDON" | "OTHER"
 
 export interface Package {
   id: string
@@ -63,6 +73,8 @@ export interface Package {
   editedPhotos: number
   allPhotos: boolean
   isActive: boolean
+  extraTimeBefore: number // Extra time before session in minutes (for MUA, prep, etc)
+  category: PackageCategory // SESI 11
 }
 
 export interface Background {
@@ -78,6 +90,7 @@ export interface AddOn {
   defaultPrice: number
   description?: string
   isActive: boolean
+  extraTimeBefore: number // Extra time before session in minutes
 }
 
 export type AddOnTemplate = AddOn
@@ -113,6 +126,7 @@ export interface Booking {
   date: string
   startTime: string
   endTime: string
+  muaStartTime: string | null // MUA start time (1 hour before session if MUA add-on exists)
   backgroundId: string
   background: Background | null
   packageId: string
@@ -149,6 +163,7 @@ export interface Expense {
   date: string
   createdBy: StaffUser
   receipt: string | null
+  notes?: string | null
 }
 
 export interface Commission {
@@ -248,7 +263,7 @@ export interface ActivityLog {
 export interface CustomField {
   id: string
   fieldName: string
-  fieldType: "TEXT" | "SELECT" | "CHECKBOX" | "NUMBER"
+  fieldType: "TEXT" | "SELECT" | "CHECKBOX" | "NUMBER" | "URL"
   options?: string
   isRequired: boolean
   sortOrder: number

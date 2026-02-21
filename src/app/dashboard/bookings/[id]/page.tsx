@@ -23,6 +23,7 @@ import {
   MessageCircle,
   Download,
   Share2,
+  Copy,
   MoreHorizontal,
   Plus,
   XCircle,
@@ -38,13 +39,14 @@ import {
   Package,
   Sparkles,
 } from "lucide-react"
-import { formatCurrency, formatDate } from "@/lib/utils"
+import { formatCurrency, formatDate, cn } from "@/lib/utils"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { PermissionGate } from "@/components/shared/permission-gate"
 import { Modal } from "@/components/shared/modal"
 import { useToast } from "@/lib/hooks/use-toast"
 import { useBooking } from "@/lib/hooks/use-bookings"
 import { useAddOnTemplates } from "@/lib/hooks/use-master-data"
+import { useAuth } from "@/lib/hooks/use-auth"
 import { apiPatch, apiDelete, apiPost } from "@/lib/api-client"
 import {
     BookingStatus,
@@ -66,10 +68,10 @@ const PRINT_STATUS_STEPS: { status: PrintOrderStatus; label: string }[] = [
   { status: "COMPLETED", label: "Done" },
 ]
 
-const BOOKING_STEPS: BookingStatus[] = ["BOOKED", "PAID", "SHOOT_DONE", "PHOTOS_DELIVERED", "CLOSED"]
+const BOOKING_STEPS: BookingStatus[] = ["PAID", "SHOOT_DONE", "PHOTOS_DELIVERED", "CLOSED"]
 
 const STEP_LABELS: Record<BookingStatus, string> = {
-  BOOKED: "Booked",
+  BOOKED: "Booked", // Legacy status, shouldn't appear in new bookings
   PAID: "Paid",
   SHOOT_DONE: "Shot",
   PHOTOS_DELIVERED: "Delivered",
@@ -82,6 +84,7 @@ export default function BookingDetailPage() {
   const params = useParams()
   const id = params?.id as string
   const { showToast } = useToast()
+  const { user } = useAuth()
 
   const { booking, isLoading, isError, mutate } = useBooking(id)
   const { addOnTemplates } = useAddOnTemplates()
@@ -98,12 +101,22 @@ export default function BookingDetailPage() {
   const [isAddOnModalOpen, setIsAddOnModalOpen] = useState(false)
   const [selectedAddOnId, setSelectedAddOnId] = useState("")
   const [addOnQty, setAddOnQty] = useState(1)
+  const [muaOverlapInfo, setMuaOverlapInfo] = useState<any>(null)
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
+
+  // SESI 13: Tab navigation state
+  const [activeTab, setActiveTab] = useState<"overview" | "progress" | "pricing">("overview")
 
   useEffect(() => {
     if (booking) {
       if (booking.photoLink) setPhotoLinkValue(booking.photoLink)
       if (booking.printOrder?.selectedPhotos) setSelectedPhotosValue(booking.printOrder.selectedPhotos)
+
+      // Fetch MUA overlap info
+      fetch(`/api/bookings/${booking.id}/overlap`)
+        .then(res => res.json())
+        .then(data => setMuaOverlapInfo(data))
+        .catch(err => console.error('Failed to fetch overlap info:', err))
     }
   }, [booking])
 
@@ -241,6 +254,18 @@ export default function BookingDetailPage() {
        }
   }
 
+  // SESI 13: Copy customer page link to clipboard
+  const handleCopyCustomerLink = () => {
+    const customerPageUrl = `${window.location.origin}/status/${booking.publicSlug}`
+    navigator.clipboard.writeText(customerPageUrl)
+      .then(() => {
+        showToast("Link customer page berhasil disalin!", "success")
+      })
+      .catch(() => {
+        showToast("Gagal menyalin link", "error")
+      })
+  }
+
   const packagePrice = booking.packagePrice || booking.package?.price || 0
   const addOnsTotal = booking.addOns?.reduce((sum, item) => sum + (item.subtotal || item.unitPrice * item.quantity), 0) || 0
   const discount = booking.discountAmount || 0
@@ -248,6 +273,44 @@ export default function BookingDetailPage() {
 
   const currentStepIndex = BOOKING_STEPS.indexOf(booking.status)
   const isCancelled = booking.status === "CANCELLED"
+
+  // Helper: Get available status options based on current user role and booking status
+  const getAvailableStatusOptions = () => {
+    if (!user) return BOOKING_STEPS
+
+    const role = user.role
+    const currentStatus = booking.status
+
+    // OWNER and ADMIN can change to any status
+    if (role === 'OWNER' || role === 'ADMIN') {
+      return BOOKING_STEPS
+    }
+
+    // PHOTOGRAPHER restrictions
+    if (role === 'PHOTOGRAPHER') {
+      // Cannot change from PAID status
+      if (currentStatus === 'PAID') {
+        return [currentStatus] // Only show current status, cannot change
+      }
+      // Can only change to SHOOT_DONE or PHOTOS_DELIVERED
+      return BOOKING_STEPS.filter(s =>
+        s === currentStatus || s === 'SHOOT_DONE' || s === 'PHOTOS_DELIVERED'
+      )
+    }
+
+    // PACKAGING_STAFF can only change to PHOTOS_DELIVERED
+    if (role === 'PACKAGING_STAFF') {
+      return BOOKING_STEPS.filter(s =>
+        s === currentStatus || s === 'PHOTOS_DELIVERED'
+      )
+    }
+
+    // Default: only show current status
+    return [currentStatus]
+  }
+
+  const availableStatusOptions = getAvailableStatusOptions()
+  const canChangeStatus = availableStatusOptions.length > 1
 
   return (
     <div className="pb-24 lg:pb-10">
@@ -290,6 +353,15 @@ export default function BookingDetailPage() {
               <Activity className="h-3.5 w-3.5" />
               Customer Page
             </a>
+            {/* SESI 13: Share Customer Link Button */}
+            <button
+              onClick={handleCopyCustomerLink}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-[#7A1F1F] text-[#7A1F1F] rounded-xl text-sm font-semibold hover:bg-[#7A1F1F]/5 transition-all shadow-sm"
+              title="Copy customer page link to clipboard"
+            >
+              <Copy className="h-3.5 w-3.5" />
+              Share Link
+            </button>
             <a
               href={`https://wa.me/${booking.client.phone.replace(/^0/, '62')}`}
               target="_blank"
@@ -321,14 +393,102 @@ export default function BookingDetailPage() {
         </div>
       </div>
 
+      {/* SESI 13: Tab Navigation */}
+      <div className="mb-6 bg-white rounded-2xl border border-gray-100 p-2 shadow-sm sticky top-0 z-40">
+        <div className="grid grid-cols-3 gap-1">
+          <button
+            onClick={() => setActiveTab("overview")}
+            className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-semibold transition-all ${
+              activeTab === "overview"
+                ? "bg-[#7A1F1F] text-white shadow-md"
+                : "text-gray-500 hover:bg-gray-50"
+            }`}
+          >
+            <User className="h-4 w-4" />
+            <span className="hidden sm:inline">Overview</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("progress")}
+            className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-semibold transition-all ${
+              activeTab === "progress"
+                ? "bg-[#7A1F1F] text-white shadow-md"
+                : "text-gray-500 hover:bg-gray-50"
+            }`}
+          >
+            <Activity className="h-4 w-4" />
+            <span className="hidden sm:inline">Progress</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("pricing")}
+            className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-semibold transition-all ${
+              activeTab === "pricing"
+                ? "bg-[#7A1F1F] text-white shadow-md"
+                : "text-gray-500 hover:bg-gray-50"
+            }`}
+          >
+            <CreditCard className="h-4 w-4" />
+            <span className="hidden sm:inline">Pricing</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ── MUA OVERLAP ALERT ── */}
+      {muaOverlapInfo?.hasOverlap && (
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <AlertCircle className="h-5 w-5 text-yellow-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-yellow-800 mb-2">
+                ⚠️ Tumpang Tindih Jadwal MUA Terdeteksi
+              </h3>
+              <div className="text-sm text-yellow-700 space-y-2">
+                {muaOverlapInfo.muaOverlapsMySession?.length > 0 && (
+                  <div>
+                    <p className="font-medium mb-1">Booking lain dengan MUA bertabrakan dengan sesi ini:</p>
+                    <ul className="list-disc list-inside ml-2 space-y-1">
+                      {muaOverlapInfo.muaOverlapsMySession.map((overlap: any) => (
+                        <li key={overlap.id}>
+                          <strong>{overlap.bookingCode}</strong> ({overlap.clientName}) - MUA: {formatDate(overlap.muaStartTime, 'HH:mm')} - {formatDate(overlap.sessionStartTime, 'HH:mm')}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {muaOverlapInfo.myMuaOverlapsSessions?.length > 0 && (
+                  <div>
+                    <p className="font-medium mb-1">MUA booking ini bertabrakan dengan sesi booking lain:</p>
+                    <ul className="list-disc list-inside ml-2 space-y-1">
+                      {muaOverlapInfo.myMuaOverlapsSessions.map((overlap: any) => (
+                        <li key={overlap.id}>
+                          <strong>{overlap.bookingCode}</strong> ({overlap.clientName}) - Sesi: {formatDate(overlap.sessionStartTime, 'HH:mm')} - {formatDate(overlap.sessionEndTime, 'HH:mm')}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <p className="text-xs italic mt-3 text-yellow-600">
+                  💡 Space 2 (makeup area) dan Space 1 (studio) terpisah, jadi overlap ini diperbolehkan.
+                  Pastikan untuk mengkomunikasikan jadwal dengan client agar tidak ada kebingungan.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── MAIN GRID ── */}
       <div className="flex flex-col lg:flex-row gap-5 items-start">
 
         {/* ═══ LEFT COLUMN ═══ */}
         <div className="flex-1 w-full space-y-5">
 
-          {/* CLIENT CARD */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          {/* CLIENT CARD - OVERVIEW TAB */}
+          <div className={cn(
+            "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden",
+            activeTab !== "overview" && "hidden"
+          )}>
             <div className="px-5 pt-5 pb-4 border-b border-gray-50 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-[#7A1F1F]/10 flex items-center justify-center">
@@ -376,8 +536,11 @@ export default function BookingDetailPage() {
             </div>
           </div>
 
-          {/* STATUS & ACTIONS CARD */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          {/* STATUS & ACTIONS CARD - PROGRESS TAB */}
+          <div className={cn(
+            "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden",
+            activeTab !== "progress" && "hidden"
+          )}>
             <div className="px-5 pt-5 pb-4 border-b border-gray-50 flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-[#7A1F1F]/10 flex items-center justify-center">
                 <Activity className="h-3.5 w-3.5 text-[#7A1F1F]" />
@@ -390,7 +553,7 @@ export default function BookingDetailPage() {
               {/* Progress Stepper */}
               {!isCancelled ? (
                 <div className="grid grid-cols-5 gap-2">
-                  {BOOKING_STEPS.map((step, index) => {
+                  {availableStatusOptions.map((step, index) => {
                     const isCompleted = currentStepIndex > index
                     const isCurrent = currentStepIndex === index
                     const stepColors = [
@@ -440,9 +603,9 @@ export default function BookingDetailPage() {
                       value={selectedBookingStatus || booking.status}
                       onChange={(e) => setSelectedBookingStatus(e.target.value as BookingStatus)}
                       className="w-full appearance-none bg-white text-gray-800 text-sm font-semibold border border-gray-200 rounded-lg px-3 py-2.5 pr-8 focus:outline-none focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] transition-all cursor-pointer disabled:opacity-50 shadow-sm"
-                      disabled={isUpdating}
+                      disabled={isUpdating || !canChangeStatus}
                     >
-                      {BOOKING_STEPS.map((step) => (
+                      {availableStatusOptions.map((step) => (
                         <option key={step} value={step}>{STEP_LABELS[step]}</option>
                       ))}
                     </select>
@@ -453,7 +616,7 @@ export default function BookingDetailPage() {
                       const s = selectedBookingStatus || booking.status
                       if (s) handleUpdateStatus(s as BookingStatus)
                     }}
-                    disabled={isUpdating}
+                    disabled={isUpdating || !canChangeStatus}
                     className="px-4 py-2.5 bg-[#7A1F1F] text-white rounded-lg text-sm font-bold hover:bg-[#601818] transition-all shadow-sm active:scale-95 disabled:opacity-50 whitespace-nowrap"
                   >
                     {isUpdating ? <span className="flex items-center gap-1.5"><div className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" />Saving</span> : "Update"}
@@ -556,9 +719,12 @@ export default function BookingDetailPage() {
             </div>
           </div>
 
-          {/* PRINT ORDER TRACKING (Conditional) */}
+          {/* PRINT ORDER TRACKING (Conditional) - PROGRESS TAB */}
           {booking.printOrder && (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className={cn(
+              "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden",
+              activeTab !== "progress" && "hidden"
+            )}>
               <div className="px-5 pt-5 pb-4 border-b border-gray-50 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-lg bg-[#7A1F1F]/10 flex items-center justify-center">
@@ -687,10 +853,13 @@ export default function BookingDetailPage() {
 
         {/* ═══ RIGHT SIDEBAR ═══ */}
         <div className="hidden lg:block w-[340px] shrink-0">
-          <div className="sticky top-6 space-y-5">
+          <div className="sticky top-24 space-y-5">
 
-            {/* BOOKING DETAILS */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            {/* BOOKING DETAILS - OVERVIEW TAB */}
+            <div className={cn(
+              "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden",
+              activeTab !== "overview" && "hidden"
+            )}>
               <div className="px-5 pt-5 pb-4 border-b border-gray-50 flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-[#7A1F1F]/10 flex items-center justify-center">
                   <CalendarCheck className="h-3.5 w-3.5 text-[#7A1F1F]" />
@@ -756,8 +925,11 @@ export default function BookingDetailPage() {
               </div>
             </div>
 
-            {/* ADD-ONS */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            {/* ADD-ONS - PRICING TAB */}
+            <div className={cn(
+              "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden",
+              activeTab !== "pricing" && "hidden"
+            )}>
               <div className="px-5 pt-5 pb-4 border-b border-gray-50 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-lg bg-[#7A1F1F]/10 flex items-center justify-center">
@@ -801,8 +973,11 @@ export default function BookingDetailPage() {
               </div>
             </div>
 
-            {/* PRICE SUMMARY */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            {/* PRICE SUMMARY - PRICING TAB */}
+            <div className={cn(
+              "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden",
+              activeTab !== "pricing" && "hidden"
+            )}>
               <div className="px-5 pt-5 pb-4 border-b border-gray-50 flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-[#7A1F1F]/10 flex items-center justify-center">
                   <CreditCard className="h-3.5 w-3.5 text-[#7A1F1F]" />
@@ -881,8 +1056,11 @@ export default function BookingDetailPage() {
       {/* ── MOBILE BOTTOM CARDS ── */}
       <div className="lg:hidden mt-5 space-y-4">
 
-        {/* Booking Details (mobile) */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        {/* Booking Details (mobile) - OVERVIEW TAB */}
+        <div className={cn(
+          "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden",
+          activeTab !== "overview" && "hidden"
+        )}>
           <div className="px-5 pt-5 pb-4 border-b border-gray-50 flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-[#7A1F1F]/10 flex items-center justify-center">
               <CalendarCheck className="h-3.5 w-3.5 text-[#7A1F1F]" />
@@ -938,8 +1116,11 @@ export default function BookingDetailPage() {
           </div>
         </div>
 
-        {/* Add-ons (mobile) */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        {/* Add-ons (mobile) - PRICING TAB */}
+        <div className={cn(
+          "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden",
+          activeTab !== "pricing" && "hidden"
+        )}>
           <div className="px-5 pt-5 pb-4 border-b border-gray-50 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-[#7A1F1F]/10 flex items-center justify-center">
@@ -976,8 +1157,11 @@ export default function BookingDetailPage() {
           </div>
         </div>
 
-        {/* Price Summary (mobile) */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        {/* Price Summary (mobile) - PRICING TAB */}
+        <div className={cn(
+          "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden",
+          activeTab !== "pricing" && "hidden"
+        )}>
           <div className="px-5 pt-5 pb-4 border-b border-gray-50 flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-[#7A1F1F]/10 flex items-center justify-center">
               <CreditCard className="h-3.5 w-3.5 text-[#7A1F1F]" />

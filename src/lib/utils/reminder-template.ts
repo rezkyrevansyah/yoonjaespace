@@ -23,6 +23,28 @@ export const DEFAULT_REMINDER_TEMPLATE = `Halo {{clientName}}, ini reminder untu
 Cek status booking kamu di: {{clientPageLink}}`
 
 /**
+ * Default thank you message template (after payment)
+ */
+export const DEFAULT_THANK_YOU_PAYMENT_TEMPLATE = `Terima kasih {{clientName}} sudah melakukan pembayaran untuk sesi foto di {{studioName}}! 🙏
+
+Sesi foto kamu dijadwalkan pada {{date}} pukul {{time}}.
+Paket: {{packageName}}
+
+Ditunggu kehadirannya ya! Kalau ada pertanyaan, jangan ragu untuk chat kami.
+
+Cek status booking: {{clientPageLink}}`
+
+/**
+ * Default thank you message template (after session)
+ */
+export const DEFAULT_THANK_YOU_SESSION_TEMPLATE = `Halo {{clientName}}, terima kasih sudah memilih {{studioName}} untuk sesi foto kamu! 🙏✨
+
+Kami harap kamu puas dengan hasilnya. Jangan lupa cek status booking untuk melihat update foto kamu:
+{{clientPageLink}}
+
+Sampai jumpa lagi! 😊`
+
+/**
  * Parse reminder template and replace variables
  * @param template - Template string with {{variable}} placeholders
  * @param data - Data object containing variable values

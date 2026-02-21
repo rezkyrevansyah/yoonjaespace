@@ -14,8 +14,11 @@ import {
   MoreHorizontal,
   Users,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Download,
+  FileSpreadsheet
 } from "lucide-react"
+import * as XLSX from 'xlsx'
 import { formatCurrency, formatDate, getInitials } from "@/lib/utils"
 // import { useMobile } from "@/lib/hooks/use-mobile" // Assuming this exists or using simple check
 import { useToast } from "@/lib/hooks/use-toast"
@@ -205,6 +208,86 @@ export default function ClientsPage() {
     }
   }
 
+  // Export functions
+  const handleExportCSV = () => {
+    if (!clients || clients.length === 0) {
+      showToast("Tidak ada data untuk diexport", "error")
+      return
+    }
+
+    // Prepare data for CSV
+    const csvData = clients.map((client: any) => ({
+      'Nama': client.name,
+      'No. WhatsApp': client.phone,
+      'Email': client.email || '-',
+      'Instagram': client.instagram || '-',
+      'Alamat': client.address || '-',
+      'Total Bookings': client.totalBookings || 0,
+      'Total Spent': client.totalSpent || 0,
+      'Last Visit': client.lastVisit ? formatDate(client.lastVisit) : '-',
+      'Catatan': client.notes || '-'
+    }))
+
+    // Convert to CSV string
+    const headers = Object.keys(csvData[0]).join(',')
+    const rows = csvData.map(row =>
+      Object.values(row).map(val => `"${String(val).replace(/"/g, '""')}"`).join(',')
+    )
+    const csv = [headers, ...rows].join('\n')
+
+    // Download CSV
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `clients_${new Date().toISOString().split('T')[0]}.csv`
+    link.click()
+
+    showToast("Data berhasil diexport ke CSV", "success")
+  }
+
+  const handleExportExcel = () => {
+    if (!clients || clients.length === 0) {
+      showToast("Tidak ada data untuk diexport", "error")
+      return
+    }
+
+    // Prepare data for Excel
+    const excelData = clients.map((client: any) => ({
+      'Nama': client.name,
+      'No. WhatsApp': client.phone,
+      'Email': client.email || '-',
+      'Instagram': client.instagram || '-',
+      'Alamat': client.address || '-',
+      'Total Bookings': client.totalBookings || 0,
+      'Total Spent': client.totalSpent || 0,
+      'Last Visit': client.lastVisit ? formatDate(client.lastVisit) : '-',
+      'Catatan': client.notes || '-'
+    }))
+
+    // Create workbook and worksheet
+    const ws = XLSX.utils.json_to_sheet(excelData)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Clients')
+
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 20 }, // Nama
+      { wch: 15 }, // Phone
+      { wch: 25 }, // Email
+      { wch: 15 }, // Instagram
+      { wch: 30 }, // Alamat
+      { wch: 12 }, // Total Bookings
+      { wch: 15 }, // Total Spent
+      { wch: 12 }, // Last Visit
+      { wch: 30 }  // Catatan
+    ]
+
+    // Download Excel
+    XLSX.writeFile(wb, `clients_${new Date().toISOString().split('T')[0]}.xlsx`)
+
+    showToast("Data berhasil diexport ke Excel", "success")
+  }
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -215,13 +298,44 @@ export default function ClientsPage() {
              {pagination?.total || 0} total klien
           </p>
         </div>
-        <button
-          onClick={handleAdd}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#7A1F1F] text-white text-sm font-semibold hover:bg-[#9B3333] transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          Add Client
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Export Dropdown */}
+          <div className="relative group">
+            <button
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#E5E7EB] bg-white text-[#6B7280] text-sm font-semibold hover:bg-[#F9FAFB] hover:border-[#7A1F1F]/20 transition-colors"
+            >
+              <Download className="h-4 w-4" />
+              Export
+            </button>
+            {/* Dropdown Menu */}
+            <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl border border-[#E5E7EB] shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+              <button
+                onClick={handleExportCSV}
+                disabled={!clients || clients.length === 0}
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-[#111827] hover:bg-[#F9FAFB] transition-colors disabled:opacity-50 disabled:cursor-not-allowed rounded-t-xl"
+              >
+                <FileSpreadsheet className="h-4 w-4 text-[#10B981]" />
+                <span>Export sebagai CSV</span>
+              </button>
+              <button
+                onClick={handleExportExcel}
+                disabled={!clients || clients.length === 0}
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-[#111827] hover:bg-[#F9FAFB] transition-colors disabled:opacity-50 disabled:cursor-not-allowed rounded-b-xl"
+              >
+                <FileSpreadsheet className="h-4 w-4 text-[#059669]" />
+                <span>Export sebagai Excel</span>
+              </button>
+            </div>
+          </div>
+
+          <button
+            onClick={handleAdd}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#7A1F1F] text-white text-sm font-semibold hover:bg-[#9B3333] transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            Add Client
+          </button>
+        </div>
       </div>
 
       {/* Search */}

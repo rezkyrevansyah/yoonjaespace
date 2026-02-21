@@ -17,8 +17,9 @@ import { formatCurrency, formatDate } from "@/lib/utils"
 // import { useMobile } from "@/lib/hooks/use-mobile"
 import { useToast } from "@/lib/hooks/use-toast"
 import { Modal } from "@/components/shared/modal"
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts"
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts"
 import { useExpenses, useFinanceSummary } from "@/lib/hooks/use-finance"
+import { usePackageStats } from "@/lib/hooks/use-package-stats"
 import { useBookings } from "@/lib/hooks/use-bookings"
 import { apiPost, apiPatch, apiDelete } from "@/lib/api-client"
 import { FinanceSummary, Expense, ExpenseCategory } from "@/lib/types"
@@ -72,11 +73,12 @@ export default function FinancePage() {
   // Hooks
   const { expenses, isLoading: expensesLoading, mutate: mutateExpenses } = useExpenses({ month: selectedMonth })
   const { summary, isLoading: summaryLoading, mutate: mutateSummary } = useFinanceSummary(selectedMonth)
-  const { bookings: paidBookings, isLoading: bookingsLoading } = useBookings({ month: selectedMonth, paymentStatus: 'PAID', status: 'SHOOT_DONE' }) 
+  const { bookings: paidBookings, isLoading: bookingsLoading } = useBookings({ month: selectedMonth, paymentStatus: 'PAID', status: 'SHOOT_DONE' })
   // Should technically include completed statuses too, but let's stick to PAID payment status primarily
   // Re-checking useBookings logic: status filter is AND. So if I want ALL paid, I should probably just filter by paymentStatus='PAID' and maybe ignore CANCELLED (which useBookings API usually handles or I check params)
   // Let's use paymentStatus='PAID'. API implementation should handle excluding cancelled if paymentStatus is paid (usually paid implies not cancelled, or we need to filter)
   // Actually, useBookings params are flexible. Let's just use paymentStatus='PAID'.
+  const { stats: packageStatsData, isLoading: isLoadingStats } = usePackageStats(selectedMonth)
 
   // Expense filters (client-side filtering for category/search if needed, but API supports it too. Here we fetched by month, so we can filter local or refetch)
   const [categoryFilter, setCategoryFilter] = useState<string | "ALL">("ALL")
@@ -101,8 +103,8 @@ export default function FinancePage() {
     description: "",
     category: "OTHER",
     amount: 0,
+    notes: ""
     // relatedBookingId: null, // Not mapped in UI yet, but API supports it
-    // notes: null
   })
 
   // Get month name
@@ -208,8 +210,8 @@ export default function FinancePage() {
       description: expense.description,
       category: expense.category,
       amount: expense.amount,
+      notes: expense.notes || ""
       // relatedBookingId: expense.relatedBookingId,
-      // notes: expense.notes
     })
     setEditExpenseModal(true)
   }
@@ -648,6 +650,76 @@ export default function FinancePage() {
         </div>
       )}
 
+      {/* Section E: Top 5 Most Popular Packages */}
+      {packageStatsData.length > 0 && (
+        <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-[#111827] mb-6">Top 5 Most Popular Packages</h2>
+
+          {!isMobile ? (
+            /* Desktop Bar Chart */
+            <div className="h-[400px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={packageStatsData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                  <XAxis
+                    dataKey="packageName"
+                    angle={-45}
+                    textAnchor="end"
+                    height={100}
+                    tick={{ fontSize: 12 }}
+                  />
+                  <YAxis
+                    label={{ value: 'Bookings', angle: -90, position: 'insideLeft' }}
+                    tick={{ fontSize: 12 }}
+                  />
+                  <Tooltip
+                    formatter={(value: any, name: string | undefined) => {
+                      if (name === 'Bookings') return [value, 'Bookings']
+                      return [formatCurrency(Number(value) || 0), 'Revenue']
+                    }}
+                    labelStyle={{ color: '#111827', fontWeight: 600 }}
+                  />
+                  <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                  <Bar dataKey="bookingCount" fill="#7A1F1F" name="Bookings" radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="totalRevenue" fill="#D4AF37" name="Revenue (Rp)" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            /* Mobile: Progress Bar List with Rankings */
+            <div className="space-y-4">
+              {packageStatsData.map((pkg, index) => {
+                const maxBookings = packageStatsData[0]?.bookingCount || 1
+                const percentage = (pkg.bookingCount / maxBookings) * 100
+
+                return (
+                  <div key={pkg.packageId} className="p-4 rounded-lg border border-[#E5E7EB] bg-gray-50">
+                    <div className="flex items-start gap-3 mb-3">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[#7A1F1F] text-white flex items-center justify-center font-bold text-sm">
+                        #{index + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-semibold text-[#111827] truncate">{pkg.packageName}</h3>
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-xs text-[#6B7280]">{pkg.bookingCount} bookings</span>
+                          <span className="text-xs font-medium text-[#111827]">{formatCurrency(pkg.totalRevenue)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2.5">
+                      <div
+                        className="h-2.5 rounded-full bg-[#7A1F1F]"
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Add Expense Modal */}
       {addExpenseModal && (
         <Modal
@@ -700,6 +772,18 @@ export default function FinancePage() {
                   <option key={key} value={key}>{style.label}</option>
                 ))}
               </select>
+            </div>
+
+            {/* Notes Field */}
+            <div>
+              <label className="block text-sm font-medium text-[#111827] mb-1">Notes (Optional)</label>
+              <textarea
+                value={expenseForm.notes || ""}
+                onChange={(e) => setExpenseForm({ ...expenseForm, notes: e.target.value })}
+                rows={3}
+                placeholder="Catatan tambahan untuk expense ini..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-[#7A1F1F] resize-none"
+              />
             </div>
 
             <div className="flex items-center gap-3 pt-4">
@@ -771,6 +855,18 @@ export default function FinancePage() {
                   <option key={key} value={key}>{style.label}</option>
                 ))}
               </select>
+            </div>
+
+            {/* Notes Field */}
+            <div>
+              <label className="block text-sm font-medium text-[#111827] mb-1">Notes (Optional)</label>
+              <textarea
+                value={expenseForm.notes || ""}
+                onChange={(e) => setExpenseForm({ ...expenseForm, notes: e.target.value })}
+                rows={3}
+                placeholder="Catatan tambahan untuk expense ini..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-[#7A1F1F] resize-none"
+              />
             </div>
 
             <div className="flex items-center gap-3 pt-4">

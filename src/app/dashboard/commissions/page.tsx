@@ -2,14 +2,17 @@
 
 import { useState, useMemo } from "react"
 import Link from "next/link"
-import { Award, CalendarCheck, ChevronDown, ChevronUp, Users } from "lucide-react"
+import { Award, CalendarCheck, ChevronDown, ChevronUp, Users, History, X } from "lucide-react"
 import { useCommissions } from "@/lib/hooks/use-commissions"
 import { formatCurrency, getInitials } from "@/lib/utils"
 import { USER_ROLE_MAP } from "@/lib/constants"
+import { formatCommissionPeriod } from "@/lib/utils/commission-period"
 import { useMobile } from "@/lib/hooks/use-mobile"
 import { useToast } from "@/lib/hooks/use-toast"
 import { Loader2, AlertCircle } from "lucide-react"
 import type { UserRole } from "@/lib/types"
+import { Modal } from "@/components/shared/modal"
+import { formatDate } from "@/lib/utils"
 
 interface CommissionData {
   staffId: string
@@ -37,6 +40,21 @@ export default function CommissionsPage() {
 
   // Expanded detail view
   const [expandedStaffId, setExpandedStaffId] = useState<string | null>(null)
+
+  // History modal state
+  const [historyModal, setHistoryModal] = useState<{
+    isOpen: boolean
+    userId: string | null
+    userName: string
+    data: any[]
+    loading: boolean
+  }>({
+    isOpen: false,
+    userId: null,
+    userName: "",
+    data: [],
+    loading: false
+  })
 
   // Form states for each staff
   const [editingStaff, setEditingStaff] = useState<Record<string, {
@@ -108,6 +126,43 @@ export default function CommissionsPage() {
     setExpandedStaffId(expandedStaffId === staffId ? null : staffId)
   }
 
+  // Open commission history modal
+  const openHistoryModal = async (userId: string, userName: string) => {
+    setHistoryModal({
+      isOpen: true,
+      userId,
+      userName,
+      data: [],
+      loading: true
+    })
+
+    try {
+      const response = await fetch(`/api/commissions/history/${userId}?limit=12`)
+      if (!response.ok) throw new Error('Failed to fetch history')
+
+      const result = await response.json()
+      setHistoryModal(prev => ({
+        ...prev,
+        data: result.history,
+        loading: false
+      }))
+    } catch (err: any) {
+      showToast(err.message || "Gagal memuat riwayat commission", "error")
+      setHistoryModal(prev => ({ ...prev, loading: false }))
+    }
+  }
+
+  // Close history modal
+  const closeHistoryModal = () => {
+    setHistoryModal({
+      isOpen: false,
+      userId: null,
+      userName: "",
+      data: [],
+      loading: false
+    })
+  }
+
   if (isLoading) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
@@ -137,6 +192,9 @@ export default function CommissionsPage() {
             <h1 className="text-2xl font-semibold text-[#111827]">Staff Commissions</h1>
             <p className="text-sm text-[#6B7280] mt-1">
               Manual commission tracking untuk {getMonthName(selectedMonth)} {selectedYear}
+            </p>
+            <p className="text-xs text-[#9CA3AF] mt-0.5">
+              Period: {formatCommissionPeriod(selectedMonth, selectedYear)}
             </p>
           </div>
         </div>
@@ -307,13 +365,23 @@ export default function CommissionsPage() {
                     </div>
                   </div>
 
-                  {/* Save Button */}
-                  <button
-                    onClick={() => handleSaveCommission(item.staff.id, item.staff.name)}
-                    className="w-full px-4 py-2 bg-[#7A1F1F] text-white rounded-lg text-sm font-medium hover:bg-[#9B3333] transition-colors"
-                  >
-                    Save Commission
-                  </button>
+                  {/* Action Buttons */}
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => handleSaveCommission(item.staff.id, item.staff.name)}
+                      className="w-full px-4 py-2 bg-[#7A1F1F] text-white rounded-lg text-sm font-medium hover:bg-[#9B3333] transition-colors"
+                    >
+                      Save Commission
+                    </button>
+
+                    <button
+                      onClick={() => openHistoryModal(item.staff.id, item.staff.name)}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+                    >
+                      <History className="h-4 w-4" />
+                      View History
+                    </button>
+                  </div>
 
                   {/* Expand Detail Button */}
                   {item.bookings.length > 0 && (
@@ -374,6 +442,114 @@ export default function CommissionsPage() {
             Tambah Staff
           </Link>
         </div>
+      )}
+
+      {/* Commission History Modal */}
+      {historyModal.isOpen && (
+        <Modal
+          isOpen={historyModal.isOpen}
+          onClose={closeHistoryModal}
+          title={`Commission History - ${historyModal.userName}`}
+          size="lg"
+        >
+          {historyModal.loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 text-[#7A1F1F] animate-spin" />
+            </div>
+          ) : historyModal.data.length === 0 ? (
+            <div className="text-center py-12">
+              <AlertCircle className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+              <p className="text-[#6B7280]">Belum ada riwayat commission</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Desktop Table View */}
+              {!isMobile ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-[#E5E7EB]">
+                        <th className="text-left py-3 px-4 text-sm font-semibold text-[#111827]">Period</th>
+                        <th className="text-center py-3 px-4 text-sm font-semibold text-[#111827]">Bookings</th>
+                        <th className="text-right py-3 px-4 text-sm font-semibold text-[#111827]">Amount</th>
+                        <th className="text-center py-3 px-4 text-sm font-semibold text-[#111827]">Status</th>
+                        <th className="text-left py-3 px-4 text-sm font-semibold text-[#111827]">Notes</th>
+                        <th className="text-right py-3 px-4 text-sm font-semibold text-[#111827]">Paid Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {historyModal.data.map((record) => (
+                        <tr key={record.id} className="border-b border-[#E5E7EB] hover:bg-gray-50">
+                          <td className="py-3 px-4 text-sm text-[#111827]">{record.period}</td>
+                          <td className="py-3 px-4 text-sm text-center text-[#6B7280]">{record.totalBookings}</td>
+                          <td className="py-3 px-4 text-sm text-right font-semibold text-[#111827]">
+                            {formatCurrency(record.amount)}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span
+                              className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
+                                record.isPaid
+                                  ? "bg-green-50 text-green-700 border border-green-200"
+                                  : "bg-red-50 text-red-700 border border-red-200"
+                              }`}
+                            >
+                              {record.isPaid ? "Paid" : "Unpaid"}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-sm text-[#6B7280]">{record.notes || "-"}</td>
+                          <td className="py-3 px-4 text-sm text-right text-[#6B7280]">
+                            {record.paidAt ? formatDate(new Date(record.paidAt)) : "-"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                /* Mobile Card View */
+                <div className="space-y-3">
+                  {historyModal.data.map((record) => (
+                    <div key={record.id} className="p-4 border border-[#E5E7EB] rounded-lg bg-white">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <p className="text-sm font-semibold text-[#111827]">{record.period}</p>
+                          <p className="text-xs text-[#6B7280] mt-0.5">{record.totalBookings} bookings</p>
+                        </div>
+                        <span
+                          className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
+                            record.isPaid
+                              ? "bg-green-50 text-green-700 border border-green-200"
+                              : "bg-red-50 text-red-700 border border-red-200"
+                          }`}
+                        >
+                          {record.isPaid ? "Paid" : "Unpaid"}
+                        </span>
+                      </div>
+                      <div className="space-y-2 pt-3 border-t border-[#E5E7EB]">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-[#6B7280]">Amount</span>
+                          <span className="text-sm font-bold text-[#111827]">{formatCurrency(record.amount)}</span>
+                        </div>
+                        {record.notes && (
+                          <div className="flex items-start gap-2">
+                            <span className="text-xs text-[#6B7280] shrink-0">Notes:</span>
+                            <span className="text-xs text-[#111827]">{record.notes}</span>
+                          </div>
+                        )}
+                        {record.paidAt && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-[#6B7280]">Paid Date</span>
+                            <span className="text-xs text-[#111827]">{formatDate(new Date(record.paidAt))}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </Modal>
       )}
     </div>
   )
