@@ -9,7 +9,12 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'cuhgwiiehdwyircmanzk.supabase.co',
+        hostname: 'eowqcksukisenxevutam.supabase.co', // New Singapore database
+        pathname: '/storage/v1/object/public/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'cuhgwiiehdwyircmanzk.supabase.co', // Old Australia database (legacy)
         pathname: '/storage/v1/object/public/**',
       },
     ],
