@@ -113,6 +113,9 @@ model Booking {
   invoice            Invoice?
   printOrder         PrintOrder?
 
+  @@index([date])
+  @@index([status])
+  @@index([paymentStatus])
   @@map("bookings")
 }
 
@@ -166,6 +169,7 @@ model PrintOrder {
   updatedAt       DateTime    @updatedAt
   booking         Booking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
+  @@index([status])
   @@map("print_orders")
 }
 
