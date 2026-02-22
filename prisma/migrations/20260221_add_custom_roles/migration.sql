@@ -59,11 +59,11 @@ INSERT INTO "menus" ("id", "name", "label", "sortOrder") VALUES
 ('menu-settings', 'settings', 'Settings', 10);
 
 -- Insert default system roles (mapped from enum)
-INSERT INTO "custom_roles" ("id", "name", "description", "isSystem") VALUES
-('role-owner', 'Owner', 'Full system access', true),
-('role-admin', 'Admin', 'Administrative access', true),
-('role-photographer', 'Photographer', 'Photographer role', true),
-('role-packaging', 'Packaging Staff', 'Packaging and shipping', true);
+INSERT INTO "custom_roles" ("id", "name", "description", "isSystem", "createdAt", "updatedAt") VALUES
+('role-owner', 'Owner', 'Full system access', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+('role-admin', 'Admin', 'Administrative access', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+('role-photographer', 'Photographer', 'Photographer role', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+('role-packaging', 'Packaging Staff', 'Packaging and shipping', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
 -- Owner has full access to all menus
 INSERT INTO "role_permissions" ("id", "roleId", "menuId", "canView", "canEdit", "canDelete")
