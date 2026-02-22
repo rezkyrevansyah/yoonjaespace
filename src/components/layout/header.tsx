@@ -51,7 +51,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   })
 
   return (
-    <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm border-b border-[#E5E7EB] h-16">
+    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-[#E5E7EB] h-16">
       <div className="flex items-center justify-between h-full px-4 lg:px-6">
         {/* Left: Hamburger (Mobile) + Breadcrumb (Desktop) */}
         <div className="flex items-center gap-3">

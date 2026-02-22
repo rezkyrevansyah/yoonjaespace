@@ -10,18 +10,73 @@ import {
   Users, 
   Package, 
   Sparkles, 
-  Camera 
+  Camera,
+  Activity,
+  Copy,
+  FileText,
+  Trash2,
+  MessageCircle
 } from "lucide-react"
 import { Booking } from "@/lib/types"
+import { PermissionGate } from "@/components/shared/permission-gate"
+import Link from "next/link"
 
 interface OverviewTabProps {
-  booking: any; // Using any or specific type based on how it's passed from parent
+  booking: any;
   calculateDuration: (b: any) => number;
+  actions: any;
 }
 
-export function OverviewTab({ booking, calculateDuration }: OverviewTabProps) {
+export function OverviewTab({ booking, calculateDuration, actions }: OverviewTabProps) {
   return (
     <div className="space-y-6">
+      {/* Mobile Actions (Hidden on Desktop) */}
+      <div className="sm:hidden flex overflow-x-auto gap-2 pb-2 hide-scrollbar -mx-4 px-4">
+        <a
+          href={`/status/${booking.publicSlug}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1.5 px-3.5 py-2 bg-[#7A1F1F] text-white rounded-xl text-sm font-semibold hover:bg-[#601818] transition-all shadow-sm whitespace-nowrap shrink-0"
+        >
+          <Activity className="h-3.5 w-3.5" />
+          Customer Page
+        </a>
+        <button
+          onClick={actions.handleCopyCustomerLink}
+          className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-[#7A1F1F] text-[#7A1F1F] rounded-xl text-sm font-semibold hover:bg-[#7A1F1F]/5 transition-all shadow-sm whitespace-nowrap shrink-0"
+        >
+          <Copy className="h-3.5 w-3.5" />
+          Share Link
+        </button>
+        <a
+          href={`https://wa.me/${booking.client.phone.replace(/^0/, '62')}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50 transition-all whitespace-nowrap shrink-0"
+        >
+          <MessageCircle className="h-3.5 w-3.5" />
+          WA Client
+        </a>
+        <Link
+          href={`/invoice/${booking.id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50 transition-all whitespace-nowrap shrink-0"
+        >
+          <FileText className="h-3.5 w-3.5" />
+          Invoice
+        </Link>
+        <PermissionGate allowedRoles={["OWNER", "ADMIN"]}>
+          <button
+            onClick={() => actions.setDeleteModalOpen(true)}
+            className="p-2 shrink-0 rounded-xl border border-red-200 text-red-500 bg-red-50 hover:bg-red-100 transition-all"
+            title="Delete booking"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </PermissionGate>
+      </div>
+
       {/* ── TOP DETAILS CARD ── */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-6 py-5 border-b border-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-50/30">

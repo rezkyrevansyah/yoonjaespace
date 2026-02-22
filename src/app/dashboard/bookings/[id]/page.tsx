@@ -218,7 +218,7 @@ export default function BookingDetailPage() {
       </div>
 
       {/* Tab Navigation */}
-      <div className="mb-6 bg-white rounded-2xl border border-gray-100 p-2 shadow-sm sticky top-0 z-40">
+      <div className="mb-6 bg-white rounded-2xl border border-gray-100 p-2 shadow-sm sticky top-0 z-20">
         <div className="grid grid-cols-3 gap-1">
           <button
             onClick={() => setActiveTab("overview")}
@@ -293,7 +293,7 @@ export default function BookingDetailPage() {
       {/* ── TABS CONTENT ── */}
       <div className="space-y-6">
         <div className={cn(activeTab !== "overview" && "hidden")}>
-          <OverviewTab booking={booking} calculateDuration={calculateDuration} />
+          <OverviewTab booking={booking} calculateDuration={calculateDuration} actions={actions} />
         </div>
 
         <div className={cn(activeTab !== "progress" && "hidden")}>
