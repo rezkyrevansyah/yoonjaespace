@@ -19,7 +19,10 @@ import {
   MessageSquare,
   Sparkles,
   Upload,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Box,
+  Send,
+  Loader2
 } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import { useMobile } from "@/lib/hooks/use-mobile"
@@ -87,13 +90,13 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("general")
 
   // --- Hooks ---
-  const { settings, updateSettings, isSaving } = useSettings()
+  const { settings, updateSettings, isSaving, isLoading: isSettingsLoading } = useSettings()
   
-  const { packages, mutate: mutatePackages } = usePackages(false) // fetch all
-  const { backgrounds, mutate: mutateBackgrounds } = useBackgrounds(false)
-  const { addOnTemplates: addons, mutate: mutateAddons } = useAddOnTemplates(false)
-  const { vouchers, mutate: mutateVouchers } = useVouchers(false)
-  const { customFields, mutate: mutateCustomFields } = useCustomFields(false)
+  const { packages, mutate: mutatePackages, isLoading: isPackagesLoading } = usePackages(false) // fetch all
+  const { backgrounds, mutate: mutateBackgrounds, isLoading: isBackgroundsLoading } = useBackgrounds(false)
+  const { addOnTemplates: addons, mutate: mutateAddons, isLoading: isAddonsLoading } = useAddOnTemplates(false)
+  const { vouchers, mutate: mutateVouchers, isLoading: isVouchersLoading } = useVouchers(false)
+  const { customFields, mutate: mutateCustomFields, isLoading: isCustomFieldsLoading } = useCustomFields(false)
 
   // --- Modal States ---
   const [modalOpen, setModalOpen] = useState(false)
@@ -572,7 +575,12 @@ export default function SettingsPage() {
       {/* Content */}
       
       {/* General Tab */}
-      {activeTab === "general" && settings && (
+      {activeTab === "general" && isSettingsLoading && (
+         <div className="flex justify-center items-center py-12">
+            <Loader2 className="h-8 w-8 text-gray-400 animate-spin" />
+         </div>
+      )}
+      {activeTab === "general" && !isSettingsLoading && settings && (
         <div className="bg-white rounded-xl border border-[#E5E7EB] p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-[#111827] mb-6">Studio Information</h2>
 
@@ -1180,7 +1188,12 @@ export default function SettingsPage() {
       {activeTab === "studioinfo" && <StudioInfoTab />}
 
       {/* Packages Tab */}
-      {activeTab === "packages" && (
+      {activeTab === "packages" && isPackagesLoading && (
+         <div className="flex justify-center items-center py-12">
+            <Loader2 className="h-8 w-8 text-gray-400 animate-spin" />
+         </div>
+      )}
+      {activeTab === "packages" && !isPackagesLoading && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-[#111827]">Packages</h2>
@@ -1252,7 +1265,12 @@ export default function SettingsPage() {
       )}
       
       {/* Backgrounds Tab */}
-      {activeTab === "backgrounds" && (
+      {activeTab === "backgrounds" && isBackgroundsLoading && (
+         <div className="flex justify-center items-center py-12">
+            <Loader2 className="h-8 w-8 text-gray-400 animate-spin" />
+         </div>
+      )}
+      {activeTab === "backgrounds" && !isBackgroundsLoading && (
           <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-[#111827]">Backgrounds</h2>
@@ -1307,7 +1325,12 @@ export default function SettingsPage() {
       {/* Other Tabs (Addons, Vouchers, CustomFields) would follow similar pattern */}
       {/* For brevity, I will implement Addons and Vouchers in a minimal way to fit the context window, assuming standard list/edit */}
       
-      {activeTab === "addons" && (
+      {activeTab === "addons" && isAddonsLoading && (
+         <div className="flex justify-center items-center py-12">
+            <Loader2 className="h-8 w-8 text-gray-400 animate-spin" />
+         </div>
+      )}
+      {activeTab === "addons" && !isAddonsLoading && (
          <div className="space-y-4">
              <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-[#111827]">Add-ons</h2>
@@ -1347,7 +1370,12 @@ export default function SettingsPage() {
          </div>
       )}
 
-      {activeTab === "vouchers" && (
+      {activeTab === "vouchers" && isVouchersLoading && (
+         <div className="flex justify-center items-center py-12">
+            <Loader2 className="h-8 w-8 text-gray-400 animate-spin" />
+         </div>
+      )}
+      {activeTab === "vouchers" && !isVouchersLoading && (
           <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-[#111827]">Vouchers</h2>
@@ -1393,7 +1421,12 @@ export default function SettingsPage() {
           </div>
       )}
 
-      {activeTab === "customfields" && (
+      {activeTab === "customfields" && isCustomFieldsLoading && (
+         <div className="flex justify-center items-center py-12">
+            <Loader2 className="h-8 w-8 text-gray-400 animate-spin" />
+         </div>
+      )}
+      {activeTab === "customfields" && !isCustomFieldsLoading && (
           <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-[#111827]">Custom Fields</h2>

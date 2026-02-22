@@ -64,15 +64,15 @@ export async function GET(
       : null,
     studio: {
       name: settingsMap['studio_name'] || 'Yoonjaespace Studio',
-      address: settingsMap['address'] || '',
-      phone: settingsMap['phone_number'] || '',
-      whatsapp: settingsMap['whatsapp_number'] || '',
-      instagram: settingsMap['instagram'] || '',
+      address: settingsMap['studio_address'] || settingsMap['address'] || '',
+      phone: settingsMap['studio_phone'] || settingsMap['phone_number'] || '',
+      whatsapp: settingsMap['studio_phone'] || settingsMap['whatsapp_number'] || '',
+      instagram: settingsMap['studio_instagram'] || settingsMap['instagram'] || '',
       operatingHours: settingsMap['operating_hours'] || { open: '08:00', close: '20:00' },
-      logoUrl: settingsMap['logo_url'] || '',
-      mapsUrl: settingsMap['maps_url'] || '',
+      logoUrl: settingsMap['studio_logo_url'] || settingsMap['logo_url'] || '',
+      mapsUrl: settingsMap['studio_maps_url'] || settingsMap['maps_url'] || '',
       studioPhotoUrl: settingsMap['studio_photo_url'] || '',
-      footerText: settingsMap['footer_text'] || 'Thank you for choosing Yoonjaespace Studio!',
+      footerText: settingsMap['studio_footer_text'] || settingsMap['footer_text'] || 'Thank you for choosing Yoonjaespace Studio!',
     },
   })
 }

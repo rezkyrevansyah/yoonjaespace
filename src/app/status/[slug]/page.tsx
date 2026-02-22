@@ -422,7 +422,7 @@ export default function PublicStatusPage({ params }: { params: Promise<{ slug: s
                   Love your photos? Share your happiness with us! 💕
                 </p>
                 <Link
-                  href={`https://wa.me/${booking.studio.whatsapp?.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(`Thank you for choosing ${booking.studio.name}! We hope you love your photos! 💕`)}`}
+                  href={`https://wa.me/${booking.studio.whatsapp?.replace(/[^0-9]/g, "")}`}
                   target="_blank"
                   className="flex items-center justify-center w-full px-4 py-3 bg-gradient-to-r from-[#25D366] to-[#128C7E] text-white font-medium rounded-xl hover:from-[#20BA5A] hover:to-[#0F7A6B] transition-all shadow-sm"
                 >
@@ -596,7 +596,7 @@ export default function PublicStatusPage({ params }: { params: Promise<{ slug: s
             </p>
 
             <Link
-                href={`https://wa.me/${booking.studio.whatsapp?.replace(/[^0-9]/g, "")}?text=Halo%2C%20saya%20ingin%20booking%20lagi!`}
+                href={`https://wa.me/${booking.studio.whatsapp?.replace(/[^0-9]/g, "")}`}
                 className="flex items-center justify-center w-full px-4 py-3 bg-[#7A1F1F] text-white font-medium rounded-xl hover:bg-[#601818] transition-colors shadow-lg shadow-[#7A1F1F]/20"
             >
                 <MessageCircle className="w-4 h-4 mr-2" />
