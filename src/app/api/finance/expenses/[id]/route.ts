@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
+import { logActivity } from '@/lib/activities'
 
 // PATCH — Update expense
 export async function PATCH(
@@ -36,6 +37,13 @@ export async function PATCH(
     },
   })
 
+  await logActivity({
+    userId: user.id,
+    action: `Mengupdate pengeluaran`,
+    details: `${updated.description} - Rp ${updated.amount.toLocaleString('id-ID')}`,
+    type: 'UPDATE',
+  })
+
   return NextResponse.json(updated)
 }
 
@@ -58,7 +66,18 @@ export async function DELETE(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  const expenseToDelete = await prisma.expense.findUnique({ where: { id } })
+
   await prisma.expense.delete({ where: { id } })
+
+  if (expenseToDelete) {
+    await logActivity({
+      userId: user.id,
+      action: `Menghapus pengeluaran`,
+      details: `${expenseToDelete.description} - Rp ${expenseToDelete.amount.toLocaleString('id-ID')}`,
+      type: 'DELETE',
+    })
+  }
 
   return NextResponse.json({ success: true })
 }

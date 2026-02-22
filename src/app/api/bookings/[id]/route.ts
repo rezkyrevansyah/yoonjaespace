@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
+import { logActivity } from '@/lib/activities'
 
 // GET — Get single booking
 export async function GET(
@@ -157,6 +158,9 @@ export async function PATCH(
   const discount = discountAmount !== undefined ? discountAmount : existing.discountAmount
   const totalAmount = newPackagePrice + addOnsTotal - discount
 
+  // TODO: Auto-update payment status feature - requires Payment model migration
+  // Currently disabled for deployment
+
   // Update booking + log history in a transaction
   const updated = await prisma.$transaction(async (tx) => {
     // Update backgrounds jika ada
@@ -245,6 +249,13 @@ export async function PATCH(
     background: updated.bookingBackgrounds?.[0]?.background || null
   }
 
+  await logActivity({
+    userId: user.id,
+    action: `Mengupdate booking`,
+    details: `Booking ${updated.bookingCode} untuk ${updated.client.name} telah diperbarui`,
+    type: 'UPDATE',
+  })
+
   return NextResponse.json(responseData)
 }
 
@@ -267,7 +278,18 @@ export async function DELETE(
     return NextResponse.json({ error: 'Hanya Owner yang bisa menghapus booking' }, { status: 403 })
   }
 
+  const booking = await prisma.booking.findUnique({ where: { id } })
+
   await prisma.booking.delete({ where: { id } })
+
+  if (booking) {
+    await logActivity({
+      userId: user.id,
+      action: `Menghapus booking`,
+      details: `Booking ${booking.bookingCode} telah dihapus secara permanen`,
+      type: 'DELETE',
+    })
+  }
 
   return NextResponse.json({ success: true })
 }

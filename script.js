@@ -1,524 +1,30 @@
-"use client"
+const fs = require('fs');
+const file = fs.readFileSync('src/app/dashboard/bookings/[id]/page.tsx', 'utf8');
 
-import { useState, useMemo, useEffect } from "react"
-import Link from "next/link"
-import { useRouter, useParams, notFound } from "next/navigation"
-import {
-  ArrowLeft,
-  CalendarCheck,
-  Clock,
-  User,
-  Phone,
-  Mail,
-  Instagram,
-  MapPin,
-  FileText,
-  CreditCard,
-  Printer,
-  Edit,
-  Trash2,
-  CheckCircle,
-  AlertCircle,
-  AlertTriangle,
-  Activity,
-  MessageCircle,
-  Download,
-  Share2,
-  Copy,
-  MoreHorizontal,
-  Plus,
-  XCircle,
-  Link as LinkIcon,
-  Search,
-  RotateCcw,
-  RefreshCw,
-  Send,
-  Users,
-  Film,
-  ChevronDown,
-  ChevronRight,
-  Package,
-  Sparkles,
-  Camera,
-} from "lucide-react"
-import { formatCurrency, formatDate, cn } from "@/lib/utils"
-import { StatusBadge } from "@/components/shared/status-badge"
-import { PermissionGate } from "@/components/shared/permission-gate"
-import { Modal } from "@/components/shared/modal"
-import { useToast } from "@/lib/hooks/use-toast"
-import { useBooking } from "@/lib/hooks/use-bookings"
-import { useAddOnTemplates } from "@/lib/hooks/use-master-data"
-import { useAuth } from "@/lib/hooks/use-auth"
-import { apiPatch, apiDelete, apiPost } from "@/lib/api-client"
-import {
-    BookingStatus,
-    PaymentStatus,
-    Booking,
-    PrintOrder,
-    PrintOrderStatus,
-    AddOnTemplate
-} from "@/lib/types"
-
-
-const PRINT_STATUS_STEPS: { status: PrintOrderStatus; label: string }[] = [
-  { status: "WAITING_CLIENT_SELECTION", label: "Selection" },
-  { status: "SENT_TO_VENDOR", label: "Vendor" },
-  { status: "PRINTING_IN_PROGRESS", label: "Printing" },
-  { status: "PRINT_RECEIVED", label: "Received" },
-  { status: "PACKAGING", label: "Packing" },
-  { status: "SHIPPED", label: "Shipped" },
-  { status: "COMPLETED", label: "Done" },
-]
-
-const BOOKING_STEPS: BookingStatus[] = ["PAID", "SHOOT_DONE", "PHOTOS_DELIVERED", "CLOSED"]
-
-const STEP_LABELS: Record<BookingStatus, string> = {
-  BOOKED: "Booked", // Legacy status, shouldn't appear in new bookings
-  PAID: "Paid",
-  SHOOT_DONE: "Shot",
-  PHOTOS_DELIVERED: "Delivered",
-  CLOSED: "Closed",
-  CANCELLED: "Cancelled",
-}
-
-export default function BookingDetailPage() {
-  const router = useRouter()
-  const params = useParams()
-  const id = params?.id as string
-  const { showToast } = useToast()
-  const { user } = useAuth()
-
-  const { booking, isLoading, isError, mutate } = useBooking(id)
-  const { addOnTemplates } = useAddOnTemplates()
-
-  const [isUpdating, setIsUpdating] = useState(false)
-  const [updatingAction, setUpdatingAction] = useState<"PAID" | "UNPAID" | "PARTIALLY_PAID" | null>(null)
-  const [photoLinkValue, setPhotoLinkValue] = useState("")
-  const [selectedPhotosValue, setSelectedPhotosValue] = useState("")
-  const [selectedPrintStatus, setSelectedPrintStatus] = useState<PrintOrderStatus | "">("")
-  const [selectedBookingStatus, setSelectedBookingStatus] = useState<BookingStatus | "">("")
-
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
-  const [cancelModalOpen, setCancelModalOpen] = useState(false)
-  const [isAddOnModalOpen, setIsAddOnModalOpen] = useState(false)
-  const [selectedAddOnId, setSelectedAddOnId] = useState("")
-  const [addOnQty, setAddOnQty] = useState(1)
-  const [muaOverlapInfo, setMuaOverlapInfo] = useState<any>(null)
-  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
-
-  // Warning state for modifying PAID bookings
-  const [showPaidBookingWarning, setShowPaidBookingWarning] = useState(false)
-  const [pendingAddOnAction, setPendingAddOnAction] = useState<'add' | 'remove' | null>(null)
-  const [pendingRemoveIndex, setPendingRemoveIndex] = useState<number | null>(null)
-
-  // SESI 13: Tab navigation state
-  const [activeTab, setActiveTab] = useState<"overview" | "progress" | "pricing">("overview")
-
-  useEffect(() => {
-    if (booking) {
-      if (booking.photoLink) setPhotoLinkValue(booking.photoLink)
-      if (booking.printOrder?.selectedPhotos) setSelectedPhotosValue(booking.printOrder.selectedPhotos)
-
-      // Fetch MUA overlap info
-      fetch(`/api/bookings/${booking.id}/overlap`)
-        .then(res => res.json())
-        .then(data => setMuaOverlapInfo(data))
-        .catch(err => console.error('Failed to fetch overlap info:', err))
-    }
-  }, [booking])
-
-  if (isLoading) return (
-    <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3 text-gray-400">
-      <div className="w-8 h-8 rounded-full border-2 border-gray-200 border-t-[#7A1F1F] animate-spin" />
-      <p className="text-sm">Loading booking details...</p>
-    </div>
-  )
-  if (isError || !booking) return (
-    <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3 text-red-400">
-      <AlertCircle className="h-10 w-10 opacity-50" />
-      <p className="text-sm font-medium">Booking not found or failed to load.</p>
-    </div>
-  )
-
-  // Handlers
-  const handleUpdateStatus = async (newStatus: BookingStatus) => {
-    setIsUpdating(true)
-    try {
-        const res = await apiPatch(`/api/bookings/${id}/status`, { status: newStatus })
-        if (res.error) throw new Error(res.error)
-        mutate()
-        showToast(`Status updated to ${newStatus}`, "success")
-    } catch (error: any) {
-        showToast(error.message, "error")
-    } finally {
-        setIsUpdating(false)
-    }
-  }
-
-  const handleUpdatePayment = async (status: PaymentStatus) => {
-      setIsUpdating(true)
-      setUpdatingAction(status)
-      try {
-          const res = await apiPatch(`/api/bookings/${id}/status`, { paymentStatus: status })
-          if (res.error) throw new Error(res.error)
-          mutate()
-          showToast(`Payment status updated to ${status}`, "success")
-      } catch (error: any) {
-           showToast(error.message, "error")
-      } finally {
-          setIsUpdating(false)
-          setUpdatingAction(null)
-      }
-  }
-
-  const handleUpdatePrintOrder = async (data: Partial<PrintOrder>) => {
-      setIsUpdating(true)
-      try {
-          const res = await apiPatch(`/api/bookings/${id}/print-order`, data)
-          if (res.error) throw new Error(res.error)
-          mutate()
-          showToast("Print order updated", "success")
-      } catch (error: any) {
-          showToast(error.message, "error")
-      } finally {
-          setIsUpdating(false)
-      }
-  }
-
-  const handleUpdatePrintStatus = async (newStatus: PrintOrderStatus) => {
-      handleUpdatePrintOrder({ status: newStatus })
-  }
-
-  const handleDeletePrintOrder = async () => {
-      setIsUpdating(true)
-      try {
-          const res = await apiDelete(`/api/bookings/${id}/print-order`)
-          if (res.error) throw new Error(res.error)
-          mutate()
-          showToast("Print order cancelled successfully", "success")
-      } catch (error: any) {
-          showToast(error.message, "error")
-      } finally {
-          setIsUpdating(false)
-      }
-  }
-
-  const handleUpdatePhotoLink = async () => {
-       setIsUpdating(true)
-       try {
-           const res = await apiPatch(`/api/bookings/${id}/status`, { photoLink: photoLinkValue })
-           if (res.error) throw new Error(res.error)
-           mutate()
-           showToast("Photo link updated", "success")
-       } catch (error: any) {
-           showToast(error.message, "error")
-       } finally {
-        setIsUpdating(false)
-       }
-  }
-
-  const handleDelete = async () => {
-    try {
-        const res = await apiDelete(`/api/bookings/${id}`)
-        if (res.error) throw new Error(res.error)
-        showToast("Booking deleted", "success")
-        router.push("/dashboard/bookings")
-    } catch (error: any) {
-        showToast(error.message, "error")
-    }
-  }
-
-  const handleAddAddOn = async () => {
-       if (!selectedAddOnId) return
-
-       // Check if booking is PAID and show warning first
-       if (booking.paymentStatus === 'PAID' && !pendingAddOnAction) {
-           setShowPaidBookingWarning(true)
-           setPendingAddOnAction('add')
-           return
-       }
-
-       const template = addOnTemplates.find(t => t.id === selectedAddOnId)
-       if (!template) return
-       const newItem = { itemName: template.name, quantity: addOnQty, unitPrice: template.defaultPrice }
-       const currentAddOns = booking.addOns.map(ao => ({ itemName: ao.itemName, quantity: ao.quantity, unitPrice: ao.unitPrice }))
-       const newAddOnsList = [...currentAddOns, newItem]
-       try {
-           const res = await apiPatch(`/api/bookings/${id}`, { addOns: newAddOnsList })
-           if (res.error) throw new Error(res.error)
-           mutate()
-           showToast("Add-on added successfully", "success")
-           setIsAddOnModalOpen(false)
-           setSelectedAddOnId("")
-           setAddOnQty(1)
-           setPendingAddOnAction(null) // Reset warning state
-       } catch (error: any) {
-           showToast(error.message, "error")
-       }
-  }
-
-  const handleRemoveAddOn = async (index: number) => {
-       // Check if booking is PAID and show warning first
-       if (booking.paymentStatus === 'PAID' && pendingRemoveIndex === null) {
-           setShowPaidBookingWarning(true)
-           setPendingAddOnAction('remove')
-           setPendingRemoveIndex(index)
-           return
-       }
-
-       const currentAddOns = booking.addOns.map(ao => ({ itemName: ao.itemName, quantity: ao.quantity, unitPrice: ao.unitPrice }))
-       currentAddOns.splice(index, 1)
-       try {
-           const res = await apiPatch(`/api/bookings/${id}`, { addOns: currentAddOns })
-           if (res.error) throw new Error(res.error)
-           mutate()
-           showToast("Add-on removed successfully", "success")
-           setPendingAddOnAction(null) // Reset warning state
-           setPendingRemoveIndex(null)
-       } catch (error: any) {
-           showToast(error.message, "error")
-       }
-  }
-
-  // SESI 13: Copy customer page link to clipboard
-  const handleCopyCustomerLink = () => {
-    const customerPageUrl = `${window.location.origin}/status/${booking.publicSlug}`
-    navigator.clipboard.writeText(customerPageUrl)
-      .then(() => {
-        showToast("Link customer page berhasil disalin!", "success")
-      })
-      .catch(() => {
-        showToast("Gagal menyalin link", "error")
-      })
-  }
-
-    const calculateDuration = (b: any) => {
+const calculateDurationCode = `  const calculateDuration = (b: any) => {
     if (!b?.startTime || !b?.endTime) return 0;
     const start = new Date(b.startTime);
     const end = new Date(b.endTime);
     const diffMs = end.getTime() - start.getTime();
     return Math.round(diffMs / (1000 * 60));
-  }
+  }`;
 
-  const packagePrice = booking.packagePrice || booking.package?.price || 0
-  const addOnsTotal = booking.addOns?.reduce((sum, item) => sum + (item.subtotal || item.unitPrice * item.quantity), 0) || 0
-  const discount = booking.discountAmount || 0
-  const subtotal = packagePrice + addOnsTotal
+let newFile = file.replace('const packagePrice =', calculateDurationCode + '\n\n  const packagePrice =');
 
-  const currentStepIndex = BOOKING_STEPS.indexOf(booking.status)
-  const isCancelled = booking.status === "CANCELLED"
+const startMarker = '{/* ── MAIN GRID ── */}';
+const endMarkerTrue = '{/* ── MODALS ── */}';
 
-  // Helper: Get available status options based on current user role and booking status
-  const getAvailableStatusOptions = () => {
-    if (!user) return BOOKING_STEPS
+const startIndex = newFile.indexOf(startMarker);
+const endIndex = newFile.indexOf(endMarkerTrue);
 
-    const role = user.role
-    const currentStatus = booking.status
+if (startIndex === -1 || endIndex === -1) {
+  console.log("MARKER NOT FOUND", startIndex, endIndex);
+  process.exit(1);
+}
 
-    // OWNER and ADMIN can change to any status
-    if (role === 'OWNER' || role === 'ADMIN') {
-      return BOOKING_STEPS
-    }
-
-    // PHOTOGRAPHER restrictions
-    if (role === 'PHOTOGRAPHER') {
-      // Cannot change from PAID status
-      if (currentStatus === 'PAID') {
-        return [currentStatus] // Only show current status, cannot change
-      }
-      // Can only change to SHOOT_DONE or PHOTOS_DELIVERED
-      return BOOKING_STEPS.filter(s =>
-        s === currentStatus || s === 'SHOOT_DONE' || s === 'PHOTOS_DELIVERED'
-      )
-    }
-
-    // PACKAGING_STAFF can only change to PHOTOS_DELIVERED
-    if (role === 'PACKAGING_STAFF') {
-      return BOOKING_STEPS.filter(s =>
-        s === currentStatus || s === 'PHOTOS_DELIVERED'
-      )
-    }
-
-    // Default: only show current status
-    return [currentStatus]
-  }
-
-  const availableStatusOptions = getAvailableStatusOptions()
-  const canChangeStatus = availableStatusOptions.length > 1
-
-  return (
-    <div className="pb-24 lg:pb-10">
-
-      {/* ── HEADER ── */}
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-4">
-          <Link
-            href="/dashboard/bookings"
-            className="p-2 rounded-xl border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-          <nav className="flex items-center gap-1.5 text-sm text-gray-400">
-            <span>Bookings</span>
-            <ChevronRight className="h-3.5 w-3.5" />
-            <span className="text-gray-700 font-semibold font-mono">{booking.bookingCode}</span>
-          </nav>
-        </div>
-
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-black font-mono text-gray-900 tracking-tight leading-none">
-              {booking.bookingCode}
-            </h1>
-            <div className="flex items-center gap-2 mt-3">
-              <StatusBadge status={booking.status} type="booking" />
-              <StatusBadge status={booking.paymentStatus} type="payment" />
-            </div>
-          </div>
-
-          {/* Desktop Actions */}
-          <div className="hidden sm:flex items-center gap-2 shrink-0">
-            <a
-              href={`/status/${booking.publicSlug}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-[#7A1F1F] text-white rounded-xl text-sm font-semibold hover:bg-[#601818] transition-all shadow-sm"
-            >
-              <Activity className="h-3.5 w-3.5" />
-              Customer Page
-            </a>
-            {/* SESI 13: Share Customer Link Button */}
-            <button
-              onClick={handleCopyCustomerLink}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-[#7A1F1F] text-[#7A1F1F] rounded-xl text-sm font-semibold hover:bg-[#7A1F1F]/5 transition-all shadow-sm"
-              title="Copy customer page link to clipboard"
-            >
-              <Copy className="h-3.5 w-3.5" />
-              Share Link
-            </button>
-            <a
-              href={`https://wa.me/${booking.client.phone.replace(/^0/, '62')}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50 transition-all"
-            >
-              <MessageCircle className="h-3.5 w-3.5" />
-              WA Client
-            </a>
-            <Link
-              href={`/invoice/${booking.id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50 transition-all"
-            >
-              <FileText className="h-3.5 w-3.5" />
-              Invoice
-            </Link>
-            <PermissionGate allowedRoles={["OWNER", "ADMIN"]}>
-              <button
-                onClick={() => setDeleteModalOpen(true)}
-                className="p-2 rounded-xl border border-red-200 text-red-500 bg-red-50 hover:bg-red-100 transition-all"
-                title="Delete booking"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </PermissionGate>
-          </div>
-        </div>
-      </div>
-
-      {/* SESI 13: Tab Navigation */}
-      <div className="mb-6 bg-white rounded-2xl border border-gray-100 p-2 shadow-sm sticky top-0 z-40">
-        <div className="grid grid-cols-3 gap-1">
-          <button
-            onClick={() => setActiveTab("overview")}
-            className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-semibold transition-all ${
-              activeTab === "overview"
-                ? "bg-[#7A1F1F] text-white shadow-md"
-                : "text-gray-500 hover:bg-gray-50"
-            }`}
-          >
-            <User className="h-4 w-4" />
-            <span className="hidden sm:inline">Overview</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("progress")}
-            className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-semibold transition-all ${
-              activeTab === "progress"
-                ? "bg-[#7A1F1F] text-white shadow-md"
-                : "text-gray-500 hover:bg-gray-50"
-            }`}
-          >
-            <Activity className="h-4 w-4" />
-            <span className="hidden sm:inline">Progress</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("pricing")}
-            className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-semibold transition-all ${
-              activeTab === "pricing"
-                ? "bg-[#7A1F1F] text-white shadow-md"
-                : "text-gray-500 hover:bg-gray-50"
-            }`}
-          >
-            <CreditCard className="h-4 w-4" />
-            <span className="hidden sm:inline">Pricing</span>
-          </button>
-        </div>
-      </div>
-
-      {/* ── MUA OVERLAP ALERT ── */}
-      {muaOverlapInfo?.hasOverlap && (
-        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg mb-6">
-          <div className="flex items-start gap-3">
-            <div className="flex-shrink-0">
-              <AlertCircle className="h-5 w-5 text-yellow-600" />
-            </div>
-            <div className="flex-1">
-              <h3 className="text-sm font-semibold text-yellow-800 mb-2">
-                ⚠️ Tumpang Tindih Jadwal MUA Terdeteksi
-              </h3>
-              <div className="text-sm text-yellow-700 space-y-2">
-                {muaOverlapInfo.muaOverlapsMySession?.length > 0 && (
-                  <div>
-                    <p className="font-medium mb-1">Booking lain dengan MUA bertabrakan dengan sesi ini:</p>
-                    <ul className="list-disc list-inside ml-2 space-y-1">
-                      {muaOverlapInfo.muaOverlapsMySession.map((overlap: any) => (
-                        <li key={overlap.id}>
-                          <strong>{overlap.bookingCode}</strong> ({overlap.clientName}) - MUA: {formatDate(overlap.muaStartTime, 'HH:mm')} - {formatDate(overlap.sessionStartTime, 'HH:mm')}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {muaOverlapInfo.myMuaOverlapsSessions?.length > 0 && (
-                  <div>
-                    <p className="font-medium mb-1">MUA booking ini bertabrakan dengan sesi booking lain:</p>
-                    <ul className="list-disc list-inside ml-2 space-y-1">
-                      {muaOverlapInfo.myMuaOverlapsSessions.map((overlap: any) => (
-                        <li key={overlap.id}>
-                          <strong>{overlap.bookingCode}</strong> ({overlap.clientName}) - Sesi: {formatDate(overlap.sessionStartTime, 'HH:mm')} - {formatDate(overlap.sessionEndTime, 'HH:mm')}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                <p className="text-xs italic mt-3 text-yellow-600">
-                  💡 Space 2 (makeup area) dan Space 1 (studio) terpisah, jadi overlap ini diperbolehkan.
-                  Pastikan untuk mengkomunikasikan jadwal dengan client agar tidak ada kebingungan.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── TABS CONTENT ── */}
-      <div className="space-y-6">
-        {/* OVERVIEW TAB */}
-        <div className={cn("space-y-6", activeTab !== "overview" && "hidden")}>
-          {/* ── TOP DETAILS CARD ── */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-6 py-5 border-b border-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-50/30">
+const replacement = `{/* ── TOP DETAILS CARD (Issue 3) ── */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-8">
+        <div className="px-6 py-5 border-b border-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-50/30">
           <div>
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Client</p>
             <div className="flex items-center gap-3">
@@ -526,7 +32,7 @@ export default function BookingDetailPage() {
             </div>
             <div className="flex flex-wrap gap-4 mt-3">
               <a
-                href={`https://wa.me/${booking.client.phone.replace(/^0/, '62')}`}
+                href={\`https://wa.me/\${booking.client.phone.replace(/^0/, '62')}\`}
                 target="_blank"
                 className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:text-green-600 transition-colors"
                 rel="noreferrer"
@@ -536,7 +42,7 @@ export default function BookingDetailPage() {
               </a>
               {booking.client.email && (
                 <a
-                  href={`mailto:${booking.client.email}`}
+                  href={\`mailto:\${booking.client.email}\`}
                   className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:text-blue-600 transition-colors"
                 >
                   <Mail className="h-3.5 w-3.5" />
@@ -545,7 +51,7 @@ export default function BookingDetailPage() {
               )}
               {booking.client.instagram && (
                 <a
-                  href={`https://instagram.com/${booking.client.instagram.replace('@', '')}`}
+                  href={\`https://instagram.com/\${booking.client.instagram.replace('@', '')}\`}
                   target="_blank"
                   className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:text-pink-600 transition-colors"
                   rel="noreferrer"
@@ -665,9 +171,13 @@ export default function BookingDetailPage() {
                 )}
              </div>
           </div>
-            </div>
-          </div>
+        </div>
+      </div>
 
+      {/* ── TABS CONTENT (Issue 4) ── */}
+      <div className="space-y-6">
+        {/* OVERVIEW TAB */}
+        <div className={cn("space-y-6", activeTab !== "overview" && "hidden")}>
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 overflow-hidden">
             <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide mb-5 flex items-center gap-2">
               <User className="h-4 w-4 text-[#7A1F1F]" /> Informasi Tambahan
@@ -708,7 +218,7 @@ export default function BookingDetailPage() {
         </div>
 
         {/* PROGRESS TAB */}
-        <div className={cn("grid grid-cols-1 lg:grid-cols-2 gap-6 items-start max-w-7xl mx-auto", activeTab !== "progress" && "hidden")}>
+        <div className={cn("grid grid-cols-1 lg:grid-cols-2 gap-6 items-start", activeTab !== "progress" && "hidden")}>
           {/* Status & Action */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden border-t-4 border-t-amber-500">
             <div className="px-5 pt-5 pb-4 border-b border-gray-50 flex items-center gap-2">
@@ -735,22 +245,22 @@ export default function BookingDetailPage() {
                     const color = stepColors[index]
                     return (
                       <div key={step} className="flex flex-col items-center gap-2">
-                        <div className={`w-10 h-10 rounded-xl border-2 flex items-center justify-center transition-all ${
+                        <div className={\`w-10 h-10 rounded-xl border-2 flex items-center justify-center transition-all \${
                           isCompleted
-                            ? `${color.bg} ${color.border}`
+                            ? \`\${color.bg} \${color.border}\`
                             : isCurrent
-                            ? `bg-white ${color.border} ring-4 ${color.ring}`
+                            ? \`bg-white \${color.border} ring-4 \${color.ring}\`
                             : "bg-white border-gray-200"
-                        }`}>
+                        }\`}>
                           {isCompleted ? (
                             <CheckCircle className="h-4 w-4 text-white" />
                           ) : (
-                            <span className={`text-xs font-black ${isCurrent ? color.text : "text-gray-300"}`}>{index + 1}</span>
+                            <span className={\`text-xs font-black \${isCurrent ? color.text : "text-gray-300"}\`}>{index + 1}</span>
                           )}
                         </div>
-                        <span className={`text-[10px] font-bold leading-none text-center ${
+                        <span className={\`text-[10px] font-bold leading-none text-center \${
                           isCurrent ? color.text : isCompleted ? "text-gray-600" : "text-gray-300"
-                        }`}>
+                        }\`}>
                           {STEP_LABELS[step]}
                         </span>
                       </div>
@@ -828,7 +338,7 @@ export default function BookingDetailPage() {
                     )}
                     {booking.status !== "SHOOT_DONE" && photoLinkValue && (
                        <a
-                          href={photoLinkValue.startsWith('http') ? photoLinkValue : `https://${photoLinkValue}`}
+                          href={photoLinkValue.startsWith('http') ? photoLinkValue : \`https://\${photoLinkValue}\`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="px-3 py-2 bg-blue-50 text-blue-600 border border-blue-100 rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center"
@@ -927,22 +437,22 @@ export default function BookingDetailPage() {
                       const color = printColors[idx]
                       return (
                         <div key={idx} className="flex flex-col items-center gap-1.5">
-                          <div className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center transition-all ${
+                          <div className={\`w-8 h-8 rounded-lg border-2 flex items-center justify-center transition-all \${
                             isCompleted
-                              ? `${color.bg} ${color.border}`
+                              ? \`\${color.bg} \${color.border}\`
                               : isCurrent
-                              ? `bg-white ${color.border} ring-4 ${color.ring}`
+                              ? \`bg-white \${color.border} ring-4 \${color.ring}\`
                               : "bg-white border-gray-200"
-                          }`}>
+                          }\`}>
                             {isCompleted ? (
                               <CheckCircle className="h-3.5 w-3.5 text-white" />
                             ) : (
-                              <span className={`text-[10px] font-black ${isCurrent ? color.text : "text-gray-300"}`}>{idx + 1}</span>
+                              <span className={\`text-[10px] font-black \${isCurrent ? color.text : "text-gray-300"}\`}>{idx + 1}</span>
                             )}
                           </div>
-                          <span className={`text-[9px] font-bold uppercase tracking-wide leading-none text-center ${
+                          <span className={\`text-[9px] font-bold uppercase tracking-wide leading-none text-center \${
                             isCurrent ? color.text : isCompleted ? "text-gray-600" : "text-gray-300"
-                          }`}>
+                          }\`}>
                             {step.label}
                           </span>
                         </div>
@@ -1016,7 +526,7 @@ export default function BookingDetailPage() {
         </div>
 
         {/* PRICING TAB */}
-        <div className={cn("grid grid-cols-1 lg:grid-cols-2 gap-6 items-start max-w-7xl mx-auto", activeTab !== "pricing" && "hidden")}>
+        <div className={cn("grid grid-cols-1 lg:grid-cols-2 gap-6 items-start", activeTab !== "pricing" && "hidden")}>
            {/* Add-ons Management */}
            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden h-fit border-t-4 border-t-purple-500">
               <div className="px-5 pt-5 pb-4 border-b border-gray-50 flex items-center justify-between">
@@ -1140,99 +650,9 @@ export default function BookingDetailPage() {
 
       </div>
 
-      {/* ── MODALS ── */}
-      <Modal
-        isOpen={deleteModalOpen}
-        onClose={() => setDeleteModalOpen(false)}
-        title="Delete Booking"
-        description="Are you sure you want to delete this booking? This action cannot be undone."
-        confirmLabel="Delete"
-        variant="danger"
-        onConfirm={handleDelete}
-      />
+      <div className="hidden">`;
 
-      <Modal
-        isOpen={cancelModalOpen}
-        onClose={() => setCancelModalOpen(false)}
-        title="Cancel Print Order?"
-        description="This will permanently delete the print order tracking data. Are you sure?"
-        confirmLabel="Yes, Cancel"
-        variant="danger"
-        onConfirm={() => { handleDeletePrintOrder(); setCancelModalOpen(false) }}
-      />
+newFile = newFile.substring(0, startIndex) + replacement + newFile.substring(endIndex);
 
-      <Modal
-        isOpen={isAddOnModalOpen}
-        onClose={() => setIsAddOnModalOpen(false)}
-        title="Add Add-on Item"
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Select Item</label>
-            <select
-              value={selectedAddOnId}
-              onChange={(e) => setSelectedAddOnId(e.target.value)}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#7A1F1F] focus:ring-1 focus:ring-[#7A1F1F]/20"
-            >
-              <option value="">— Choose item —</option>
-              {addOnTemplates?.map((t: AddOnTemplate) => (
-                <option key={t.id} value={t.id}>{t.name} · {formatCurrency(t.defaultPrice)}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Quantity</label>
-            <input
-              type="number"
-              min="1"
-              value={addOnQty}
-              onChange={(e) => setAddOnQty(parseInt(e.target.value))}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#7A1F1F] focus:ring-1 focus:ring-[#7A1F1F]/20"
-            />
-          </div>
-          <div className="flex gap-2 pt-1">
-            <button onClick={() => setIsAddOnModalOpen(false)} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
-            <button onClick={handleAddAddOn} className="flex-1 py-2.5 bg-[#7A1F1F] text-white rounded-xl text-sm font-bold hover:bg-[#601818] transition-colors shadow-sm">Add Item</button>
-          </div>
-        </div>
-      </Modal>
-
-      <Modal
-        isOpen={showPaidBookingWarning}
-        onClose={() => {
-          setShowPaidBookingWarning(false)
-          setPendingAddOnAction(null)
-          setPendingRemoveIndex(null)
-        }}
-        title="Modify PAID Booking?"
-        confirmLabel="Continue"
-        onConfirm={() => {
-          setShowPaidBookingWarning(false)
-          if (pendingAddOnAction === 'add') {
-            handleAddAddOn()
-          } else if (pendingAddOnAction === 'remove' && pendingRemoveIndex !== null) {
-            handleRemoveAddOn(pendingRemoveIndex)
-          }
-        }}
-      >
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0" />
-            <p className="text-sm text-yellow-800">
-              This booking is currently marked as <span className="font-bold">PAID</span>.
-            </p>
-          </div>
-          <p className="text-sm text-gray-700">
-            {pendingAddOnAction === 'add'
-              ? 'Adding this add-on will increase the total amount and automatically change the payment status to PARTIALLY PAID.'
-              : 'Removing this add-on will decrease the total amount and may change the payment status.'}
-          </p>
-          <p className="text-xs text-gray-500">
-            The payment status will be automatically recalculated based on existing payment records.
-          </p>
-        </div>
-      </Modal>
-
-    </div>
-  )
-}
+fs.writeFileSync('src/app/dashboard/bookings/[id]/page.tsx', newFile);
+console.log("DONE!");

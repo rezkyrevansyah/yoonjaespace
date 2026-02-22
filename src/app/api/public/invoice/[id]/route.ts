@@ -22,6 +22,11 @@ export async function GET(
       return NextResponse.json({ error: 'Invoice tidak ditemukan' }, { status: 404 })
     }
 
+    // TODO: Payment tracking feature - requires Payment model
+    // For now, use simple paid/unpaid from booking status
+    const totalPaid = booking.paymentStatus === 'PAID' ? booking.totalAmount : 0
+    const outstandingBalance = booking.totalAmount - totalPaid
+
     // Get studio settings
     const settings = await prisma.studioSetting.findMany()
     const settingsMap: Record<string, string> = {}
@@ -32,14 +37,16 @@ export async function GET(
     return NextResponse.json({
       booking: {
         ...booking,
-        paidAmount: booking.paymentStatus === 'PAID' ? booking.totalAmount : 0,
+        paidAmount: totalPaid,
+        outstandingBalance,
       },
       studio: {
-        name: settingsMap['studio_name'] || 'Yoonjaespace',
-        address: settingsMap['studio_address'] || '',
-        phone: settingsMap['studio_phone'] || '',
-        instagram: settingsMap['studio_instagram'] || '',
-        logoUrl: settingsMap['studio_logo_url'] || '',
+        name: settingsMap['studio_name'] || 'Yoonjaespace Studio',
+        address: settingsMap['address'] || '',
+        phone: settingsMap['phone_number'] || settingsMap['whatsapp_number'] || '',
+        instagram: settingsMap['instagram'] || '',
+        logoUrl: settingsMap['logo_url'] || '',
+        footerText: settingsMap['footer_text'] || 'Thank you for choosing Yoonjaespace Studio!',
       },
     })
   } catch (error: any) {

@@ -13,7 +13,7 @@ export type BookingStatus =
   | "CLOSED"
   | "CANCELLED"
 
-export type PaymentStatus = "PAID" | "UNPAID"
+export type PaymentStatus = "PAID" | "PARTIALLY_PAID" | "UNPAID"
 
 export type UserRole = "OWNER" | "ADMIN" | "PHOTOGRAPHER" | "PACKAGING_STAFF"
 
@@ -75,6 +75,7 @@ export interface Package {
   isActive: boolean
   extraTimeBefore: number // Extra time before session in minutes (for MUA, prep, etc)
   category: PackageCategory // SESI 11
+  variants?: PackageVariant[] // SESI 15
 }
 
 export interface Background {
@@ -117,6 +118,17 @@ export interface BookingAddOn {
   subtotal: number
 }
 
+export interface Payment {
+  id: string
+  bookingId: string
+  amount: number
+  paidAt: string
+  description?: string
+  paymentType: string
+  notes?: string
+  createdAt: string
+}
+
 export interface Booking {
   id: string
   bookingCode: string
@@ -129,6 +141,7 @@ export interface Booking {
   muaStartTime: string | null // MUA start time (1 hour before session if MUA add-on exists)
   backgroundId: string
   background: Background | null
+  bookingBackgrounds?: any[]
   packageId: string
   package: Package
   numberOfPeople: number
@@ -141,6 +154,7 @@ export interface Booking {
   discountNote: string | null
   totalAmount: number
   paidAmount: number
+  outstandingBalance?: number
   notes: string | null
   internalNotes: string | null
   driveLink: string | null // or photoLink?
@@ -148,9 +162,23 @@ export interface Booking {
   handledById: string | null
   handledBy: StaffUser | null
   addOns: BookingAddOn[]
+  payments?: Payment[]
   printOrder: PrintOrder | null
   customFields: { id: string, fieldId: string, value: string, field?: CustomField }[]
   remindedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Vendor {
+  id: string
+  name: string
+  category: string
+  phone?: string | null
+  email?: string | null
+  address?: string | null
+  notes?: string | null
+  isActive: boolean
   createdAt: string
   updatedAt: string
 }
@@ -164,6 +192,20 @@ export interface Expense {
   createdBy: StaffUser
   receipt: string | null
   notes?: string | null
+  isPaid: boolean
+  vendorId?: string | null
+  vendor?: Vendor | null
+}
+
+export interface PackageVariant {
+  id: string
+  packageId: string
+  name: string
+  description?: string | null
+  priceAddon: number
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
 }
 
 export interface Commission {
@@ -255,7 +297,7 @@ export interface ActivityLog {
   userName: string
   userRole: UserRole
   action: string
-  details: string
+  details: string | null
   timestamp: string // ISO string
   type: "CREATE" | "UPDATE" | "DELETE" | "SYSTEM"
 }

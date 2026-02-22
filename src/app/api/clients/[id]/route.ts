@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
+import { logActivity } from '@/lib/activities'
 
 // GET — Get single client with booking history
 export async function GET(
@@ -96,6 +97,13 @@ export async function PATCH(
     },
   })
 
+  await logActivity({
+    userId: user.id,
+    action: `Mengupdate data client`,
+    details: `Data client ${updated.name} (${updated.phone}) telah diperbarui`,
+    type: 'UPDATE',
+  })
+
   return NextResponse.json(updated)
 }
 
@@ -130,7 +138,18 @@ export async function DELETE(
     )
   }
 
+  const clientToDelete = await prisma.client.findUnique({ where: { id } })
+
   await prisma.client.delete({ where: { id } })
+
+  if (clientToDelete) {
+    await logActivity({
+      userId: user.id,
+      action: `Menghapus client`,
+      details: `Client ${clientToDelete.name} (${clientToDelete.phone}) telah dihapus`,
+      type: 'DELETE',
+    })
+  }
 
   return NextResponse.json({ success: true })
 }

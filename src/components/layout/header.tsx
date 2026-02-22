@@ -42,10 +42,13 @@ export function Header({ onMenuClick }: HeaderProps) {
   }
 
   // Get today's activities (already limited to 5 by hook params for dropdown)
-  const today = new Date().toISOString().split("T")[0]
-  const todaysActivities = activities.filter(
-    (activity) => activity.timestamp.toString().startsWith(today)
-  )
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const todaysActivities = activities.filter((activity) => {
+    const activityDate = new Date(activity.timestamp)
+    activityDate.setHours(0, 0, 0, 0)
+    return activityDate.getTime() === today.getTime()
+  })
 
   return (
     <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm border-b border-[#E5E7EB] h-16">

@@ -373,7 +373,10 @@ export default function NewBookingPage() {
             clientName: clientForm.name,
             clientPhone: clientForm.phone,
             clientEmail: clientForm.email,
-
+            clientInstagram: clientForm.instagram,
+            clientAddress: clientForm.address,
+            clientDomisili: clientForm.domisili,
+            clientLeads: clientForm.leads,
             date: sessionDate, // YYYY-MM-DD
             startTime: startDateTime.toISOString(),
             endTime: endDateTime.toISOString(),
@@ -759,7 +762,18 @@ export default function NewBookingPage() {
               <input
                 type="date"
                 value={sessionDate}
-                onChange={(e) => setSessionDate(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value
+                  setSessionDate(val)
+                  if (val && settings?.dayOff) {
+                    const date = new Date(val)
+                    const dayName = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"][date.getDay()]
+                    const offDays = Array.isArray(settings.dayOff) ? settings.dayOff : []
+                    if (offDays.includes(dayName)) {
+                      showToast(`Peringatan: ${dayName} adalah hari libur studio.`, "warning")
+                    }
+                  }
+                }}
                 className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all"
               />
               {isDayOff && (

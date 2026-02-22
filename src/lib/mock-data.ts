@@ -710,7 +710,7 @@ export const mockBookings: Booking[] = [
 // Expenses
 // ============================================================
 
-export const mockExpenses: Expense[] = [
+export const mockExpenses: any[] = [
   {
     id: "exp-001",
     description: "Listrik studio bulan Februari",

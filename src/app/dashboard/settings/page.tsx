@@ -36,11 +36,14 @@ import {
 } from "@/lib/hooks/use-master-data"
 import { apiPost, apiPatch, apiDelete } from "@/lib/api-client"
 import { TEMPLATE_VARIABLES, validateTemplate, parseReminderTemplate } from "@/lib/utils/reminder-template"
+import { StudioInfoForm } from "@/components/settings/studio-info-form"
+import { useStudioSettings } from "@/lib/hooks/use-studio-settings"
 
-type SettingsTab = "general" | "packages" | "backgrounds" | "addons" | "vouchers" | "customfields"
+type SettingsTab = "general" | "studioinfo" | "packages" | "backgrounds" | "addons" | "vouchers" | "customfields"
 
 const TABS: { key: SettingsTab; label: string; icon: React.ElementType }[] = [
   { key: "general", label: "General", icon: Info },
+  { key: "studioinfo", label: "Studio Info", icon: ImageIcon },
   { key: "packages", label: "Packages", icon: Camera },
   { key: "backgrounds", label: "Backgrounds", icon: Palette },
   { key: "addons", label: "Add-ons", icon: Puzzle },
@@ -57,6 +60,26 @@ const FIELD_TYPES = [
   { value: "NUMBER", label: "Number" },
   { value: "URL", label: "URL/Link" }
 ]
+
+// Studio Info Tab Component
+function StudioInfoTab() {
+  const { settings, mutate } = useStudioSettings()
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-[#111827]">Studio Information</h2>
+          <p className="text-sm text-[#6B7280] mt-1">
+            Manage studio branding, contact info, and customer-facing content
+          </p>
+        </div>
+      </div>
+
+      <StudioInfoForm initialData={settings} onSave={() => mutate()} />
+    </div>
+  )
+}
 
 export default function SettingsPage() {
   const isMobile = useMobile()
@@ -318,7 +341,7 @@ export default function SettingsPage() {
   
   // Packages
   const handleSavePackage = () => {
-    if (!packageForm.name || !packageForm.price || !packageForm.duration || !packageForm.editedPhotos) {
+    if (!packageForm.name || !packageForm.price || !packageForm.duration) {
       showToast("Mohon lengkapi field yang wajib", "warning")
       return
     }
@@ -326,7 +349,8 @@ export default function SettingsPage() {
     const payload = {
         ...packageForm,
         isActive: packageForm.isActive !== undefined ? packageForm.isActive : true,
-        allPhotos: packageForm.allPhotos || false
+        allPhotos: packageForm.allPhotos || false,
+        editedPhotos: packageForm.editedPhotos || 0 // Set default value
     }
 
     if (editingItem) {
@@ -1152,6 +1176,9 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* Studio Info Tab */}
+      {activeTab === "studioinfo" && <StudioInfoTab />}
+
       {/* Packages Tab */}
       {activeTab === "packages" && (
         <div className="space-y-4">
@@ -1192,7 +1219,6 @@ export default function SettingsPage() {
                       <th className="text-left py-3 px-4 font-medium text-[#6B7280]">Name</th>
                       <th className="text-left py-3 px-4 font-medium text-[#6B7280]">Price</th>
                       <th className="text-left py-3 px-4 font-medium text-[#6B7280]">Duration</th>
-                      <th className="text-left py-3 px-4 font-medium text-[#6B7280]">Edited Photos</th>
                       <th className="text-center py-3 px-4 font-medium text-[#6B7280]">Active</th>
                       <th className="text-center py-3 px-4 font-medium text-[#6B7280]">Actions</th>
                     </tr>
@@ -1206,7 +1232,6 @@ export default function SettingsPage() {
                         </td>
                         <td className="py-3 px-4 font-medium text-[#111827]">{formatCurrency(pkg.price)}</td>
                         <td className="py-3 px-4 text-[#6B7280]">{pkg.duration} menit</td>
-                        <td className="py-3 px-4 text-[#6B7280]">{pkg.editedPhotos} foto</td>
                         <td className="py-3 px-4 text-center">
                            {pkg.isActive ? <Check className="h-4 w-4 text-green-500 mx-auto" /> : <X className="h-4 w-4 text-gray-400 mx-auto" />}
                         </td>
@@ -1480,28 +1505,16 @@ export default function SettingsPage() {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Edited Photos <span className="text-red-500">*</span></label>
+                        <div>
+                          <label className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
                             <input
-                              type="number"
-                              placeholder="10"
-                              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#7A1F1F] focus:border-transparent transition-all"
-                              value={packageForm.editedPhotos || ""}
-                              onChange={e => setPackageForm({...packageForm, editedPhotos: parseInt(e.target.value)})}
+                              type="checkbox"
+                              className="w-4 h-4 text-[#7A1F1F] border-gray-300 rounded focus:ring-[#7A1F1F]"
+                              checked={packageForm.allPhotos || false}
+                              onChange={e => setPackageForm({...packageForm, allPhotos: e.target.checked})}
                             />
-                          </div>
-                          <div className="flex items-end">
-                            <label className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors w-full">
-                              <input
-                                type="checkbox"
-                                className="w-4 h-4 text-[#7A1F1F] border-gray-300 rounded focus:ring-[#7A1F1F]"
-                                checked={packageForm.allPhotos || false}
-                                onChange={e => setPackageForm({...packageForm, allPhotos: e.target.checked})}
-                              />
-                              <span className="text-sm text-gray-700">Include all photos</span>
-                            </label>
-                          </div>
+                            <span className="text-sm text-gray-700">Include all photos</span>
+                          </label>
                         </div>
 
                         {/* Extra Time Before Session */}

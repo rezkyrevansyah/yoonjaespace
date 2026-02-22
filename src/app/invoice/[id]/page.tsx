@@ -4,35 +4,15 @@ import { useState, useEffect } from "react"
 import { useParams, notFound } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
-import Script from "next/script"
-import { ArrowLeft, Printer, Download, Loader2, Copy, Check } from "lucide-react"
+import { ArrowLeft, Download, Copy, Check, Share2 } from "lucide-react"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { useToast } from "@/lib/hooks/use-toast"
 import { PAYMENT_STATUS_MAP } from "@/lib/constants"
-
-interface JsPDF {
-  internal: { pageSize: { getWidth: () => number; getHeight: () => number } }
-  addImage: (data: string, format: string, x: number, y: number, w: number, h: number) => void
-  addPage: () => void
-  save: (filename: string) => void
-  getImageProperties: (data: string) => { width: number; height: number }
-}
-
-declare global {
-  interface Window {
-    html2canvas: (element: HTMLElement, options?: Record<string, unknown>) => Promise<HTMLCanvasElement>
-    jspdf: {
-      jsPDF: new (options?: Record<string, unknown>) => JsPDF
-    }
-  }
-}
 
 export default function InvoicePage() {
   const params = useParams()
   const id = params?.id as string
   const { showToast } = useToast()
-  const [isDownloading, setIsDownloading] = useState(false)
-  const [scriptsLoaded, setScriptsLoaded] = useState({ html2canvas: false, jspdf: false })
   const [copied, setCopied] = useState(false)
   const [booking, setBooking] = useState<any>(null)
   const [studio, setStudio] = useState<any>(null)
@@ -67,7 +47,7 @@ export default function InvoicePage() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        <div className="animate-spin h-8 w-8 border-4 border-gray-300 border-t-[#7A1F1F] rounded-full"></div>
       </div>
     )
   }
@@ -111,161 +91,63 @@ export default function InvoicePage() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const handleDownload = async () => {
-    if (!scriptsLoaded.html2canvas || !scriptsLoaded.jspdf) {
-        showToast("PDF libraries are still loading. Please try again in a moment.", "warning")
-        return
+  const handleWhatsAppShare = () => {
+    const url = window.location.href
+    const message = encodeURIComponent(
+      `Halo ${booking.client.name}!\n\nBerikut adalah invoice untuk booking Anda:\n\nInvoice: ${invoiceNumber}\nBooking: ${booking.bookingCode}\nTotal: ${formatCurrency(booking.totalAmount)}\n\nLihat detail invoice: ${url}\n\nTerima kasih!`
+    )
+    // Clean phone number - remove spaces, dashes, and format to international
+    let phoneNumber = booking.client.phone.replace(/[\s\-\(\)]/g, '')
+    // If starts with 0, replace with 62 (Indonesia country code)
+    if (phoneNumber.startsWith('0')) {
+      phoneNumber = '62' + phoneNumber.substring(1)
+    }
+    // If doesn't start with +, add it
+    if (!phoneNumber.startsWith('+')) {
+      phoneNumber = '+' + phoneNumber
     }
 
-    setIsDownloading(true)
-    try {
-        const element = document.getElementById("invoice-content")
-        if (!element) {
-            showToast("Invoice content not found", "error")
-            setIsDownloading(false)
-            return
-        }
-
-        console.log("Starting PDF generation...")
-
-        const canvas = await window.html2canvas(element, {
-            scale: 2,
-            useCORS: true,
-            allowTaint: true,
-            logging: true,
-            backgroundColor: "#ffffff", // Force white background
-            windowWidth: element.scrollWidth,
-            windowHeight: element.scrollHeight,
-            onclone: (clonedDoc: Document) => {
-                const clonedElement = clonedDoc.getElementById("invoice-content")
-                if (clonedElement) {
-                    // Force legacy colors and remove problematic CSS variables if any
-                    // We need to be aggressive here because html2canvas fails on ANY usage of lab()/oklch()
-                    
-                    for (const el of Array.from(clonedElement.getElementsByTagName("*"))) {
-                        const targetEl = el as HTMLElement
-                        const style = window.getComputedStyle(targetEl)
-                        
-                        // Handle Background Color
-                        if (style.backgroundColor && (style.backgroundColor.includes("oklch") || style.backgroundColor.includes("lab"))) {
-                            // Reset to safe defaults based on common patterns
-                            if (targetEl.classList.contains("bg-white")) targetEl.style.backgroundColor = "#ffffff"
-                            else if (targetEl.classList.contains("bg-gray-100")) targetEl.style.backgroundColor = "#f3f4f6"
-                            else if (targetEl.classList.contains("bg-[#7A1F1F]")) targetEl.style.backgroundColor = "#7A1F1F"
-                            else if (targetEl.classList.contains("bg-[#F5ECEC]")) targetEl.style.backgroundColor = "#F5ECEC"
-                            else targetEl.style.backgroundColor = "#ffffff" // Default fallback
-                        }
-
-                        // Handle Text Color
-                        if (style.color && (style.color.includes("oklch") || style.color.includes("lab"))) {
-                             if (targetEl.classList.contains("text-white")) targetEl.style.color = "#ffffff"
-                             else if (targetEl.classList.contains("text-[#7A1F1F]")) targetEl.style.color = "#7A1F1F"
-                             else if (targetEl.classList.contains("text-gray-900")) targetEl.style.color = "#111827"
-                             else if (targetEl.classList.contains("text-gray-600")) targetEl.style.color = "#4b5563"
-                             else targetEl.style.color = "#000000" // Default fallback
-                        }
-                        
-                        // Handle Border Color
-                        if (style.borderColor && (style.borderColor.includes("oklch") || style.borderColor.includes("lab"))) {
-                            targetEl.style.borderColor = "#e5e7eb"
-                        }
-
-                        // Remove shadows
-                        targetEl.style.boxShadow = "none"
-                    }
-                }
-            }
-        })
-
-        const imgData = canvas.toDataURL("image/png", 1.0)
-
-        const { jsPDF } = window.jspdf
-        const pdf = new jsPDF({
-            orientation: "portrait",
-            unit: "mm",
-            format: "a4"
-        })
-
-        const imgProps = pdf.getImageProperties(imgData)
-        const pdfWidth = pdf.internal.pageSize.getWidth()
-        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width
-
-        let heightLeft = pdfHeight
-        let position = 0
-
-        pdf.addImage(imgData, "PNG", 0, position, pdfWidth, pdfHeight)
-        heightLeft -= pdf.internal.pageSize.getHeight()
-
-        while (heightLeft >= 0) {
-            position = heightLeft - pdfHeight
-            pdf.addPage()
-            pdf.addImage(imgData, "PNG", 0, position, pdfWidth, pdfHeight)
-            heightLeft -= pdf.internal.pageSize.getHeight()
-        }
-
-        pdf.save(`${invoiceNumber}.pdf`)
-        showToast("Invoice berhasil didownload", "success")
-
-    } catch (error) {
-        console.error("Download failed:", error)
-        showToast("Gagal download PDF. Silakan coba print.", "error")
-    } finally {
-        setIsDownloading(false)
-    }
+    window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank')
   }
 
   const paymentStatus = booking.paymentStatus ? (PAYMENT_STATUS_MAP as any)[booking.paymentStatus] : PAYMENT_STATUS_MAP["UNPAID"]
 
   return (
-    <>
-    <Script 
-        src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" 
-        strategy="lazyOnload" 
-        onLoad={() => setScriptsLoaded(prev => ({ ...prev, html2canvas: true }))}
-    />
-    <Script 
-        src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" 
-        strategy="lazyOnload" 
-        onLoad={() => setScriptsLoaded(prev => ({ ...prev, jspdf: true }))}
-    />
-    
     <div className="min-h-screen bg-gray-100 p-4 md:p-8 print:p-0 print:bg-white font-sans text-gray-900">
       {/* Navbar / Actions (Hidden on Print) */}
       <div className="max-w-[800px] mx-auto mb-6 flex flex-col sm:flex-row items-center justify-between gap-4 print:hidden">
-        <Link 
+        <Link
             href={`/dashboard/bookings/${id}`}
             className="flex items-center gap-2 text-gray-600 hover:text-[#7A1F1F] transition-colors self-start sm:self-auto"
         >
             <ArrowLeft className="h-4 w-4" /> Back to Booking
         </Link>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto justify-end">
-            <button 
+            <button
                 onClick={handleShare}
                 className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium shadow-sm"
             >
                 {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
                 {copied ? "Copied" : "Copy Link"}
             </button>
-             <button 
-                onClick={handlePrint}
-                className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium shadow-sm"
+            <button
+                onClick={handleWhatsAppShare}
+                className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium shadow-sm"
             >
-                <Printer className="h-4 w-4" /> Print
+                <Share2 className="h-4 w-4" /> Share to WhatsApp
             </button>
-            <button 
-                onClick={handleDownload}
-                disabled={isDownloading}
-                className="flex items-center gap-2 px-3 py-2 bg-[#7A1F1F] text-white rounded-lg hover:bg-[#9B3333] transition-colors text-sm font-medium shadow-sm disabled:opacity-50"
+             <button
+                onClick={handlePrint}
+                className="flex items-center gap-2 px-3 py-2 bg-[#7A1F1F] text-white rounded-lg hover:bg-[#9B3333] transition-colors text-sm font-medium shadow-sm"
             >
-                {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} 
-                {isDownloading ? "Generating..." : "Download PDF"}
+                <Download className="h-4 w-4" /> Download
             </button>
         </div>
       </div>
 
       {/* Invoice Sheet (Max width 800px approx A4 width) */}
       <div id="invoice-content" className="max-w-[800px] mx-auto bg-white shadow-xl rounded-none sm:rounded-xl overflow-hidden print:shadow-none print:rounded-none print:max-w-none print:m-0 print:overflow-visible">
-        
+
         {/* Header */}
         <div className="p-8 md:p-12 pb-6 print:p-8">
              <div className="flex justify-between items-start">
@@ -277,7 +159,7 @@ export default function InvoicePage() {
                             alt="Yoonjae Space"
                             width={50}
                             height={50}
-                            className="object-contain" // Assuming square logo
+                            className="object-contain"
                             priority
                           />
                           <span className="text-xl font-bold text-[#7A1F1F] tracking-tight" style={{ fontFamily: 'var(--font-poppins), sans-serif' }}>
@@ -303,14 +185,18 @@ export default function InvoicePage() {
         {/* Invoice Info Row */}
         <div className="px-8 md:px-12 py-6 print:px-8">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 border-b border-[#7A1F1F]/10 pb-6">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-12 w-full">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-8 w-full">
                     <div>
-                        <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">Invoice Number</p>
+                        <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">Invoice No.</p>
                         <p className="text-sm font-bold text-gray-900">{invoiceNumber}</p>
                     </div>
                     <div>
-                        <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">Date</p>
+                        <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">Invoice Date</p>
                         <p className="text-sm font-bold text-gray-900">{formatDate(invoiceDate.toISOString())}</p>
+                    </div>
+                    <div>
+                        <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">Session Date</p>
+                        <p className="text-sm font-bold text-gray-900">{formatDate(booking.date)}</p>
                     </div>
                     <div>
                         <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">Booking Ref</p>
@@ -320,15 +206,15 @@ export default function InvoicePage() {
                     </div>
                 </div>
                 <div className="shrink-0 self-end sm:self-center">
-                    <span 
+                    <span
                         className="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide border"
-                        style={{ 
-                            backgroundColor: paymentStatus.bgColor, 
+                        style={{
+                            backgroundColor: paymentStatus.bgColor,
                             color: paymentStatus.color,
                             borderColor: paymentStatus.borderColor
                         }}
                     >
-                        {booking.paymentStatus === "PAID" ? "PAID" : "UNPAID"}
+                        {booking.paymentStatus === "PAID" ? "PAID" : booking.paymentStatus === "PARTIALLY_PAID" ? "PARTIALLY PAID" : "UNPAID"}
                     </span>
                 </div>
             </div>
@@ -351,7 +237,7 @@ export default function InvoicePage() {
         <div className="border-t border-[#7A1F1F] mx-8 md:mx-12 print:mx-8 mb-0"></div>
 
         {/* Items Table */}
-        <div className="px-8 md:px-12 pb-8 print:px-8 pt-0">
+        <div className="px-8 md:px-12 pb-6 print:px-8 pt-0">
              <table className="w-full text-sm">
                  <thead>
                      <tr className="bg-[#F5ECEC] text-[#7A1F1F]">
@@ -373,7 +259,7 @@ export default function InvoicePage() {
                              <td className="py-3 px-4 text-right font-medium text-gray-900">{formatCurrency(item.total)}</td>
                          </tr>
                      ))}
-                     
+
                      {/* Discount Row if any */}
                      {booking.discountAmount > 0 && (
                          <tr className="bg-red-50/50">
@@ -388,7 +274,7 @@ export default function InvoicePage() {
                          <td colSpan={3} className="pt-4 px-4 text-right text-gray-500 text-xs uppercase font-bold tracking-wider">Subtotal</td>
                          <td className="pt-4 px-4 text-right font-bold text-gray-700">{formatCurrency(booking.packagePrice + booking.addOns.reduce((sum: number, item: any) => sum + (item.subtotal || item.unitPrice * item.quantity), 0))}</td>
                      </tr>
-                     
+
                      {/* Total */}
                      <tr>
                          <td colSpan={4} className="py-2">
@@ -403,41 +289,77 @@ export default function InvoicePage() {
         </div>
 
         {/* Payment & Footer */}
-        <div className="px-8 md:px-12 pb-12 print:px-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mt-4">
+        <div className="px-8 md:px-12 pb-8 print:px-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-0">
                  <div>
-                     <h3 className="font-bold text-gray-900 text-xs uppercase tracking-wider mb-3">Payment Info</h3>
-                     
-                     {booking.paidAmount > 0 && (
-                        <div className="mb-4 text-sm">
-                            <div className="flex items-center gap-2 text-green-700 font-medium">
-                                <Check className="h-4 w-4" />
-                                <span>Paid Amount: {formatCurrency(booking.paidAmount)}</span>
-                            </div>
-                            {(booking.totalAmount - booking.paidAmount) > 0 && (
-                                <div className="text-red-600 font-bold mt-1">
-                                    Outstanding Balance: {formatCurrency(booking.totalAmount - booking.paidAmount)}
+                     <h3 className="font-bold text-gray-900 text-xs uppercase tracking-wider mb-3">Payment Details</h3>
+
+                     {booking.payments && booking.payments.length > 0 ? (
+                        <div className="space-y-2">
+                            {booking.payments.map((payment: any, idx: number) => (
+                                <div key={payment.id} className="border-l-4 border-green-600 pl-3 py-1.5 bg-green-50/30">
+                                    <div className="flex justify-between items-start mb-0.5">
+                                        <div className="flex items-center gap-2">
+                                            <Check className="h-4 w-4 text-green-600" />
+                                            <span className="text-sm font-semibold text-gray-900">
+                                                {payment.description || `Payment ${idx + 1}`}
+                                            </span>
+                                        </div>
+                                        <span className="text-sm font-bold text-green-700">
+                                            {formatCurrency(payment.amount)}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-gray-500 ml-6">
+                                        Paid on {formatDate(payment.paidAt)}
+                                    </p>
+                                    {payment.notes && (
+                                        <p className="text-xs text-gray-600 ml-6 mt-0.5 italic">
+                                            {payment.notes}
+                                        </p>
+                                    )}
                                 </div>
-                            )}
+                            ))}
+
+                            <div className="pt-2 border-t border-gray-200 mt-3">
+                                <div className="flex justify-between items-center mb-1">
+                                    <span className="text-sm font-bold text-gray-900">Total Paid:</span>
+                                    <span className="text-sm font-bold text-green-700">
+                                        {formatCurrency(booking.paidAmount)}
+                                    </span>
+                                </div>
+                                {booking.outstandingBalance > 0 && (
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-sm font-bold text-gray-900">Outstanding Balance:</span>
+                                        <span className="text-sm font-bold text-red-600">
+                                            {formatCurrency(booking.outstandingBalance)}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                     ) : (
+                        <div className="text-sm text-gray-500 italic">
+                            No payment records yet
                         </div>
                      )}
                  </div>
 
-                 <div className="text-right flex flex-col items-end justify-end">
-                     <p className="text-xs text-gray-400 mb-16">Authorized Signature</p>
-                     <div className="border-t border-gray-300 w-40 text-center pt-2">
-                         <p className="text-xs font-bold text-gray-900">{studio?.name || "Yoonjae Space"} Manager</p>
+                 <div className="flex flex-col items-end justify-end">
+                     <div className="text-center">
+                         <p className="text-xs text-gray-400 mb-12">Authorized Signature</p>
+                         <div className="border-t border-gray-300 w-40 text-center pt-2">
+                             <p className="text-xs font-bold text-gray-900">{studio?.name || "Yoonjae Space"} Manager</p>
+                         </div>
                      </div>
                  </div>
-             </div>
-             
-             <div className="mt-12 text-center text-xs text-gray-400 print:mt-24">
-                 <p>Thank you for choosing {studio?.name || "Yoonjae Space"} for your special moments! 💕</p>
+            </div>
+
+             <div className="mt-8 text-center text-xs text-gray-400 print:mt-12">
+                 <p>{studio?.footerText || `Thank you for choosing ${studio?.name || "Yoonjaespace Studio"}!`}</p>
               </div>
         </div>
 
       </div>
     </div>
-    </>
   )
 }

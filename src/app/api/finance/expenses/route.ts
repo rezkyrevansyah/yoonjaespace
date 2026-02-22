@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
+import { logActivity } from '@/lib/activities'
 
 // GET — List expenses
 export async function GET(request: NextRequest) {
@@ -117,6 +118,13 @@ export async function POST(request: NextRequest) {
       relatedBookingId: relatedBookingId || null,
       notes: notes || null,
     },
+  })
+
+  await logActivity({
+    userId: user.id,
+    action: `Menambahkan pengeluaran`,
+    details: `${description} - Rp ${amount.toLocaleString('id-ID')} (${category})`,
+    type: 'CREATE',
   })
 
   return NextResponse.json(expense, { status: 201 })

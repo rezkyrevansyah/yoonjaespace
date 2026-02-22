@@ -47,8 +47,9 @@ export function ActivityLogItem({ activity }: ActivityLogItemProps) {
         <p className="text-sm font-medium text-gray-900">
           {activity.userName} <span className="text-gray-500 font-normal">({activity.userRole})</span>
         </p>
-        <p className="text-sm text-gray-600 truncate">
-          <span className="font-semibold">{activity.action}</span>: {activity.details}
+        <p className="text-sm text-gray-600">
+          <span className="font-semibold">{activity.action}</span>
+          {activity.details && <span>: {activity.details}</span>}
         </p>
         <p className="text-xs text-gray-400 mt-0.5">
           {formatRelativeTime(activity.timestamp)}

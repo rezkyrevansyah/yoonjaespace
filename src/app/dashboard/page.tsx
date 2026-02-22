@@ -263,23 +263,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Section D: Quick Actions */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Link
-          href="/dashboard/bookings/new"
-          className="flex items-center justify-center gap-2 h-12 px-6 rounded-xl bg-[#7A1F1F] text-white font-semibold hover:bg-[#9B3333] transition-colors"
-        >
-          <Plus className="h-5 w-5" />
-          <span>New Booking</span>
-        </Link>
-        <Link
-          href="/dashboard/bookings"
-          className="flex items-center justify-center gap-2 h-12 px-6 rounded-xl border-2 border-[#E5E7EB] bg-white text-[#111827] font-semibold hover:bg-[#F9FAFB] transition-colors"
-        >
-          <Search className="h-5 w-5" />
-          <span>Search Order</span>
-        </Link>
-      </div>
+
 
       {/* Section E: Today's Schedule */}
       <div className="bg-white rounded-xl border border-[#E5E7EB] p-5">

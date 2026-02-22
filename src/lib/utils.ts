@@ -24,6 +24,10 @@ export function formatDateTime(date: string | Date): string {
   return format(new Date(date), "dd MMM yyyy, HH:mm", { locale: idLocale })
 }
 
+export function formatTime(date: string | Date): string {
+  return format(new Date(date), "HH:mm", { locale: idLocale })
+}
+
 export function formatRelativeTime(date: string | Date): string {
   return formatDistanceToNow(new Date(date), { addSuffix: true, locale: idLocale })
 }

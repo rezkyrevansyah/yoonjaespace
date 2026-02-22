@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
+import { logActivity } from '@/lib/activities'
 
 // GET — List clients with search
 export async function GET(request: NextRequest) {
@@ -123,6 +124,13 @@ export async function POST(request: NextRequest) {
       address: address || null,
       notes: notes || null,
     },
+  })
+
+  await logActivity({
+    userId: user.id,
+    action: `Menambahkan client baru`,
+    details: `Client ${name} (${phone}) telah ditambahkan`,
+    type: 'CREATE',
   })
 
   return NextResponse.json(client, { status: 201 })

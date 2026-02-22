@@ -56,6 +56,12 @@ export const PAYMENT_STATUS_MAP: Record<
     bgColor: "#ECFDF5",
     borderColor: "#A7F3D0",
   },
+  PARTIALLY_PAID: {
+    label: "Sebagian Lunas",
+    color: "#D97706",
+    bgColor: "#FFFBEB",
+    borderColor: "#FDE68A",
+  },
   UNPAID: {
     label: "Belum Lunas",
     color: "#DC2626",
@@ -96,12 +102,7 @@ export const SIDEBAR_MENU = [
     icon: "LayoutDashboard",
     roles: ["OWNER", "ADMIN"] as const,
   },
-  {
-    label: "Today's Schedule",
-    href: "/dashboard",
-    icon: "CalendarCheck",
-    roles: ["PHOTOGRAPHER"] as const,
-  },
+
   {
     label: "Bookings",
     href: "/dashboard/bookings",
@@ -130,6 +131,12 @@ export const SIDEBAR_MENU = [
     label: "Finance",
     href: "/dashboard/finance",
     icon: "Wallet",
+    roles: ["OWNER"] as const,
+  },
+  {
+    label: "Vendors",
+    href: "/dashboard/vendors",
+    icon: "Briefcase",
     roles: ["OWNER"] as const,
   },
   {

@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { nanoid } from 'nanoid'
 import { format } from 'date-fns'
 import { hasMuaAddOn, calculateMuaStartTime } from '@/lib/mua-overlap'
+import { logActivity } from '@/lib/activities'
 
 // GET — List bookings with filters
 export async function GET(request: NextRequest) {
@@ -239,6 +240,10 @@ export async function POST(request: NextRequest) {
           name: clientName,
           phone: clientPhone,
           email: clientEmail || null,
+          instagram: body.clientInstagram || null,
+          address: body.clientAddress || null,
+          domisili: body.clientDomisili || null,
+          leads: body.clientLeads || null,
         },
       })
       finalClientId = newClient.id
@@ -359,6 +364,13 @@ export async function POST(request: NextRequest) {
       bookingBackgrounds: { include: { background: true } },
       customFields: { include: { field: true } },
     },
+  })
+
+  await logActivity({
+    userId: user.id,
+    action: `Membuat booking baru`,
+    details: `Booking ${bookingCode} untuk ${booking.client.name}, paket ${booking.package.name}, total Rp ${totalAmount.toLocaleString('id-ID')}`,
+    type: 'CREATE',
   })
 
   return NextResponse.json({ data: booking }, { status: 201 })

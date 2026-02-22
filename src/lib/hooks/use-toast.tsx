@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useCallback, ReactNode } from "rea
 import { CheckCircle, XCircle, AlertTriangle, Info, X } from "lucide-react"
 
 type ToastType = "success" | "error" | "warning" | "info"
+type ToastVariant = ToastType // Alias for compatibility
 
 interface Toast {
   id: string
@@ -12,9 +13,16 @@ interface Toast {
   duration?: number
 }
 
+interface ToastOptions {
+  title?: string
+  description: string
+  variant?: ToastVariant
+  duration?: number
+}
+
 interface ToastContextValue {
   toasts: Toast[]
-  showToast: (message: string, type?: ToastType, duration?: number) => void
+  showToast: (messageOrOptions: string | ToastOptions, type?: ToastType, duration?: number) => void
   removeToast: (id: string) => void
 }
 
@@ -28,16 +36,33 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const showToast = useCallback(
-    (message: string, type: ToastType = "info", duration: number = 4000) => {
+    (messageOrOptions: string | ToastOptions, type: ToastType = "info", duration: number = 4000) => {
       const id = Math.random().toString(36).substring(2, 9)
-      const toast: Toast = { id, type, message, duration }
+
+      let toast: Toast
+
+      // Support both old (string) and new (object) formats
+      if (typeof messageOrOptions === 'string') {
+        // Old format: showToast(message, type, duration)
+        toast = { id, type, message: messageOrOptions, duration }
+      } else {
+        // New format: showToast({ title, description, variant, duration })
+        const { title, description, variant, duration: optDuration } = messageOrOptions
+        const message = title ? `${title}: ${description}` : description
+        toast = {
+          id,
+          type: variant || type,
+          message,
+          duration: optDuration !== undefined ? optDuration : duration
+        }
+      }
 
       setToasts((prev) => [...prev, toast])
 
-      if (duration > 0) {
+      if (toast.duration && toast.duration > 0) {
         setTimeout(() => {
           removeToast(id)
-        }, duration)
+        }, toast.duration)
       }
     },
     [removeToast]

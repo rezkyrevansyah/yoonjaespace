@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { Prisma, BookingStatus, PaymentStatus } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
+import { logActivity } from '@/lib/activities'
 
 // PATCH — Update booking status
 export async function PATCH(
@@ -206,6 +207,52 @@ export async function PATCH(
 
     return result
   })
+
+  // Log activity based on what was changed
+  if (status && status !== existing.status) {
+    const statusMap: Record<string, string> = {
+      'BOOKED': 'Booked',
+      'PAID': 'Paid',
+      'SHOOT_DONE': 'Shoot Done',
+      'PHOTOS_DELIVERED': 'Photos Delivered',
+      'CLOSED': 'Closed',
+      'CANCELLED': 'Cancelled'
+    }
+
+    await logActivity({
+      userId: user.id,
+      action: `Mengubah status booking`,
+      details: `Booking ${updated.bookingCode} (${updated.client.name}): ${statusMap[existing.status]} → ${statusMap[status]}`,
+      type: 'UPDATE',
+    })
+  }
+
+  if (paymentStatus && paymentStatus !== existing.paymentStatus) {
+    await logActivity({
+      userId: user.id,
+      action: `Mengubah status pembayaran`,
+      details: `Booking ${updated.bookingCode} (${updated.client.name}): ${existing.paymentStatus === 'PAID' ? 'Lunas' : 'Belum Lunas'} → ${paymentStatus === 'PAID' ? 'Lunas' : 'Belum Lunas'}`,
+      type: 'UPDATE',
+    })
+  }
+
+  if (photoLink !== undefined && photoLink !== existing.photoLink) {
+    await logActivity({
+      userId: user.id,
+      action: `Mengupload link foto`,
+      details: `Link foto untuk booking ${updated.bookingCode} (${updated.client.name}) telah ditambahkan`,
+      type: 'UPDATE',
+    })
+  }
+
+  if (paymentProof !== undefined && paymentProof !== existing.paymentProof) {
+    await logActivity({
+      userId: user.id,
+      action: `Mengupload bukti pembayaran`,
+      details: `Bukti pembayaran untuk booking ${updated.bookingCode} (${updated.client.name}) telah diupload`,
+      type: 'UPDATE',
+    })
+  }
 
   return NextResponse.json(updated)
 }
