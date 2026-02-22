@@ -152,7 +152,7 @@ export async function PATCH(
       0
     )
   } else {
-    addOnsTotal = existing.addOns.reduce((sum, ao) => sum + ao.subtotal, 0)
+    addOnsTotal = existing.addOns.reduce((sum: number, ao: any) => sum + ao.subtotal, 0)
   }
 
   const discount = discountAmount !== undefined ? discountAmount : existing.discountAmount
@@ -162,7 +162,7 @@ export async function PATCH(
   // Currently disabled for deployment
 
   // Update booking + log history in a transaction
-  const updated = await prisma.$transaction(async (tx) => {
+  const updated = await prisma.$transaction(async (tx: any) => {
     // Update backgrounds jika ada
     if (backgroundIds) {
       await tx.bookingBackground.deleteMany({ where: { bookingId: id } })
@@ -187,6 +187,7 @@ export async function PATCH(
             quantity: ao.quantity,
             unitPrice: ao.unitPrice,
             subtotal: ao.quantity * ao.unitPrice,
+            paymentStatus: ao.paymentStatus || 'UNPAID', // Simpan status pembayaran
           })),
         })
       }

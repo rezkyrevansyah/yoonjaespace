@@ -60,6 +60,7 @@ interface BookingData {
     name: string
     address: string
     phone: string
+    whatsapp: string
     instagram: string
     operatingHours: any
     logoUrl?: string
@@ -421,7 +422,7 @@ export default function PublicStatusPage({ params }: { params: Promise<{ slug: s
                   Love your photos? Share your happiness with us! 💕
                 </p>
                 <Link
-                  href={`https://wa.me/${booking.studio.phone?.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(`Thank you for choosing ${booking.studio.name}! We hope you love your photos! 💕`)}`}
+                  href={`https://wa.me/${booking.studio.whatsapp?.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(`Thank you for choosing ${booking.studio.name}! We hope you love your photos! 💕`)}`}
                   target="_blank"
                   className="flex items-center justify-center w-full px-4 py-3 bg-gradient-to-r from-[#25D366] to-[#128C7E] text-white font-medium rounded-xl hover:from-[#20BA5A] hover:to-[#0F7A6B] transition-all shadow-sm"
                 >
@@ -567,20 +568,24 @@ export default function PublicStatusPage({ params }: { params: Promise<{ slug: s
                     {booking.studio.operatingHours?.open} - {booking.studio.operatingHours?.close}
                 </p>
 
-                {/* Action Buttons Grid */}
-                <div className="grid grid-cols-2 gap-2 mt-4">
-                     <Link href={booking.studio.instagram || '#'} target="_blank" className="bg-white border border-gray-200 py-2 rounded-lg flex items-center justify-center gap-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                {/* Action Buttons */}
+                <div className="grid grid-cols-2 gap-2 mt-4 mb-3">
+                     <Link href={booking.studio.instagram || '#'} target="_blank" className="bg-white border border-gray-200 py-2.5 rounded-xl flex items-center justify-center gap-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors shadow-sm">
                         <Instagram className="w-4 h-4" /> Instagram
                      </Link>
-                     <Link href={`https://wa.me/${booking.studio.phone?.replace(/[^0-9]/g, "")}`} target="_blank" className="bg-white border border-gray-200 py-2 rounded-lg flex items-center justify-center gap-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                     <Link href={`https://wa.me/${booking.studio.whatsapp?.replace(/[^0-9]/g, "")}`} target="_blank" className="bg-white border border-gray-200 py-2.5 rounded-xl flex items-center justify-center gap-2 text-xs font-semibold text-[#128C7E] hover:bg-green-50 hover:border-green-200 transition-colors shadow-sm">
                         <Phone className="w-4 h-4" /> WhatsApp
                      </Link>
-                     {booking.studio.mapsUrl && (
-                       <Link href={booking.studio.mapsUrl} target="_blank" className="col-span-2 bg-[#7A1F1F] text-white py-2 rounded-lg flex items-center justify-center gap-2 text-xs font-medium hover:bg-[#601818] transition-colors">
-                          <Navigation className="w-4 h-4" /> Open in Google Maps
-                       </Link>
-                     )}
                 </div>
+                {booking.studio.mapsUrl && (
+                     <Link 
+                        href={booking.studio.mapsUrl} 
+                        target="_blank" 
+                        className="w-full bg-[#7A1F1F] text-white py-3.5 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold hover:bg-[#601818] transition-all shadow-sm active:scale-[0.98]"
+                     >
+                        <Navigation className="w-4 h-4" /> Buka di Google Maps
+                     </Link>
+                )}
             </div>
           </section>
 
@@ -591,7 +596,7 @@ export default function PublicStatusPage({ params }: { params: Promise<{ slug: s
             </p>
 
             <Link
-                href={`https://wa.me/${booking.studio.phone?.replace(/[^0-9]/g, "")}?text=Halo%2C%20saya%20ingin%20booking%20lagi!`}
+                href={`https://wa.me/${booking.studio.whatsapp?.replace(/[^0-9]/g, "")}?text=Halo%2C%20saya%20ingin%20booking%20lagi!`}
                 className="flex items-center justify-center w-full px-4 py-3 bg-[#7A1F1F] text-white font-medium rounded-xl hover:bg-[#601818] transition-colors shadow-lg shadow-[#7A1F1F]/20"
             >
                 <MessageCircle className="w-4 h-4 mr-2" />

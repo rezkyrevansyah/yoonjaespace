@@ -116,6 +116,7 @@ export interface BookingAddOn {
   quantity: number
   unitPrice: number
   subtotal: number
+  paymentStatus: PaymentStatus
 }
 
 export interface Payment {

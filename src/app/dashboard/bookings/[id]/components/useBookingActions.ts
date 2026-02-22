@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/lib/hooks/use-toast"
-import { apiPatch, apiDelete } from "@/lib/api-client"
+import { apiPatch, apiDelete, apiPost } from "@/lib/api-client"
 import { BookingStatus, PaymentStatus, PrintOrderStatus, PrintOrder } from "@/lib/types"
 
 export function useBookingActions(id: string, mutate: () => void, booking: any, addOnTemplates: any[]) {
@@ -23,10 +23,10 @@ export function useBookingActions(id: string, mutate: () => void, booking: any, 
   const [pendingAddOnAction, setPendingAddOnAction] = useState<'add' | 'remove' | null>(null)
   const [pendingRemoveIndex, setPendingRemoveIndex] = useState<number | null>(null)
 
-  const handleUpdateStatus = async (newStatus: BookingStatus) => {
+  const handleUpdateStatus = async (newStatus: BookingStatus, additionalData?: any) => {
     setIsUpdating(true)
     try {
-        const res = await apiPatch(`/api/bookings/${id}/status`, { status: newStatus })
+        const res = await apiPatch(`/api/bookings/${id}/status`, { status: newStatus, ...additionalData })
         if (res.error) throw new Error(res.error)
         mutate()
         showToast(`Status updated to ${newStatus}`, "success")
@@ -56,7 +56,7 @@ export function useBookingActions(id: string, mutate: () => void, booking: any, 
   const handleUpdatePrintOrder = async (data: Partial<PrintOrder>) => {
       setIsUpdating(true)
       try {
-          const res = await apiPatch(`/api/bookings/${id}/print-order`, data)
+          const res = await apiPatch(`/api/bookings/${id}/print`, data)
           if (res.error) throw new Error(res.error)
           mutate()
           showToast("Print order updated", "success")
@@ -68,13 +68,29 @@ export function useBookingActions(id: string, mutate: () => void, booking: any, 
   }
 
   const handleUpdatePrintStatus = async (newStatus: PrintOrderStatus) => {
-      handleUpdatePrintOrder({ status: newStatus })
+      if (!booking.printOrder && newStatus === 'WAITING_CLIENT_SELECTION') {
+          // Buat print order baru karena belum ada
+          setIsUpdating(true)
+          try {
+              const res = await apiPost(`/api/bookings/${id}/print`, {})
+              if (res.error) throw new Error(res.error)
+              mutate()
+              showToast("Print order started", "success")
+          } catch (error: any) {
+              showToast(error.message, "error")
+          } finally {
+              setIsUpdating(false)
+          }
+      } else {
+          // Update status print order jika sudah ada
+          handleUpdatePrintOrder({ status: newStatus })
+      }
   }
 
   const handleDeletePrintOrder = async () => {
       setIsUpdating(true)
       try {
-          const res = await apiDelete(`/api/bookings/${id}/print-order`)
+          const res = await apiDelete(`/api/bookings/${id}/print`)
           if (res.error) throw new Error(res.error)
           mutate()
           showToast("Print order cancelled successfully", "success")
@@ -120,10 +136,20 @@ export function useBookingActions(id: string, mutate: () => void, booking: any, 
            return
        }
 
-       const template = addOnTemplates.find(t => t.id === selectedAddOnId)
+       const template = addOnTemplates.find((t: any) => t.id === selectedAddOnId)
        if (!template) return
-       const newItem = { itemName: template.name, quantity: addOnQty, unitPrice: template.defaultPrice }
-       const currentAddOns = booking.addOns.map((ao: any) => ({ itemName: ao.itemName, quantity: ao.quantity, unitPrice: ao.unitPrice }))
+       const newItem = { 
+           itemName: template.name, 
+           quantity: addOnQty, 
+           unitPrice: template.defaultPrice,
+           paymentStatus: booking.paymentStatus === 'PAID' ? 'UNPAID' : undefined 
+       }
+       const currentAddOns = booking.addOns.map((ao: any) => ({ 
+           itemName: ao.itemName, 
+           quantity: ao.quantity, 
+           unitPrice: ao.unitPrice,
+           paymentStatus: ao.paymentStatus 
+       }))
        const newAddOnsList = [...currentAddOns, newItem]
        try {
            const res = await apiPatch(`/api/bookings/${id}`, { addOns: newAddOnsList })
@@ -139,6 +165,20 @@ export function useBookingActions(id: string, mutate: () => void, booking: any, 
        }
   }
 
+  const handleUpdateAddOnPayment = async (addonId: string, paymentStatus: PaymentStatus) => {
+       setIsUpdating(true)
+       try {
+           const res = await apiPatch(`/api/bookings/${id}/addons/${addonId}`, { paymentStatus })
+           if (res.error) throw new Error(res.error)
+           mutate()
+           showToast(`Add-on payment status updated to ${paymentStatus === 'PAID' ? 'Paid' : 'Unpaid'}`, "success")
+       } catch (error: any) {
+           showToast(error.message, "error")
+       } finally {
+           setIsUpdating(false)
+       }
+  }
+
   const handleRemoveAddOn = async (index: number) => {
        // Check if booking is PAID and show warning first
        if (booking.paymentStatus === 'PAID' && pendingRemoveIndex === null) {
@@ -148,7 +188,12 @@ export function useBookingActions(id: string, mutate: () => void, booking: any, 
            return
        }
 
-       const currentAddOns = booking.addOns.map((ao: any) => ({ itemName: ao.itemName, quantity: ao.quantity, unitPrice: ao.unitPrice }))
+       const currentAddOns = booking.addOns.map((ao: any) => ({ 
+           itemName: ao.itemName, 
+           quantity: ao.quantity, 
+           unitPrice: ao.unitPrice,
+           paymentStatus: ao.paymentStatus 
+       }))
        currentAddOns.splice(index, 1)
        try {
            const res = await apiPatch(`/api/bookings/${id}`, { addOns: currentAddOns })
@@ -200,6 +245,7 @@ export function useBookingActions(id: string, mutate: () => void, booking: any, 
     handleUpdatePhotoLink,
     handleDelete,
     handleAddAddOn,
+    handleUpdateAddOnPayment,
     handleRemoveAddOn,
     handleCopyCustomerLink,
   }

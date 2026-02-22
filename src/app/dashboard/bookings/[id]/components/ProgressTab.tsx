@@ -22,7 +22,7 @@ interface ProgressTabProps {
   isUpdating: boolean;
   selectedBookingStatus: BookingStatus | "";
   setSelectedBookingStatus: (s: BookingStatus | "") => void;
-  handleUpdateStatus: (s: BookingStatus) => void;
+  handleUpdateStatus: (s: BookingStatus, additionalData?: any) => void;
   photoLinkValue: string;
   setPhotoLinkValue: (v: string) => void;
   handleUpdatePhotoLink: () => void;
@@ -63,7 +63,7 @@ export function ProgressTab({
   showToast,
 }: ProgressTabProps) {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start max-w-7xl mx-auto">
+    <div className={cn("grid gap-6 items-start mx-auto", booking.printOrder ? "grid-cols-1 lg:grid-cols-2 max-w-7xl" : "grid-cols-1 max-w-2xl")}>
       {/* Status & Action */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden border-t-4 border-t-amber-500">
         <div className="px-5 pt-5 pb-4 border-b border-gray-50 flex items-center gap-2">
@@ -76,7 +76,10 @@ export function ProgressTab({
         <div className="p-5 space-y-6">
           {/* Progress Stepper */}
           {!isCancelled ? (
-            <div className="grid grid-cols-5 gap-2">
+            <div 
+              className="grid gap-2" 
+              style={{ gridTemplateColumns: `repeat(${availableStatusOptions.length}, minmax(0, 1fr))` }}
+            >
               {availableStatusOptions.map((step, index) => {
                 const isCompleted = currentStepIndex > index
                 const isCurrent = currentStepIndex === index
@@ -157,7 +160,7 @@ export function ProgressTab({
           )}
 
           {/* Photo Link Input (SHOOT_DONE and beyond) */}
-          {(currentStepIndex >= 2 && !isCancelled) && (
+          {(currentStepIndex >= 1 && !isCancelled) && (
             <div className="rounded-xl border border-gray-200 overflow-hidden">
               <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-100">
                 <Film className="h-3.5 w-3.5 text-gray-500" />
@@ -207,8 +210,7 @@ export function ProgressTab({
               <button
                 onClick={() => {
                   if (!photoLinkValue) { showToast("Link Google Drive wajib diisi!", "warning"); return }
-                  handleUpdatePhotoLink()
-                  handleUpdateStatus("PHOTOS_DELIVERED")
+                  handleUpdateStatus("PHOTOS_DELIVERED", { photoLink: photoLinkValue })
                 }}
                 disabled={isUpdating}
                 className="shrink-0 px-4 py-2.5 bg-green-600 text-white rounded-xl text-sm font-bold hover:bg-green-700 transition-colors flex items-center gap-2 shadow-sm"

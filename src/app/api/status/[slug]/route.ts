@@ -31,7 +31,7 @@ export async function GET(
   // Get studio settings
   const settings = await prisma.studioSetting.findMany()
   const settingsMap: Record<string, any> = {}
-  settings.forEach((s) => {
+  settings.forEach((s: any) => {
     try {
       settingsMap[s.key] = JSON.parse(s.value)
     } catch {
@@ -65,7 +65,8 @@ export async function GET(
     studio: {
       name: settingsMap['studio_name'] || 'Yoonjaespace Studio',
       address: settingsMap['address'] || '',
-      phone: settingsMap['phone_number'] || settingsMap['whatsapp_number'] || '',
+      phone: settingsMap['phone_number'] || '',
+      whatsapp: settingsMap['whatsapp_number'] || '',
       instagram: settingsMap['instagram'] || '',
       operatingHours: settingsMap['operating_hours'] || { open: '08:00', close: '20:00' },
       logoUrl: settingsMap['logo_url'] || '',

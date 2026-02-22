@@ -15,6 +15,7 @@ interface PricingTabProps {
   discount: number;
   setIsAddOnModalOpen: (v: boolean) => void;
   handleRemoveAddOn: (index: number) => void;
+  handleUpdateAddOnPayment: (addonId: string, status: any) => void;
   handleUpdatePayment: (s: any) => void;
   isUpdating: boolean;
   updatingAction: string | null;
@@ -26,6 +27,7 @@ export function PricingTab({
   discount,
   setIsAddOnModalOpen,
   handleRemoveAddOn,
+  handleUpdateAddOnPayment,
   handleUpdatePayment,
   isUpdating,
   updatingAction,
@@ -53,21 +55,48 @@ export function PricingTab({
           {booking.addOns && booking.addOns.length > 0 ? (
             <div className="space-y-3">
               {booking.addOns.map((item: any, idx: number) => (
-                <div key={idx} className="flex items-center justify-between py-3 border border-gray-100 bg-gray-50 rounded-xl px-4 group hover:border-gray-200 transition-colors">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900">{item.itemName}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{item.quantity}× {formatCurrency(item.unitPrice)}</p>
+                <div key={idx} className="flex flex-col gap-3 py-3 border border-gray-100 bg-gray-50 rounded-xl px-4 group hover:border-gray-200 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900">{item.itemName}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{item.quantity}× {formatCurrency(item.unitPrice)}</p>
+                    </div>
+                    <div className="flex items-center gap-4 shrink-0">
+                      <span className="text-sm font-bold text-gray-900 bg-white px-2.5 py-1 rounded shadow-sm border border-gray-100">{formatCurrency(item.subtotal || item.unitPrice * item.quantity)}</span>
+                      <button
+                        onClick={() => handleRemoveAddOn(idx)}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
+                        title="Remove add-on"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-4 shrink-0">
-                    <span className="text-sm font-bold text-gray-900 bg-white px-2.5 py-1 rounded shadow-sm border border-gray-100">{formatCurrency(item.subtotal || item.unitPrice * item.quantity)}</span>
-                    <button
-                      onClick={() => handleRemoveAddOn(idx)}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
-                      title="Remove add-on"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
+                  
+                  {/* Status Pembayaran Add-on */}
+                  {item.id && (
+                    <div className="flex items-center justify-between pt-2 border-t border-gray-200/60 mt-1">
+                       <StatusBadge status={item.paymentStatus || 'UNPAID'} type="payment" />
+                       
+                       {/* Toggle Button for Add-on API */}
+                       <button
+                          onClick={() => handleUpdateAddOnPayment(item.id, item.paymentStatus === 'PAID' ? 'UNPAID' : 'PAID')}
+                          disabled={isUpdating}
+                          className={cn(
+                            "px-3 py-1.5 text-xs font-bold rounded-lg border transition-colors flex items-center gap-1.5",
+                            item.paymentStatus === 'PAID' 
+                              ? "bg-white text-gray-500 border-gray-200 hover:bg-gray-50" 
+                              : "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                          )}
+                       >
+                          {item.paymentStatus === 'PAID' ? (
+                             <>Batalkan Lunas</>
+                          ) : (
+                             <><CheckCircle className="w-3.5 h-3.5" /> Tandai Lunas</>
+                          )}
+                       </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

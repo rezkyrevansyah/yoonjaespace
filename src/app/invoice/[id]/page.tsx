@@ -72,7 +72,8 @@ export default function InvoicePage() {
     },
     ...booking.addOns.map((item: any) => ({
       description: `Add-on: ${item.itemName}`,
-      notes: null,
+      notes: item.paymentStatus === 'UNPAID' ? '(BELUM LUNAS)' : null,
+      notesColor: item.paymentStatus === 'UNPAID' ? 'text-red-500 font-bold' : 'text-gray-500',
       quantity: item.quantity,
       unitPrice: item.unitPrice,
       total: item.unitPrice * item.quantity,
@@ -252,7 +253,7 @@ export default function InvoicePage() {
                          <tr key={i} className={i % 2 === 1 ? "bg-[#FAFAFA]" : "bg-white"}>
                              <td className="py-3 px-4">
                                  <p className="font-semibold text-gray-900">{item.description}</p>
-                                 {item.notes && <p className="text-gray-500 text-xs mt-0.5 italic">{item.notes}</p>}
+                                 {item.notes && <p className={`text-xs mt-0.5 italic ${item.notesColor || 'text-gray-500'}`}>{item.notes}</p>}
                              </td>
                              <td className="py-3 px-4 text-center text-gray-600">{item.quantity}</td>
                              <td className="py-3 px-4 text-right text-gray-600">{formatCurrency(item.unitPrice)}</td>

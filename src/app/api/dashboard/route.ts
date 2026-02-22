@@ -23,19 +23,11 @@ export async function GET() {
   const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
   const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1)
 
-  // Execute queries in parallel for better performance
-  const [
-    todayBookings,
-    waitingClientSelection,
-    sentToVendor,
-    needPackaging,
-    needShipping,
-    monthlyBookings,
-    monthlyRevenue,
-    unpaidBookings
-  ] = await Promise.all([
+  try {
+    // Execute queries sequentially to prevent exhausting Supabase connection pool limits
+
     // Today's schedule
-    prisma.booking.findMany({
+    const todayBookings = await prisma.booking.findMany({
       where: {
         date: { gte: startOfDay, lt: endOfDay },
         status: { not: 'CANCELLED' },
@@ -49,66 +41,69 @@ export async function GET() {
         customFields: { include: { field: true } },
       },
       orderBy: { startTime: 'asc' },
-    }),
+    });
 
     // Action items
-    prisma.printOrder.count({
+    const waitingClientSelection = await prisma.printOrder.count({
       where: { status: 'WAITING_CLIENT_SELECTION' },
-    }),
+    });
 
-    prisma.printOrder.count({
+    const sentToVendor = await prisma.printOrder.count({
       where: { status: { in: ['SENT_TO_VENDOR', 'PRINTING_IN_PROGRESS'] } },
-    }),
+    });
 
-    prisma.printOrder.count({
+    const needPackaging = await prisma.printOrder.count({
       where: { status: 'PRINT_RECEIVED' },
-    }),
+    });
 
-    prisma.printOrder.count({
+    const needShipping = await prisma.printOrder.count({
       where: { status: 'PACKAGING' },
-    }),
+    });
 
     // Monthly stats
-    prisma.booking.count({
+    const monthlyBookings = await prisma.booking.count({
       where: {
         date: { gte: startOfMonth, lt: endOfMonth },
         status: { not: 'CANCELLED' },
       },
-    }),
+    });
 
-    prisma.booking.aggregate({
+    const monthlyRevenue = await prisma.booking.aggregate({
       where: {
         date: { gte: startOfMonth, lt: endOfMonth },
         paymentStatus: 'PAID',
         status: { not: 'CANCELLED' },
       },
       _sum: { totalAmount: true },
-    }),
+    });
 
-    prisma.booking.count({
+    const unpaidBookings = await prisma.booking.count({
       where: {
         paymentStatus: 'UNPAID',
         status: { not: 'CANCELLED' },
       },
-    })
-  ])
+    });
 
-  return NextResponse.json({
-    todaySchedule: todayBookings.map((b: any) => ({
-      ...b,
-      sessionTime: b.startTime.toISOString().split('T')[1].slice(0, 5),
-      sessionDate: b.date.toISOString().split('T')[0]
-    })),
-    actionItems: {
-      waitingClientSelection,
-      sentToVendor,
-      needPackaging,
-      needShipping,
-    },
-    monthlyStats: {
-      totalBookings: monthlyBookings,
-      revenue: monthlyRevenue._sum.totalAmount || 0,
-      unpaidBookings,
-    },
-  })
+    return NextResponse.json({
+      todaySchedule: todayBookings.map((b: any) => ({
+        ...b,
+        sessionTime: b.startTime.toISOString().split('T')[1].slice(0, 5),
+        sessionDate: b.date.toISOString().split('T')[0]
+      })),
+      actionItems: {
+        waitingClientSelection,
+        sentToVendor,
+        needPackaging,
+        needShipping,
+      },
+      monthlyStats: {
+        totalBookings: monthlyBookings,
+        revenue: monthlyRevenue._sum.totalAmount || 0,
+        unpaidBookings,
+      },
+    })
+  } catch (error: any) {
+    console.error("Dashboard API Error:", error)
+    return NextResponse.json({ error: error.message || String(error) }, { status: 500 })
+  }
 }

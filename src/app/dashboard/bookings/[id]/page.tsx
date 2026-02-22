@@ -331,6 +331,7 @@ export default function BookingDetailPage() {
             discount={discount}
             setIsAddOnModalOpen={actions.setIsAddOnModalOpen}
             handleRemoveAddOn={actions.handleRemoveAddOn}
+            handleUpdateAddOnPayment={actions.handleUpdateAddOnPayment}
             handleUpdatePayment={actions.handleUpdatePayment}
             isUpdating={actions.isUpdating}
             updatingAction={actions.updatingAction}
