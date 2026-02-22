@@ -11,7 +11,10 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const settings = await prisma.studioSetting.findMany()
+  // OPTIMIZED: Select only needed fields
+  const settings = await prisma.studioSetting.findMany({
+    select: { key: true, value: true }
+  })
 
   // Convert to key-value object
   const raw: Record<string, any> = {}

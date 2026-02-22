@@ -63,7 +63,7 @@ export default function CalendarPage() {
   // Format month for API query (YYYY-MM)
   const queryMonth = useMemo(() => format(currentDate, "yyyy-MM"), [currentDate])
 
-  const { bookings, isLoading } = useBookings({ month: queryMonth })
+  const { bookings } = useBookings({ month: queryMonth })
 
   // Navigation
   const nextDate = () => {
@@ -257,7 +257,7 @@ export default function CalendarPage() {
 
       {/* Calendar Content */}
       <div className="flex-1 bg-white border border-[#E5E7EB] rounded-xl shadow-sm overflow-hidden flex flex-col">
-          {isLoading ? (
+          {!bookings ? (
               <div className="flex-1 flex items-center justify-center">
                   <Loader2 className="h-8 w-8 animate-spin text-gray-300" />
               </div>

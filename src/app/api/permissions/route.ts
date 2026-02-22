@@ -12,16 +12,18 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // OPTIMIZED: Use select to minimize data transfer, avoid deep nesting
     const dbUser = await prisma.user.findUnique({
       where: { id: user.id },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        customRoleId: true,
         customRole: {
-          include: {
-            permissions: {
-              include: {
-                menu: true
-              }
-            }
+          select: {
+            name: true
           }
         }
       }
@@ -35,8 +37,25 @@ export async function GET(request: NextRequest) {
     // Owner and Admin get all menus by default
     let permissions: any[] = []
 
-    if (dbUser.customRole) {
-      permissions = dbUser.customRole.permissions.map((p) => ({
+    if (dbUser.customRoleId) {
+      // OPTIMIZED: Separate query with select to avoid deep nesting
+      const rolePermissions = await prisma.rolePermission.findMany({
+        where: { roleId: dbUser.customRoleId },
+        select: {
+          canView: true,
+          canEdit: true,
+          canDelete: true,
+          menu: {
+            select: {
+              name: true,
+              label: true,
+              sortOrder: true
+            }
+          }
+        }
+      })
+
+      permissions = rolePermissions.map((p) => ({
         menuName: p.menu.name,
         menuLabel: p.menu.label,
         sortOrder: p.menu.sortOrder,
@@ -47,6 +66,7 @@ export async function GET(request: NextRequest) {
     } else {
       // Fallback for users without customRole (backward compatibility)
       const allMenus = await prisma.menu.findMany({
+        select: { name: true, label: true, sortOrder: true },
         orderBy: { sortOrder: 'asc' }
       })
 

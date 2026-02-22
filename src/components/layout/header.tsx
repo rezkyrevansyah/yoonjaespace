@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useMemo } from "react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -41,14 +41,17 @@ export function Header({ onMenuClick }: HeaderProps) {
     return lastSegment.charAt(0).toUpperCase() + lastSegment.slice(1)
   }
 
-  // Get today's activities (already limited to 5 by hook params for dropdown)
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const todaysActivities = activities.filter((activity) => {
-    const activityDate = new Date(activity.timestamp)
-    activityDate.setHours(0, 0, 0, 0)
-    return activityDate.getTime() === today.getTime()
-  })
+  // Memoize today's activities filtering for performance
+  const todaysActivities = useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    return activities.filter((activity) => {
+      const activityDate = new Date(activity.timestamp)
+      activityDate.setHours(0, 0, 0, 0)
+      return activityDate.getTime() === today.getTime()
+    })
+  }, [activities])
 
   return (
     <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-[#E5E7EB] h-16">

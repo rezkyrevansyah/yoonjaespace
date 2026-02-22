@@ -22,67 +22,78 @@ export async function GET(request: NextRequest) {
   const month = parseInt(searchParams.get('month') || String(new Date().getMonth() + 1))
   const year = parseInt(searchParams.get('year') || String(new Date().getFullYear()))
 
-  // Get all active staff
-  const staff = await prisma.user.findMany({
-    where: { isActive: true },
-    select: { id: true, name: true, role: true },
-  })
-
   // Count bookings per staff for this commission period (26th prev month - 25th current month)
   const { startDate, endDate } = getCommissionPeriod(month, year)
 
-  const result = await Promise.all(
-    staff.map(async (s) => {
-      // Get bookings for this month
-      const bookings = await prisma.booking.findMany({
-        where: {
-          handledById: s.id,
-          date: { gte: startDate, lt: endDate },
-          status: { not: 'CANCELLED' },
-        },
-        select: {
-          id: true,
-          bookingCode: true,
-          totalAmount: true,
-          paymentStatus: true,
-          client: { select: { name: true } },
-          package: { select: { name: true } },
-        }
-      })
+  // CRITICAL FIX: Use $transaction to batch queries into ONE transaction
+  // Eliminates DEALLOCATE ALL overhead (3 transactions → 1)
+  const [staff, allBookings, allCommissions] = await prisma.$transaction([
+    // Query 1: Get all active staff
+    prisma.user.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, role: true },
+    }),
 
-      const bookingCount = bookings.length
-      const revenueGenerated = bookings.reduce((sum, b) => 
-        sum + (b.paymentStatus === 'PAID' ? b.totalAmount : 0), 0
-      )
-
-      // Get existing commission record
-      const commission = await prisma.commission.findUnique({
-        where: {
-          userId_month_year: {
-            userId: s.id,
-            month,
-            year,
-          },
-        },
-      })
-
-      return {
-        staff: s,
-        bookingCount,
-        revenueGenerated,
-        bookings,
-        commission: commission
-          ? { 
-              id: commission.id, 
-              amount: commission.amount, 
-              notes: commission.notes,
-              isPaid: !!commission.paidAt,
-              paidAt: commission.paidAt 
-            }
-          : null,
+    // Query 2: Get ALL bookings for ALL staff in one query
+    prisma.booking.findMany({
+      where: {
+        date: { gte: startDate, lt: endDate },
+        status: { not: 'CANCELLED' },
+        handledBy: { isActive: true }, // Only bookings for active staff
+      },
+      select: {
+        id: true,
+        bookingCode: true,
+        totalAmount: true,
+        paymentStatus: true,
+        handledById: true,
+        client: { select: { name: true } },
+        package: { select: { name: true } },
       }
+    }),
+
+    // Query 3: Get ALL commissions for this month in one query
+    prisma.commission.findMany({
+      where: { month, year },
     })
-  )
+  ])
+
+  // Group bookings by staff ID for fast lookup
+  const bookingsByStaff = allBookings.reduce<Record<string, typeof allBookings>>((acc, booking) => {
+    if (!acc[booking.handledById]) {
+      acc[booking.handledById] = []
+    }
+    acc[booking.handledById].push(booking)
+    return acc
+  }, {})
+
+  // Map results - processing in memory is faster than multiple DB queries
+  const result = staff.map((s) => {
+    const bookings = bookingsByStaff[s.id] || []
+    const bookingCount = bookings.length
+    const revenueGenerated = bookings.reduce((sum, b) =>
+      sum + (b.paymentStatus === 'PAID' ? b.totalAmount : 0), 0
+    )
+
+    // Find commission for this staff
+    const commission = allCommissions.find(c => c.userId === s.id)
+
+    return {
+      staff: s,
+      bookingCount,
+      revenueGenerated,
+      bookings,
+      commission: commission
+        ? {
+            id: commission.id,
+            amount: commission.amount,
+            notes: commission.notes,
+            isPaid: !!commission.paidAt,
+            paidAt: commission.paidAt
+          }
+        : null,
+    }
+  })
 
   return NextResponse.json({
     month,

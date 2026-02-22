@@ -11,7 +11,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
+  // OPTIMIZED: Select only needed fields
+  const dbUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { role: true }
+  })
 
   if (!dbUser || !['OWNER', 'ADMIN'].includes(dbUser.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

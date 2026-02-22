@@ -10,8 +10,8 @@ import { SWRConfiguration } from 'swr'
  * 4. Fast error recovery
  */
 export const swrConfig: SWRConfiguration = {
-  // Faster deduping for real-time feel
-  dedupingInterval: 2000, // 2 seconds - allow faster updates
+  // Aggressive deduping for instant navigation
+  dedupingInterval: 5000, // 5 seconds - prevent duplicate requests
 
   // Focus/reconnect behavior
   revalidateOnFocus: false, // Don't refetch when window regains focus
@@ -27,15 +27,12 @@ export const swrConfig: SWRConfiguration = {
   // Loading timeout
   loadingTimeout: 5000, // 5 seconds (faster timeout)
 
-  // Revalidation - OPTIMIZED for instant feel
-  revalidateIfStale: true, // Revalidate if data is stale
+  // Revalidation - OPTIMIZED for instant feel with cache
+  revalidateIfStale: false, // Use cache immediately, no auto-refetch
   revalidateOnMount: false, // Use cache first! Don't block UI with refetch on mount
 
-  // Comparison function (default is referential equality)
-  compare: (a, b) => {
-    // Use JSON comparison for deep equality check
-    return JSON.stringify(a) === JSON.stringify(b)
-  },
+  // Use default SWR comparison (referential equality) - much faster than JSON.stringify
+  // If deep comparison needed in specific cases, use fast-deep-equal library instead
 }
 
 /**

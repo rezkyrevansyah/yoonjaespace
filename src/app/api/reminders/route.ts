@@ -53,28 +53,22 @@ export async function GET(request: NextRequest) {
     statusFilter = { notIn: ['CANCELLED'] } // Show everything except cancelled
   }
 
-  // Get custom reminder template from settings
-  const templateSetting = await prisma.studioSetting.findUnique({
-    where: { key: 'reminder_message_template' }
+  // OPTIMIZED: Batch fetch all settings in one query instead of 4 sequential queries
+  const settings = await prisma.studioSetting.findMany({
+    where: {
+      key: {
+        in: ['reminder_message_template', 'thank_you_payment_template', 'thank_you_session_template', 'studio_name']
+      }
+    }
   })
-  const template = templateSetting?.value || DEFAULT_REMINDER_TEMPLATE
 
-  // Get thank you templates from settings
-  const thankYouPaymentSetting = await prisma.studioSetting.findUnique({
-    where: { key: 'thank_you_payment_template' }
-  })
-  const thankYouPaymentTemplate = thankYouPaymentSetting?.value || DEFAULT_THANK_YOU_PAYMENT_TEMPLATE
+  // Convert to map for easy access
+  const settingsMap = Object.fromEntries(settings.map(s => [s.key, s.value]))
 
-  const thankYouSessionSetting = await prisma.studioSetting.findUnique({
-    where: { key: 'thank_you_session_template' }
-  })
-  const thankYouSessionTemplate = thankYouSessionSetting?.value || DEFAULT_THANK_YOU_SESSION_TEMPLATE
-
-  // Get studio name from settings
-  const studioNameSetting = await prisma.studioSetting.findUnique({
-    where: { key: 'studio_name' }
-  })
-  const studioName = studioNameSetting?.value || 'Yoonjaespace'
+  const template = settingsMap.reminder_message_template || DEFAULT_REMINDER_TEMPLATE
+  const thankYouPaymentTemplate = settingsMap.thank_you_payment_template || DEFAULT_THANK_YOU_PAYMENT_TEMPLATE
+  const thankYouSessionTemplate = settingsMap.thank_you_session_template || DEFAULT_THANK_YOU_SESSION_TEMPLATE
+  const studioName = settingsMap.studio_name || 'Yoonjaespace'
 
   // Get base URL for client page links
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || request.nextUrl.origin

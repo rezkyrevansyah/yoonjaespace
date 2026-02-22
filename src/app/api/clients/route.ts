@@ -34,18 +34,35 @@ export async function GET(request: NextRequest) {
     ]
   }
 
+  // OPTIMIZED: Use database aggregation instead of fetching all bookings
   const [clients, total] = await Promise.all([
     prisma.client.findMany({
       where,
-      include: {
-        bookings: {
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        email: true,
+        instagram: true,
+        createdAt: true,
+        // Count total bookings (excluding cancelled)
+        _count: {
           select: {
-            date: true,
-            totalAmount: true,
-            status: true,
-            paymentStatus: true,
-          },
+            bookings: {
+              where: { status: { not: 'CANCELLED' } }
+            }
+          }
         },
+        // Get only paid bookings for totalSpent calculation
+        bookings: {
+          where: {
+            status: { not: 'CANCELLED' },
+            paymentStatus: 'PAID'
+          },
+          select: { totalAmount: true, date: true },
+          orderBy: { date: 'desc' },
+          take: 1  // Only fetch most recent for lastVisit
+        }
       },
       orderBy: { createdAt: 'desc' },
       skip,
@@ -54,27 +71,19 @@ export async function GET(request: NextRequest) {
     prisma.client.count({ where }),
   ])
 
-  // Enhance clients with stats
+  // Minimal processing - just sum and format
   const clientsWithStats = clients.map((client) => {
-    const validBookings = client.bookings.filter(
-      (b) => b.status !== 'CANCELLED'
-    )
-    
-    // Total spent (paid bookings only)
-    const totalSpent = validBookings
-      .filter((b) => b.paymentStatus === 'PAID')
-      .reduce((sum, b) => sum + b.totalAmount, 0)
+    const totalSpent = client.bookings.reduce((sum, b) => sum + b.totalAmount, 0)
+    const lastVisit = client.bookings[0]?.date || null
 
-    // Last visit (latest booking date)
-    const lastVisit = validBookings.length > 0
-      ? validBookings.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0].date
-      : null
-
-    // Remove bookings from response to keep it light, unless needed detailed
-    const { bookings, ...clientData } = client
     return {
-      ...clientData,
-      totalBookings: validBookings.length,
+      id: client.id,
+      name: client.name,
+      phone: client.phone,
+      email: client.email,
+      instagram: client.instagram,
+      createdAt: client.createdAt,
+      totalBookings: client._count.bookings,
       totalSpent,
       lastVisit,
     }

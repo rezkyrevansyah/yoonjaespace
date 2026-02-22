@@ -28,7 +28,7 @@ const VENDOR_CATEGORIES = [
 ]
 
 export default function VendorsPage() {
-  const { vendors, isLoading, mutate } = useVendors()
+  const { vendors, mutate } = useVendors()
   const { showToast } = useToast()
 
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -143,7 +143,7 @@ export default function VendorsPage() {
         </button>
       </div>
 
-      {isLoading ? (
+      {!vendors ? (
         <div className="text-center py-12 text-gray-500">Loading vendors...</div>
       ) : vendors.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-lg border border-gray-200">

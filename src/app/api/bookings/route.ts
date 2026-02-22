@@ -75,10 +75,29 @@ export async function GET(request: NextRequest) {
     where.printOrder = { isNot: null }
   }
 
+  // OPTIMIZED: Use select instead of include to reduce data transfer
   const [bookings, total] = await Promise.all([
     prisma.booking.findMany({
       where,
-      include: {
+      select: {
+        id: true,
+        bookingCode: true,
+        publicSlug: true,
+        date: true,
+        startTime: true,
+        endTime: true,
+        status: true,
+        paymentStatus: true,
+        packagePrice: true,
+        discountAmount: true,
+        totalAmount: true,
+        notes: true,
+        internalNotes: true,
+        numberOfPeople: true,
+        photoFor: true,
+        bts: true,
+        muaStartTime: true,
+        createdAt: true,
         client: {
           select: {
             id: true,

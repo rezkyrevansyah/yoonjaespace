@@ -34,48 +34,53 @@ export async function GET(request: NextRequest) {
     endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1)
   }
 
-  // Income: total dari booking yang PAID dalam periode
-  const paidBookings = await prisma.booking.findMany({
-    where: {
-      paymentStatus: 'PAID',
-      date: { gte: startDate, lt: endDate },
-      status: { not: 'CANCELLED' },
-    },
-    select: { totalAmount: true },
-  })
+  // CRITICAL FIX: Single transaction with all queries
+  // groupBy cannot be inside $transaction due to TypeScript typing, so we run it separately
+  // But we use Promise.all to parallelize the 2 transactions
+  const [bookingData, expenseData] = await Promise.all([
+    // Transaction 1: All booking queries (3 queries in 1 transaction)
+    prisma.$transaction([
+      prisma.booking.aggregate({
+        where: {
+          paymentStatus: 'PAID',
+          date: { gte: startDate, lt: endDate },
+          status: { not: 'CANCELLED' },
+        },
+        _sum: { totalAmount: true },
+      }),
+      prisma.booking.count({
+        where: {
+          date: { gte: startDate, lt: endDate },
+          status: { not: 'CANCELLED' },
+        },
+      }),
+      prisma.booking.count({
+        where: {
+          date: { gte: startDate, lt: endDate },
+          status: 'CANCELLED',
+        },
+      }),
+    ]),
 
-  const totalIncome = paidBookings.reduce((sum, b) => sum + b.totalAmount, 0)
+    // Query 2: Expense aggregation (separate due to groupBy typing limitation)
+    prisma.expense.groupBy({
+      by: ['category'],
+      where: {
+        date: { gte: startDate, lt: endDate },
+      },
+      _sum: { amount: true },
+    }),
+  ])
 
-  // Expense: total expense dalam periode
-  const expenses = await prisma.expense.findMany({
-    where: {
-      date: { gte: startDate, lt: endDate },
-    },
-    select: { amount: true, category: true },
-  })
-
-  const totalExpense = expenses.reduce((sum, e) => sum + e.amount, 0)
+  // Extract results
+  const [incomeData, totalBookings, cancelledBookings] = bookingData
+  const totalIncome = incomeData._sum.totalAmount || 0
+  const totalExpense = expenseData.reduce((sum: number, e: any) => sum + ((e._sum?.amount) || 0), 0)
 
   // Breakdown expense per category
-  const expenseByCategory: Record<string, number> = {}
-  expenses.forEach((e) => {
-    expenseByCategory[e.category] = (expenseByCategory[e.category] || 0) + e.amount
-  })
-
-  // Booking stats
-  const totalBookings = await prisma.booking.count({
-    where: {
-      date: { gte: startDate, lt: endDate },
-      status: { not: 'CANCELLED' },
-    },
-  })
-
-  const cancelledBookings = await prisma.booking.count({
-    where: {
-      date: { gte: startDate, lt: endDate },
-      status: 'CANCELLED',
-    },
-  })
+  const expenseByCategory: Record<string, number> = Object.fromEntries(
+    expenseData.map((e: any) => [e.category, (e._sum?.amount) || 0])
+  )
 
   return NextResponse.json({
     period: {

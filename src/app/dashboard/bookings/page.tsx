@@ -317,7 +317,7 @@ export default function BookingsPage() {
         </div>
       </div>
 
-      {isLoading ? (
+      {!bookings ? (
           <div className="flex justify-center py-20">
               <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
           </div>

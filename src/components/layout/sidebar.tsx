@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname, useRouter } from "next/navigation"
@@ -57,9 +58,22 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
   const permissionsLoading = permissionsData?.isLoading ?? true
   const getVisibleMenus = permissionsData?.getVisibleMenus ?? (() => [])
 
-  // Debug: log visible menus
-  const visibleMenus = getVisibleMenus()
+  // Memoize visible menus to avoid calling getVisibleMenus() in filter loop
+  const visibleMenus = useMemo(() => getVisibleMenus(), [permissionsData])
   console.log('[Sidebar] User:', user?.role, '| Permissions loading:', permissionsLoading, '| Visible menus:', visibleMenus.length)
+
+  // Memoize filtered menu items for performance
+  const filteredMenu = useMemo(() => {
+    return SIDEBAR_MENU.filter((item) => {
+      // If no permissions loaded yet (API error or not configured), fallback to role-based
+      if (!visibleMenus || visibleMenus.length === 0) {
+        return user?.role && (item.roles as readonly string[]).includes(user.role)
+      }
+
+      const menuName = item.href.replace('/dashboard/', '').replace('/dashboard', 'dashboard')
+      return visibleMenus.some((m: any) => m.menuName === menuName)
+    })
+  }, [visibleMenus, user?.role])
 
   const handleLogout = async () => {
     await logout()
@@ -131,18 +145,7 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
             {permissionsLoading ? (
               <li className="px-3 py-2 text-sm text-[#9CA3AF]">Loading menu...</li>
             ) : (
-              SIDEBAR_MENU.filter((item) => {
-                // Check if user has permission to view this menu
-                const visibleMenus = getVisibleMenus()
-
-                // If no permissions loaded yet (API error or not configured), fallback to role-based
-                if (!visibleMenus || visibleMenus.length === 0) {
-                  return user?.role && (item.roles as readonly string[]).includes(user.role)
-                }
-
-                const menuName = item.href.replace('/dashboard/', '').replace('/dashboard', 'dashboard')
-                return visibleMenus.some((m: any) => m.menuName === menuName)
-              }).map((item) => {
+              filteredMenu.map((item) => {
                 const Icon = iconMap[item.icon]
                 const isActive =
                   item.href === "/dashboard"

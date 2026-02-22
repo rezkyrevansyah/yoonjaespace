@@ -16,9 +16,16 @@ export async function GET(request: NextRequest) {
   const type = searchParams.get('type') // optional filter
 
   try {
-    const activities = (await prisma.activityLog.findMany({
+    // OPTIMIZED: Use select instead of include + map
+    const activities = await prisma.activityLog.findMany({
       where: type ? { type } : {},
-      include: {
+      select: {
+        id: true,
+        userId: true,
+        action: true,
+        details: true,
+        type: true,
+        timestamp: true,
         user: {
           select: {
             name: true,
@@ -30,18 +37,19 @@ export async function GET(request: NextRequest) {
         timestamp: 'desc',
       },
       take: limit,
-    })).map((a: any) => ({
+    })
+
+    // Transform directly
+    return NextResponse.json(activities.map((a: any) => ({
       id: a.id,
       userId: a.userId,
       userName: a.user.name,
       userRole: a.user.role,
       action: a.action,
       details: a.details,
-      type: a.type as any,
+      type: a.type,
       timestamp: a.timestamp,
-    }))
-
-    return NextResponse.json(activities)
+    })))
   } catch (error) {
     console.error('Failed to fetch activities:', error)
     return NextResponse.json({ error: 'Failed to fetch activities' }, { status: 500 })

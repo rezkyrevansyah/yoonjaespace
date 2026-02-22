@@ -16,11 +16,11 @@ interface RoleFormData {
 export default function RolesPage() {
   const router = useRouter()
   const { user } = useAuth()
-  const { roles, isLoading, isSubmitting, createRole, updateRole, deleteRole } = useRoles()
-  const { menus, isLoading: menusLoading } = useMenus()
+  const { roles, isSubmitting, createRole, updateRole, deleteRole } = useRoles()
+  const { menus } = useMenus()
 
   // Debug logging
-  console.log('[RolesPage] Roles:', roles.length, '| Loading:', isLoading, '| Menus:', menus.length)
+  console.log('[RolesPage] Roles:', roles.length, '| Menus:', menus.length)
 
   // Redirect if not OWNER
   if (user && user.role !== 'OWNER') {
@@ -164,7 +164,7 @@ export default function RolesPage() {
         </div>
         <button
           onClick={handleAdd}
-          disabled={menusLoading}
+          disabled={!menus || menus.length === 0}
           className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#7A1F1F] text-white text-sm font-semibold hover:bg-[#9B3333] transition-colors disabled:opacity-50"
         >
           <Plus className="h-4 w-4" />
@@ -173,7 +173,7 @@ export default function RolesPage() {
       </div>
 
       {/* Roles List */}
-      {isLoading ? (
+      {!roles || roles.length === 0 ? (
         <div className="flex justify-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-gray-300" />
         </div>
@@ -289,7 +289,7 @@ export default function RolesPage() {
             <label className="block text-sm font-medium text-[#374151] mb-3">
               Hak Akses Menu
             </label>
-            {menusLoading ? (
+            {!menus ? (
               <div className="flex justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
               </div>
@@ -404,7 +404,7 @@ export default function RolesPage() {
             <label className="block text-sm font-medium text-[#374151] mb-3">
               Hak Akses Menu
             </label>
-            {menusLoading ? (
+            {!menus ? (
               <div className="flex justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
               </div>

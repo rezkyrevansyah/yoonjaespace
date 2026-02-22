@@ -6,9 +6,8 @@ import { fetcher } from '@/lib/api-client'
 export function useReminderCount() {
   const url = '/api/reminders/count'
 
-  const { data, error, isLoading, mutate } = useSWR<{ count: number }>(url, fetcher, {
-    refreshInterval: 30000, // Refresh every 30 seconds
-  })
+  // Use global SWR config for consistent caching behavior
+  const { data, error, isLoading, mutate } = useSWR<{ count: number }>(url, fetcher)
 
   return {
     count: data?.count || 0,

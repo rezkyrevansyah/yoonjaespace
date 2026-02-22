@@ -7,9 +7,8 @@ import { ActivityLog } from '@/lib/types'
 export function useActivities(limit: number = 20) {
   const url = `/api/activities?limit=${limit}`
 
-  const { data, error, isLoading, mutate } = useSWR<ActivityLog[]>(url, fetcher, {
-    refreshInterval: 30000, // Refresh every 30 seconds
-  })
+  // Use global SWR config for consistent caching behavior
+  const { data, error, isLoading, mutate } = useSWR<ActivityLog[]>(url, fetcher)
 
   return {
     activities: data || [],

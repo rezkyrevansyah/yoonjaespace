@@ -280,10 +280,10 @@ export default function FinancePage() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-[#6B7280]">Income</p>
-              {summaryLoading ? (
+              {!summary ? (
                   <div className="h-9 w-24 bg-gray-100 animate-pulse rounded mt-2" />
               ) : (
-                  <p className="text-3xl font-bold text-green-600 mt-2">{formatCurrency(summary?.totalIncome || 0)}</p>
+                  <p className="text-3xl font-bold text-green-600 mt-2">{formatCurrency(summary.totalIncome || 0)}</p>
               )}
             </div>
             <div className="w-12 h-12 rounded-lg bg-green-50 flex items-center justify-center">
@@ -297,10 +297,10 @@ export default function FinancePage() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-[#6B7280]">Expenses</p>
-                 {summaryLoading ? (
+                 {!summary ? (
                   <div className="h-9 w-24 bg-gray-100 animate-pulse rounded mt-2" />
               ) : (
-                 <p className="text-3xl font-bold text-red-600 mt-2">{formatCurrency(summary?.totalExpense || 0)}</p>
+                 <p className="text-3xl font-bold text-red-600 mt-2">{formatCurrency(summary.totalExpense || 0)}</p>
               )}
             </div>
             <div className="w-12 h-12 rounded-lg bg-red-50 flex items-center justify-center">

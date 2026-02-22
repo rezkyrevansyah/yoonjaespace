@@ -24,65 +24,78 @@ export async function GET() {
   const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1)
 
   try {
-    // Execute queries sequentially to prevent exhausting Supabase connection pool limits
+    // CRITICAL FIX: Use $transaction to batch ALL queries into ONE database transaction
+    // This eliminates the DEALLOCATE ALL overhead (8 round trips → 1)
+    const [
+      todayBookings,
+      waitingClientSelection,
+      sentToVendor,
+      needPackaging,
+      needShipping,
+      monthlyBookings,
+      monthlyRevenue,
+      unpaidBookings,
+    ] = await prisma.$transaction([
+      // Query 1: Today's schedule
+      prisma.booking.findMany({
+        where: {
+          date: { gte: startOfDay, lt: endOfDay },
+          status: { not: 'CANCELLED' },
+        },
+        select: {
+          id: true,
+          bookingCode: true,
+          status: true,
+          paymentStatus: true,
+          startTime: true,
+          endTime: true,
+          date: true,
+          client: { select: { id: true, name: true, phone: true } },
+          package: { select: { id: true, name: true } },
+          handledBy: { select: { id: true, name: true } },
+          bookingBackgrounds: {
+            select: { background: { select: { id: true, name: true } } }
+          },
+          addOns: { select: { id: true, itemName: true, unitPrice: true, quantity: true } },
+          customFields: {
+            select: {
+              id: true,
+              value: true,
+              field: { select: { id: true, fieldName: true } }
+            }
+          },
+        },
+        orderBy: { startTime: 'asc' },
+      }),
 
-    // Today's schedule
-    const todayBookings = await prisma.booking.findMany({
-      where: {
-        date: { gte: startOfDay, lt: endOfDay },
-        status: { not: 'CANCELLED' },
-      },
-      include: {
-        client: true,
-        package: true,
-        handledBy: { select: { name: true } },
-        bookingBackgrounds: { include: { background: true } },
-        addOns: true,
-        customFields: { include: { field: true } },
-      },
-      orderBy: { startTime: 'asc' },
-    });
+      // Queries 2-5: Action items counts
+      prisma.printOrder.count({ where: { status: 'WAITING_CLIENT_SELECTION' } }),
+      prisma.printOrder.count({ where: { status: { in: ['SENT_TO_VENDOR', 'PRINTING_IN_PROGRESS'] } } }),
+      prisma.printOrder.count({ where: { status: 'PRINT_RECEIVED' } }),
+      prisma.printOrder.count({ where: { status: 'PACKAGING' } }),
 
-    // Action items
-    const waitingClientSelection = await prisma.printOrder.count({
-      where: { status: 'WAITING_CLIENT_SELECTION' },
-    });
-
-    const sentToVendor = await prisma.printOrder.count({
-      where: { status: { in: ['SENT_TO_VENDOR', 'PRINTING_IN_PROGRESS'] } },
-    });
-
-    const needPackaging = await prisma.printOrder.count({
-      where: { status: 'PRINT_RECEIVED' },
-    });
-
-    const needShipping = await prisma.printOrder.count({
-      where: { status: 'PACKAGING' },
-    });
-
-    // Monthly stats
-    const monthlyBookings = await prisma.booking.count({
-      where: {
-        date: { gte: startOfMonth, lt: endOfMonth },
-        status: { not: 'CANCELLED' },
-      },
-    });
-
-    const monthlyRevenue = await prisma.booking.aggregate({
-      where: {
-        date: { gte: startOfMonth, lt: endOfMonth },
-        paymentStatus: 'PAID',
-        status: { not: 'CANCELLED' },
-      },
-      _sum: { totalAmount: true },
-    });
-
-    const unpaidBookings = await prisma.booking.count({
-      where: {
-        paymentStatus: 'UNPAID',
-        status: { not: 'CANCELLED' },
-      },
-    });
+      // Queries 6-8: Monthly stats
+      prisma.booking.count({
+        where: {
+          date: { gte: startOfMonth, lt: endOfMonth },
+          status: { not: 'CANCELLED' },
+        },
+      }),
+      prisma.booking.aggregate({
+        where: {
+          date: { gte: startOfMonth, lt: endOfMonth },
+          paymentStatus: 'PAID',
+          status: { not: 'CANCELLED' },
+        },
+        _sum: { totalAmount: true },
+      }),
+      prisma.booking.count({
+        where: {
+          paymentStatus: 'UNPAID',
+          status: { not: 'CANCELLED' },
+        },
+      }),
+    ]);
 
     return NextResponse.json({
       todaySchedule: todayBookings.map((b: any) => ({

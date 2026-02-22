@@ -23,6 +23,9 @@ model User {
   commissions     Commission[]
   activities      ActivityLog[]
 
+  @@index([role])
+  @@index([isActive])
+  @@index([createdAt])
   @@map("users")
 }
 
@@ -40,6 +43,10 @@ model Client {
   instagram String?
   bookings  Booking[]
 
+  @@index([phone])
+  @@index([name])
+  @@index([email])
+  @@index([createdAt])
   @@map("clients")
 }
 
@@ -59,6 +66,8 @@ model Package {
   category        PackageCategory @default(MAIN) // SESI 11
   bookings        Booking[]
 
+  @@index([isActive])
+  @@index([name])
   @@map("packages")
 }
 
@@ -70,6 +79,8 @@ model Background {
   description        String?
   bookingBackgrounds BookingBackground[]
 
+  @@index([isActive])
+  @@index([name])
   @@map("backgrounds")
 }
 
@@ -116,6 +127,16 @@ model Booking {
   @@index([date])
   @@index([status])
   @@index([paymentStatus])
+  @@index([handledById])
+  @@index([clientId])
+  @@index([packageId])
+  @@index([date, status])
+  @@index([date, paymentStatus])
+  @@index([handledById, date, status])
+  @@index([bookingCode])
+  @@index([publicSlug])
+  @@index([date, startTime])
+  @@index([clientId, date])
   @@map("bookings")
 }
 
@@ -127,6 +148,7 @@ model BookingBackground {
   booking      Booking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
   @@unique([bookingId, backgroundId])
+  @@index([bookingId])
   @@map("booking_backgrounds")
 }
 
@@ -138,6 +160,8 @@ model AddOnTemplate {
   createdAt       DateTime @default(now())
   extraTimeBefore Int      @default(0) // Extra time before session (in minutes)
 
+  @@index([isActive])
+  @@index([name])
   @@map("addon_templates")
 }
 
@@ -152,6 +176,9 @@ model BookingAddOn {
   createdAt     DateTime      @default(now())
   booking       Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
+  @@index([bookingId])
+  @@index([itemName])
+  @@index([paymentStatus])
   @@map("booking_addons")
 }
 
@@ -182,6 +209,7 @@ model Invoice {
   pdfUrl        String?
   booking       Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
+  @@index([invoiceNumber])
   @@map("invoices")
 }
 
@@ -196,6 +224,8 @@ model CustomFieldDefinition {
   createdAt  DateTime             @default(now())
   values     BookingCustomField[]
 
+  @@index([isActive])
+  @@index([sortOrder])
   @@map("custom_field_definitions")
 }
 
@@ -208,6 +238,8 @@ model BookingCustomField {
   field     CustomFieldDefinition @relation(fields: [fieldId], references: [id])
 
   @@unique([bookingId, fieldId])
+  @@index([bookingId])
+  @@index([fieldId])
   @@map("booking_custom_fields")
 }
 
@@ -223,6 +255,10 @@ model Expense {
   updatedAt        DateTime        @updatedAt
   relatedBooking   Booking?        @relation(fields: [relatedBookingId], references: [id])
 
+  @@index([date])
+  @@index([category])
+  @@index([date, category])
+  @@index([relatedBookingId])
   @@map("expenses")
 }
 
@@ -237,6 +273,7 @@ model BookingHistory {
   createdAt DateTime @default(now())
   booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
+  @@index([bookingId, createdAt])
   @@map("booking_history")
 }
 
@@ -254,6 +291,7 @@ model Commission {
   user          User      @relation(fields: [userId], references: [id])
 
   @@unique([userId, month, year])
+  @@index([userId, year, month])
   @@map("commissions")
 }
 
@@ -271,6 +309,9 @@ model Voucher {
   validUntil    DateTime?
   createdAt     DateTime  @default(now())
 
+  @@index([code])
+  @@index([isActive])
+  @@index([createdAt])
   @@map("vouchers")
 }
 
@@ -280,6 +321,7 @@ model StudioSetting {
   value     String
   updatedAt DateTime @updatedAt
 
+  @@index([key])
   @@map("studio_settings")
 }
 
@@ -357,6 +399,9 @@ model ActivityLog {
   type      String   @default("SYSTEM") // SYSTEM, CREATE, UPDATE, DELETE
   timestamp DateTime @default(now())
 
+  @@index([timestamp])
+  @@index([userId, timestamp])
+  @@index([type])
   @@map("activity_logs")
 }
 
@@ -370,6 +415,7 @@ model CustomRole {
   users       User[]
   permissions RolePermission[]
 
+  @@index([isSystem, name])
   @@map("custom_roles")
 }
 
@@ -381,6 +427,7 @@ model Menu {
   createdAt   DateTime         @default(now())
   permissions RolePermission[]
 
+  @@index([sortOrder])
   @@map("menus")
 }
 
@@ -395,5 +442,7 @@ model RolePermission {
   menu      Menu       @relation(fields: [menuId], references: [id], onDelete: Cascade)
 
   @@unique([roleId, menuId])
+  @@index([roleId])
+  @@index([menuId])
   @@map("role_permissions")
 }

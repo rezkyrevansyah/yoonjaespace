@@ -43,9 +43,8 @@ export interface DashboardData {
  * Custom hook for fetching dashboard data
  */
 export function useDashboard() {
-  const { data, error, isLoading, mutate } = useSWR<DashboardData>('/api/dashboard', fetcher, {
-    refreshInterval: 30000 // Refresh every 30 seconds
-  })
+  // Use global SWR config for consistent caching behavior
+  const { data, error, isLoading, mutate } = useSWR<DashboardData>('/api/dashboard', fetcher)
 
   return {
     data,

@@ -18,9 +18,8 @@ export interface PackageStatsResponse {
 export function usePackageStats(month?: string) {
   const url = month ? `/api/finance/package-stats?month=${month}` : null
 
-  const { data, error, isLoading, mutate } = useSWR<PackageStatsResponse>(url, fetcher, {
-    refreshInterval: 60000, // Refresh every minute
-  })
+  // Use global SWR config for consistent caching behavior
+  const { data, error, isLoading, mutate } = useSWR<PackageStatsResponse>(url, fetcher)
 
   return {
     packageStats: data,

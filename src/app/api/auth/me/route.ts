@@ -10,8 +10,16 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  // OPTIMIZED: Select only needed fields
   const dbUser = await prisma.user.findUnique({
     where: { id: user.id },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      isActive: true,
+    }
   })
 
   if (!dbUser) {

@@ -358,7 +358,7 @@ export default function ClientsPage() {
         )}
       </div>
 
-      {isLoading ? (
+      {!clients ? (
           <div className="flex justify-center py-20">
               <Loader2 className="h-8 w-8 animate-spin text-gray-300" />
           </div>

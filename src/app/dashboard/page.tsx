@@ -26,7 +26,7 @@ import {
 
 export default function DashboardPage() {
   const { user, isLoading: isAuthLoading } = useAuth()
-  const { data, isLoading: isDashboardLoading, error } = useDashboard()
+  const { data, error } = useDashboard()
 
   // Get today's date
   const today = new Date()
@@ -47,7 +47,8 @@ export default function DashboardPage() {
   ]
   const todayFormatted = `${dayNames[today.getDay()]}, ${today.getDate()} ${monthNames[today.getMonth()]} ${today.getFullYear()}`
 
-  if (isAuthLoading || isDashboardLoading) {
+  // Show loading only when there's no data AND not cached
+  if (isAuthLoading || !data) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
@@ -64,9 +65,6 @@ export default function DashboardPage() {
       </div>
     )
   }
-
-  // Fallback if data is missing despite no error
-  if (!data) return null
 
   // Action items stats
   const actionItems = [
