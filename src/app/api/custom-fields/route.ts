@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
 
 // GET — List custom field definitions
-export async function GET() {
+export async function GET(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -11,8 +11,12 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const { searchParams } = new URL(request.url)
+  // Default to active-only; pass ?active=false to get all (used by settings page)
+  const activeOnly = searchParams.get('active') !== 'false'
+
   const fields = await prisma.customFieldDefinition.findMany({
-    where: { isActive: true },
+    where: activeOnly ? { isActive: true } : undefined,
     orderBy: { sortOrder: 'asc' },
   })
 

@@ -1,44 +1,51 @@
 import useSWR from '@/lib/hooks/use-swr-shim'
 import { fetcher } from '@/lib/api-client'
-import type { Package, Background, AddOn, StaffUser, Voucher } from '@/lib/types'
+import { staticDataConfig, swrConfig } from '@/lib/swr-config'
+import type { Package, Background, AddOn, StaffUser, Voucher, CustomField } from '@/lib/types'
 
 // Package
-export function usePackages(activeOnly = true) {
+export function usePackages(activeOnly = true, enabled = true) {
+  const key = enabled ? `/api/packages?active=${activeOnly}` : null
   const { data, error, isLoading, mutate } = useSWR<Package[]>(
-    `/api/packages?active=${activeOnly}`,
-    fetcher
+    key,
+    fetcher,
+    staticDataConfig  // aggressively cached — rarely changes
   )
   return {
     packages: data || [],
-    isLoading,
+    isLoading: enabled ? isLoading : false,
     isError: error,
     mutate
   }
 }
 
 // Background
-export function useBackgrounds(activeOnly = true) {
+export function useBackgrounds(activeOnly = true, enabled = true) {
+  const key = enabled ? `/api/backgrounds?active=${activeOnly}` : null
   const { data, error, isLoading, mutate } = useSWR<Background[]>(
-    `/api/backgrounds?active=${activeOnly}`,
-    fetcher
+    key,
+    fetcher,
+    staticDataConfig
   )
   return {
     backgrounds: data || [],
-    isLoading,
+    isLoading: enabled ? isLoading : false,
     isError: error,
     mutate
   }
 }
 
 // AddOn Templates
-export function useAddOnTemplates(activeOnly = true) {
+export function useAddOnTemplates(activeOnly = true, enabled = true) {
+  const key = enabled ? `/api/addon-templates?active=${activeOnly}` : null
   const { data, error, isLoading, mutate } = useSWR<AddOn[]>(
-    `/api/addon-templates?active=${activeOnly}`,
-    fetcher
+    key,
+    fetcher,
+    staticDataConfig
   )
   return {
     addOnTemplates: data || [],
-    isLoading,
+    isLoading: enabled ? isLoading : false,
     isError: error,
     mutate
   }
@@ -48,7 +55,8 @@ export function useAddOnTemplates(activeOnly = true) {
 export function useStaff() {
   const { data, error, isLoading, mutate } = useSWR<StaffUser[]>(
     '/api/users',
-    fetcher
+    fetcher,
+    swrConfig  // staff may change, use regular config
   )
   return {
     staff: data || [],
@@ -59,35 +67,31 @@ export function useStaff() {
 }
 
 // Vouchers
-export function useVouchers(activeOnly = true) {
+export function useVouchers(activeOnly = true, enabled = true) {
+  const key = enabled ? `/api/vouchers?active=${activeOnly}` : null
   const { data, error, isLoading, mutate } = useSWR<Voucher[]>(
-    `/api/vouchers?active=${activeOnly}`,
-    fetcher
+    key,
+    fetcher,
+    staticDataConfig
   )
   return {
     vouchers: data || [],
-    isLoading,
+    isLoading: enabled ? isLoading : false,
     isError: error,
     mutate
   }
 }
 // Custom Fields
-export function useCustomFields(activeOnly = true) {
-  // We need to define the type for CustomField in types.ts if not exists, 
-  // but for now we can infer or use any if strictly needed, 
-  // however better to import valid type.
-  // checked types.ts earlier, CustomField might be there? 
-  // currently SettingsPage defines it locally. I should check types.ts first.
-  // Assuming it will be added to types.ts or is there.
-  // Re-reading types.ts... I don't recall CustomField in types.ts.
-  // I will check types.ts first.
-  const { data, error, isLoading, mutate } = useSWR<any[]>(
-    `/api/custom-fields?active=${activeOnly}`,
-    fetcher
+export function useCustomFields(activeOnly = true, enabled = true) {
+  const key = enabled ? `/api/custom-fields?active=${activeOnly}` : null
+  const { data, error, isLoading, mutate } = useSWR<CustomField[]>(
+    key,
+    fetcher,
+    staticDataConfig
   )
   return {
     customFields: data || [],
-    isLoading,
+    isLoading: enabled ? isLoading : false,
     isError: error,
     mutate
   }
@@ -95,9 +99,10 @@ export function useCustomFields(activeOnly = true) {
 
 // Studio Settings
 export function useStudioSettings() {
-  const { data, error, isLoading, mutate } = useSWR<any>(
+  const { data, error, isLoading, mutate } = useSWR<Record<string, unknown>>(
     '/api/settings',
-    fetcher
+    fetcher,
+    swrConfig  // settings may change frequently
   )
   return {
     settings: data || {},

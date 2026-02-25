@@ -37,6 +37,8 @@ type ClientFormData = {
   email: string
   instagram: string
   address: string
+  domisili: string
+  leads: string
 }
 
 export default function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -58,7 +60,9 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
     phone: "",
     email: "",
     instagram: "",
-    address: ""
+    address: "",
+    domisili: "",
+    leads: ""
   })
 
   if (isLoading) {
@@ -116,7 +120,9 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
       phone: client.phone,
       email: client.email || "",
       instagram: client.instagram || "",
-      address: client.address || ""
+      address: client.address || "",
+      domisili: client.domisili || "",
+      leads: client.leads || ""
     })
     setEditModalOpen(true)
   }
@@ -280,6 +286,20 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
                 <div className="flex items-start gap-3 text-sm p-2">
                   <MapPin className="h-4 w-4 text-[#9CA3AF] shrink-0 mt-0.5" />
                   <span className="text-[#111827]">{client.address}</span>
+                </div>
+              )}
+
+              {client.domisili && (
+                <div className="flex items-center gap-3 text-sm p-2">
+                  <MapPin className="h-4 w-4 text-[#9CA3AF] shrink-0" />
+                  <span className="text-[#111827]">{client.domisili}</span>
+                </div>
+              )}
+
+              {client.leads && (
+                <div className="flex items-center gap-3 text-sm p-2">
+                  <span className="text-xs text-[#9CA3AF] font-medium shrink-0">Leads</span>
+                  <span className="text-[#111827]">{client.leads}</span>
                 </div>
               )}
             </div>
@@ -514,6 +534,28 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
               className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all resize-none"
               placeholder="Alamat lengkap client"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Domisili</label>
+            <input
+              type="text"
+              value={formData.domisili || ""}
+              onChange={(e) => setFormData({ ...formData, domisili: e.target.value })}
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all"
+              placeholder="Kota/Kabupaten"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Leads (Sumber)</label>
+            <input
+              type="text"
+              value={formData.leads || ""}
+              onChange={(e) => setFormData({ ...formData, leads: e.target.value })}
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all"
+              placeholder="Instagram, TikTok, Referral, dll"
             />
           </div>
         </div>

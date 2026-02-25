@@ -4,7 +4,6 @@ import Link from "next/link"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { useAuth } from "@/lib/hooks/use-auth"
 import { useDashboard } from "@/lib/hooks/use-dashboard"
-import { formatDate } from "@/lib/utils"
 import {
   CalendarClock,
   Clock,
@@ -13,16 +12,107 @@ import {
   Send,
   CalendarCheck,
   Plus,
-  Search,
   ArrowRight,
   CalendarDays,
   CalendarX,
   CheckCircle,
-  Loader2,
   AlertCircle,
   Calendar,
   Bell
 } from "lucide-react"
+
+// ─── Skeleton Components ─────────────────────────────────────────────────────
+
+function SkeletonPulse({ className }: { className?: string }) {
+  return (
+    <div
+      className={`animate-pulse bg-[#E5E7EB] rounded ${className ?? ""}`}
+    />
+  )
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-6">
+      {/* Welcome Banner Skeleton */}
+      <div>
+        <SkeletonPulse className="h-7 w-64 mb-2" />
+        <SkeletonPulse className="h-4 w-40" />
+      </div>
+
+      {/* Quick Menu Skeleton */}
+      <div>
+        <SkeletonPulse className="h-5 w-24 mb-3" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-white rounded-xl border border-[#E5E7EB] p-4">
+              <div className="flex flex-col items-center space-y-2">
+                <SkeletonPulse className="w-12 h-12 rounded-xl" />
+                <SkeletonPulse className="h-4 w-20" />
+                <SkeletonPulse className="h-3 w-24" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Stats Skeleton */}
+      <div>
+        <SkeletonPulse className="h-5 w-36 mb-3" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="bg-white rounded-xl border border-[#E5E7EB] p-5">
+              <div className="flex items-start justify-between">
+                <div className="space-y-2">
+                  <SkeletonPulse className="h-4 w-28" />
+                  <SkeletonPulse className="h-9 w-16" />
+                  <SkeletonPulse className="h-3 w-24" />
+                </div>
+                <SkeletonPulse className="w-12 h-12 rounded-xl" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Action Items Skeleton */}
+      <div>
+        <SkeletonPulse className="h-5 w-24 mb-3" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-[#F9FAFB] rounded-xl p-4 border border-[#E5E7EB]">
+              <SkeletonPulse className="h-6 w-6 mb-2" />
+              <SkeletonPulse className="h-8 w-10 mb-1" />
+              <SkeletonPulse className="h-4 w-20" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Schedule Skeleton */}
+      <div className="bg-white rounded-xl border border-[#E5E7EB] p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <SkeletonPulse className="h-5 w-5 rounded" />
+          <SkeletonPulse className="h-5 w-32" />
+        </div>
+        <div className="space-y-3">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="flex items-center gap-4 p-4 rounded-lg border border-[#E5E7EB]">
+              <SkeletonPulse className="h-9 w-16 rounded-lg" />
+              <div className="flex-1 space-y-2">
+                <SkeletonPulse className="h-4 w-36" />
+                <SkeletonPulse className="h-3 w-24" />
+              </div>
+              <SkeletonPulse className="h-6 w-16 rounded-full" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main Dashboard Page ──────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const { user, isLoading: isAuthLoading } = useAuth()
@@ -32,38 +122,23 @@ export default function DashboardPage() {
   const today = new Date()
   const dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"]
   const monthNames = [
-    "Januari",
-    "Februari",
-    "Maret",
-    "April",
-    "Mei",
-    "Juni",
-    "Juli",
-    "Agustus",
-    "September",
-    "Oktober",
-    "November",
-    "Desember",
+    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+    "Juli", "Agustus", "September", "Oktober", "November", "Desember",
   ]
   const todayFormatted = `${dayNames[today.getDay()]}, ${today.getDate()} ${monthNames[today.getMonth()]} ${today.getFullYear()}`
 
-  // Show loading only when there's no data AND not cached
+  // Show skeleton while auth or data is loading — NOT a full-screen spinner
   if (isAuthLoading || !data) {
-    return (
-      <div className="flex h-[50vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="flex h-[50vh] flex-col items-center justify-center text-red-500">
-        <AlertCircle className="h-10 w-10 mb-2" />
-        <p>Failed to load dashboard data</p>
-        <p className="text-sm text-gray-500 mt-1">{error?.message || String(error)}</p>
-      </div>
-    )
+    if (error) {
+      return (
+        <div className="flex h-[50vh] flex-col items-center justify-center text-red-500">
+          <AlertCircle className="h-10 w-10 mb-2" />
+          <p>Gagal memuat data dashboard</p>
+          <p className="text-sm text-gray-500 mt-1">{error?.message || String(error)}</p>
+        </div>
+      )
+    }
+    return <DashboardSkeleton />
   }
 
   // Action items stats
@@ -196,7 +271,7 @@ export default function DashboardPage() {
                 <p className="text-3xl font-bold text-[#111827]">
                   {data.monthlyStats.totalBookings}
                 </p>
-                <p className="text-xs text-[#059669] mt-1">+12% dari bulan lalu</p>
+                <p className="text-xs text-[#059669] mt-1">Bulan ini</p>
               </div>
               <div className="w-12 h-12 rounded-xl bg-[#F5ECEC] flex items-center justify-center">
                 <CalendarCheck className="h-6 w-6 text-[#7A1F1F]" />
@@ -238,7 +313,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Section C: Action Items (Quick Stats) */}
+      {/* Section C: Action Items */}
       <div>
         <h2 className="text-base font-semibold text-[#111827] mb-3">Action Items</h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -248,7 +323,7 @@ export default function DashboardPage() {
               <Link
                 key={item.label}
                 href={item.href}
-                className={`block ${item.bgColor} rounded-xl p-4 hover:shadow-md transition-shadow cursor-pointer border border-transparent hover:border-${item.iconColor.replace("text-", "")}/20`}
+                className={`block ${item.bgColor} rounded-xl p-4 hover:shadow-md transition-shadow cursor-pointer border border-transparent`}
               >
                 <div className="flex flex-col">
                   <Icon className={`h-6 w-6 ${item.iconColor} mb-2`} />
@@ -261,9 +336,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-
-
-      {/* Section E: Today's Schedule */}
+      {/* Section D: Today's Schedule */}
       <div className="bg-white rounded-xl border border-[#E5E7EB] p-5">
         <div className="flex items-center gap-2 mb-4">
           <CalendarClock className="h-5 w-5 text-[#7A1F1F]" />

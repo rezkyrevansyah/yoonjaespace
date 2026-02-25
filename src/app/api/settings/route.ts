@@ -30,9 +30,9 @@ export async function GET() {
   const operating = raw.operating_hours || { open: '08:00', close: '20:00' }
   const result = {
     name: raw.studio_name || 'Yoonjaespace',
-    address: raw.studio_address || '',
-    phone: raw.studio_phone || '',
-    instagram: raw.studio_instagram || '',
+    address: raw.address || raw.studio_address || '',
+    phone: raw.phone_number || raw.studio_phone || '',
+    instagram: raw.instagram || raw.studio_instagram || '',
     openTime: operating.open,
     closeTime: operating.close,
     dayOff: typeof raw.day_off === 'string' ? [raw.day_off] : (raw.day_off || []),
@@ -40,7 +40,7 @@ export async function GET() {
     reminderMessageTemplate: raw.reminder_message_template || 'Halo {{clientName}}, ini reminder untuk sesi foto kamu di {{studioName}} pada {{date}} pukul {{time}}. Paket: {{packageName}}. Ditunggu ya! 😊\n\nCek status booking kamu di: {{clientPageLink}}',
     thankYouPaymentTemplate: raw.thank_you_payment_template || 'Terima kasih {{clientName}} sudah melakukan pembayaran untuk sesi foto di {{studioName}}! 🙏\n\nSesi foto kamu dijadwalkan pada {{date}} pukul {{time}}.\nPaket: {{packageName}}\n\nDitunggu kehadirannya ya! Kalau ada pertanyaan, jangan ragu untuk chat kami.\n\nCek status booking: {{clientPageLink}}',
     thankYouSessionTemplate: raw.thank_you_session_template || 'Halo {{clientName}}, terima kasih sudah memilih {{studioName}} untuk sesi foto kamu! 🙏✨\n\nKami harap kamu puas dengan hasilnya. Jangan lupa cek status booking untuk melihat update foto kamu:\n{{clientPageLink}}\n\nSampai jumpa lagi! 😊',
-    logoUrl: raw.studio_logo_url || '',
+    logoUrl: raw.logo_url || raw.studio_logo_url || '',
     mapsUrl: raw.studio_maps_url || '',
     studioPhotoUrl: raw.studio_photo_url || '',
     footerText: raw.studio_footer_text || '',

@@ -44,6 +44,9 @@ export async function GET(request: NextRequest) {
         phone: true,
         email: true,
         instagram: true,
+        address: true,
+        domisili: true,
+        leads: true,
         createdAt: true,
         // Count total bookings (excluding cancelled)
         _count: {
@@ -82,6 +85,9 @@ export async function GET(request: NextRequest) {
       phone: client.phone,
       email: client.email,
       instagram: client.instagram,
+      address: client.address,
+      domisili: client.domisili,
+      leads: client.leads,
       createdAt: client.createdAt,
       totalBookings: client._count.bookings,
       totalSpent,
@@ -115,7 +121,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { name, phone, email, instagram, address, notes } = await request.json()
+  const { name, phone, email, instagram, address, domisili, leads, notes } = await request.json()
 
   if (!name || !phone) {
     return NextResponse.json(
@@ -131,6 +137,8 @@ export async function POST(request: NextRequest) {
       email: email || null,
       instagram: instagram || null,
       address: address || null,
+      domisili: domisili || null,
+      leads: leads || null,
       notes: notes || null,
     },
   })

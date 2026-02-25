@@ -7,14 +7,9 @@ export async function GET() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
+  // Session check only — no extra Prisma user query needed here
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
-
-  if (!dbUser || !dbUser.isActive) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const today = new Date()
@@ -24,8 +19,7 @@ export async function GET() {
   const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1)
 
   try {
-    // CRITICAL FIX: Use $transaction to batch ALL queries into ONE database transaction
-    // This eliminates the DEALLOCATE ALL overhead (8 round trips → 1)
+    // Batch ALL queries into ONE database transaction (8 queries → 1 trip)
     const [
       todayBookings,
       waitingClientSelection,
@@ -53,17 +47,6 @@ export async function GET() {
           client: { select: { id: true, name: true, phone: true } },
           package: { select: { id: true, name: true } },
           handledBy: { select: { id: true, name: true } },
-          bookingBackgrounds: {
-            select: { background: { select: { id: true, name: true } } }
-          },
-          addOns: { select: { id: true, itemName: true, unitPrice: true, quantity: true } },
-          customFields: {
-            select: {
-              id: true,
-              value: true,
-              field: { select: { id: true, fieldName: true } }
-            }
-          },
         },
         orderBy: { startTime: 'asc' },
       }),
@@ -95,10 +78,10 @@ export async function GET() {
           status: { not: 'CANCELLED' },
         },
       }),
-    ]);
+    ])
 
     return NextResponse.json({
-      todaySchedule: todayBookings.map((b: any) => ({
+      todaySchedule: todayBookings.map((b) => ({
         ...b,
         sessionTime: b.startTime.toISOString().split('T')[1].slice(0, 5),
         sessionDate: b.date.toISOString().split('T')[0]
@@ -115,8 +98,9 @@ export async function GET() {
         unpaidBookings,
       },
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error)
     console.error("Dashboard API Error:", error)
-    return NextResponse.json({ error: error.message || String(error) }, { status: 500 })
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

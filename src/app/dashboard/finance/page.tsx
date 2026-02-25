@@ -21,6 +21,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Ba
 import { useExpenses, useFinanceSummary } from "@/lib/hooks/use-finance"
 import { usePackageStats } from "@/lib/hooks/use-package-stats"
 import { useBookings } from "@/lib/hooks/use-bookings"
+import { useVendors } from "@/lib/hooks/use-vendors"
 import { apiPost, apiPatch, apiDelete } from "@/lib/api-client"
 import { FinanceSummary, Expense, ExpenseCategory } from "@/lib/types"
 
@@ -79,6 +80,7 @@ export default function FinancePage() {
   // Let's use paymentStatus='PAID'. API implementation should handle excluding cancelled if paymentStatus is paid (usually paid implies not cancelled, or we need to filter)
   // Actually, useBookings params are flexible. Let's just use paymentStatus='PAID'.
   const { stats: packageStatsData, isLoading: isLoadingStats } = usePackageStats(selectedMonth)
+  const { vendors } = useVendors(true) // only active vendors for dropdown
 
   // Expense filters (client-side filtering for category/search if needed, but API supports it too. Here we fetched by month, so we can filter local or refetch)
   const [categoryFilter, setCategoryFilter] = useState<string | "ALL">("ALL")
@@ -98,13 +100,14 @@ export default function FinancePage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Expense form
-  const [expenseForm, setExpenseForm] = useState<Partial<Expense>>({
+  const [expenseForm, setExpenseForm] = useState<Partial<Expense> & { vendorId?: string | null; vendorPaid?: boolean }>({
     date: new Date().toISOString().split("T")[0],
     description: "",
     category: "OTHER",
     amount: 0,
-    notes: ""
-    // relatedBookingId: null, // Not mapped in UI yet, but API supports it
+    notes: "",
+    vendorId: null,
+    vendorPaid: false,
   })
 
   // Get month name
@@ -148,7 +151,10 @@ export default function FinancePage() {
             date: new Date().toISOString().split("T")[0],
             description: "",
             category: "OTHER",
-            amount: 0
+            amount: 0,
+            notes: "",
+            vendorId: null,
+            vendorPaid: false,
         })
     } catch (error: any) {
         showToast(error.message || "Gagal menambah expense", "error")
@@ -210,8 +216,9 @@ export default function FinancePage() {
       description: expense.description,
       category: expense.category,
       amount: expense.amount,
-      notes: expense.notes || ""
-      // relatedBookingId: expense.relatedBookingId,
+      notes: expense.notes || "",
+      vendorId: expense.vendorId || null,
+      vendorPaid: expense.vendorPaid || false,
     })
     setEditExpenseModal(true)
   }
@@ -465,6 +472,7 @@ export default function FinancePage() {
                     <th className="text-left py-3 px-4 font-medium text-[#6B7280]">Date</th>
                     <th className="text-left py-3 px-4 font-medium text-[#6B7280]">Description</th>
                     <th className="text-left py-3 px-4 font-medium text-[#6B7280]">Category</th>
+                    <th className="text-left py-3 px-4 font-medium text-[#6B7280]">Vendor</th>
                     <th className="text-left py-3 px-4 font-medium text-[#6B7280]">Amount</th>
                     <th className="text-center py-3 px-4 font-medium text-[#6B7280]">Actions</th>
                     </tr>
@@ -480,6 +488,20 @@ export default function FinancePage() {
                             <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${categoryStyle.bg} ${categoryStyle.text} ${categoryStyle.border}`}>
                             {categoryStyle.label}
                             </span>
+                        </td>
+                        <td className="py-3 px-4">
+                            {expense.vendor ? (
+                              <div>
+                                <p className="text-xs font-medium text-gray-700">{expense.vendor.name}</p>
+                                {expense.vendorPaid ? (
+                                  <span className="text-xs text-green-600">Lunas</span>
+                                ) : (
+                                  <span className="text-xs text-amber-600">Belum lunas</span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-gray-400">—</span>
+                            )}
                         </td>
                         <td className="py-3 px-4">
                             <span className="font-bold text-red-600">{formatCurrency(expense.amount)}</span>
@@ -774,6 +796,33 @@ export default function FinancePage() {
               </select>
             </div>
 
+            {/* Vendor Field */}
+            <div>
+              <label className="block text-sm font-medium text-[#111827] mb-1">Vendor (Optional)</label>
+              <select
+                value={expenseForm.vendorId || ""}
+                onChange={(e) => setExpenseForm({ ...expenseForm, vendorId: e.target.value || null, vendorPaid: false })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-[#7A1F1F]"
+              >
+                <option value="">— Tanpa vendor —</option>
+                {vendors.map((v) => (
+                  <option key={v.id} value={v.id}>{v.name} ({v.category})</option>
+                ))}
+              </select>
+            </div>
+
+            {expenseForm.vendorId && (
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={expenseForm.vendorPaid || false}
+                  onChange={(e) => setExpenseForm({ ...expenseForm, vendorPaid: e.target.checked })}
+                  className="w-4 h-4 text-[#7A1F1F] border-gray-300 rounded focus:ring-[#7A1F1F]"
+                />
+                <span className="text-sm text-gray-700">Sudah dibayar ke vendor</span>
+              </label>
+            )}
+
             {/* Notes Field */}
             <div>
               <label className="block text-sm font-medium text-[#111827] mb-1">Notes (Optional)</label>
@@ -856,6 +905,33 @@ export default function FinancePage() {
                 ))}
               </select>
             </div>
+
+            {/* Vendor Field */}
+            <div>
+              <label className="block text-sm font-medium text-[#111827] mb-1">Vendor (Optional)</label>
+              <select
+                value={expenseForm.vendorId || ""}
+                onChange={(e) => setExpenseForm({ ...expenseForm, vendorId: e.target.value || null, vendorPaid: false })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-[#7A1F1F]"
+              >
+                <option value="">— Tanpa vendor —</option>
+                {vendors.map((v) => (
+                  <option key={v.id} value={v.id}>{v.name} ({v.category})</option>
+                ))}
+              </select>
+            </div>
+
+            {expenseForm.vendorId && (
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={expenseForm.vendorPaid || false}
+                  onChange={(e) => setExpenseForm({ ...expenseForm, vendorPaid: e.target.checked })}
+                  className="w-4 h-4 text-[#7A1F1F] border-gray-300 rounded focus:ring-[#7A1F1F]"
+                />
+                <span className="text-sm text-gray-700">Sudah dibayar ke vendor</span>
+              </label>
+            )}
 
             {/* Notes Field */}
             <div>

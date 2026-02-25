@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { StatusBadge } from "@/components/shared/status-badge"
@@ -22,9 +22,6 @@ import {
   CalendarCheck,
   Calendar,
   Package as PackageIcon,
-  ChevronLeft,
-  ChevronRight,
-  Edit,
   Trash2,
   Eye,
   ChevronDown,
@@ -64,10 +61,11 @@ export default function BookingsPage() {
   const router = useRouter()
   const isMobile = useMobile()
   const { showToast } = useToast()
-  const { user, isLoading: isAuthLoading } = useAuth()
+  const { user } = useAuth()
   
   // Filter States
   const [search, setSearch] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("ALL")
   const [paymentFilter, setPaymentFilter] = useState<string>("ALL")
   const [startDate, setStartDate] = useState("")
@@ -77,14 +75,24 @@ export default function BookingsPage() {
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1)
 
+  // Debounce search input — only hit API after 350ms pause
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 350)
+    return () => clearTimeout(t)
+  }, [search])
+
+  // Prefetch new booking page on mount for instant navigation
+  useEffect(() => {
+    router.prefetch('/dashboard/bookings/new')
+  }, [router])
+
   // Fetch Data using SWR hook
-  const { bookings, pagination, isLoading, isError, mutate } = useBookings({
+  const { bookings, pagination, isError, mutate } = useBookings({
     page: currentPage,
     limit: ITEMS_PER_PAGE,
-    search: search || undefined,
+    search: debouncedSearch || undefined,
     status: statusFilter !== "ALL" ? (statusFilter as BookingStatus) : undefined,
     paymentStatus: paymentFilter !== "ALL" ? (paymentFilter as PaymentStatus) : undefined,
-    // Add date filtering logic if supported by API/Hook, for now assuming hook inputs
   })
 
   // Delete Modal State
@@ -93,9 +101,6 @@ export default function BookingsPage() {
     id: "",
     code: "",
   })
-
-  // Loading state for row updates (format: `${id}-${type}`)
-  const [updatingId, setUpdatingId] = useState<string | null>(null)
 
   // --- Actions ---
 
@@ -118,30 +123,42 @@ export default function BookingsPage() {
   }
 
   const handleStatusUpdate = async (id: string, newStatus: BookingStatus) => {
-    setUpdatingId(id)
+    // Optimistic update — instant visual feedback before server confirms
+    mutate(
+      (current: any) => current ? {
+        ...current,
+        data: current.data.map((b: any) => b.id === id ? { ...b, status: newStatus } : b)
+      } : current,
+      false
+    )
     try {
         const res = await apiPatch(`/api/bookings/${id}/status`, { status: newStatus })
         if (res.error) throw new Error(res.error)
-        mutate() // Refresh
+        mutate() // revalidate from server
         showToast("Status updated", "success")
     } catch (error: any) {
+        mutate() // rollback on error
         showToast(error.message || "Failed to update status", "error")
-    } finally {
-        setUpdatingId(null)
     }
   }
 
   const handlePaymentUpdate = async (id: string, newStatus: PaymentStatus) => {
-      setUpdatingId(id)
-      try {
+    // Optimistic update
+    mutate(
+      (current: any) => current ? {
+        ...current,
+        data: current.data.map((b: any) => b.id === id ? { ...b, paymentStatus: newStatus } : b)
+      } : current,
+      false
+    )
+    try {
         const res = await apiPatch(`/api/bookings/${id}/status`, { paymentStatus: newStatus })
         if (res.error) throw new Error(res.error)
         mutate()
         showToast("Payment status updated", "success")
     } catch (error: any) {
+        mutate() // rollback
         showToast(error.message || "Failed to update payment", "error")
-    } finally {
-        setUpdatingId(null)
     }
   }
 
@@ -354,6 +371,7 @@ export default function BookingsPage() {
                         {bookings.map((booking: Booking) => (
                         <tr
                             key={booking.id}
+                            onMouseEnter={() => router.prefetch(`/dashboard/bookings/${booking.id}`)}
                             className="border-b border-[#E5E7EB] last:border-0 hover:bg-[#F9FAFB] transition-colors"
                         >
                             <td className="py-3 px-4">
@@ -377,61 +395,43 @@ export default function BookingsPage() {
                             
                             {/* Inline Status Edit */}
                             <td className="py-3 px-4">
-                              {updatingId === booking.id ? (
-                                <div className="flex items-center gap-2 text-gray-500 text-xs">
-                                    <Loader2 className="h-4 w-4 animate-spin text-[#7A1F1F]" />
-                                    <span>Updating...</span>
-                                </div>
-                              ) : (
-                                <div className="relative group flex items-center gap-1 cursor-pointer">
-                                    <select
-                                    value={booking.status}
-                                    onChange={(e) => handleStatusUpdate(booking.id, e.target.value as BookingStatus)}
-                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                                    disabled={updatingId !== null}
-                                    >
-                                    {getAvailableStatusOptions(booking.status).map(opt => (
-                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                    ))}
-                                    </select>
-                                    <div className="flex items-center gap-1.5 transition-transform active:scale-95">
-                                        <StatusBadge status={booking.status} size="sm" />
-                                        <ChevronDown className="h-3 w-3 text-gray-400" />
-                                    </div>
-                                </div>
-                              )}
+                              <div className="relative group flex items-center gap-1 cursor-pointer">
+                                  <select
+                                  value={booking.status}
+                                  onChange={(e) => handleStatusUpdate(booking.id, e.target.value as BookingStatus)}
+                                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                  >
+                                  {getAvailableStatusOptions(booking.status).map(opt => (
+                                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                  ))}
+                                  </select>
+                                  <div className="flex items-center gap-1.5 transition-transform active:scale-95">
+                                      <StatusBadge status={booking.status} size="sm" />
+                                      <ChevronDown className="h-3 w-3 text-gray-400" />
+                                  </div>
+                              </div>
                             </td>
 
                             {/* Inline Payment Edit */}
                             <td className="py-3 px-4">
-                             {updatingId === booking.id ? (
-                                <div className="flex items-center gap-2 text-gray-500 text-xs">
-                                    <Loader2 className="h-4 w-4 animate-spin text-[#7A1F1F]" />
-                                    <span>Updating...</span>
-                                </div>
-                             ) : (
-                                <>
-                                {canEditPayment ? (
-                                    <div className="relative group flex items-center gap-1 cursor-pointer">
-                                    <select
-                                        value={booking.paymentStatus}
-                                        onChange={(e) => handlePaymentUpdate(booking.id, e.target.value as PaymentStatus)}
-                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                                        disabled={updatingId !== null}
-                                        >
-                                        <option value="PAID">Paid</option>
-                                        <option value="UNPAID">Unpaid</option>
-                                        </select>
-                                        <div className="flex items-center gap-1.5 transition-transform active:scale-95">
-                                            <StatusBadge status={booking.paymentStatus} type="payment" size="sm" />
-                                            <ChevronDown className="h-3 w-3 text-gray-400" />
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <StatusBadge status={booking.paymentStatus} type="payment" size="sm" />
-                                )}
-                                </>
-                             )}
+                              {canEditPayment ? (
+                                  <div className="relative group flex items-center gap-1 cursor-pointer">
+                                  <select
+                                      value={booking.paymentStatus}
+                                      onChange={(e) => handlePaymentUpdate(booking.id, e.target.value as PaymentStatus)}
+                                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                      >
+                                      <option value="PAID">Paid</option>
+                                      <option value="UNPAID">Unpaid</option>
+                                      </select>
+                                      <div className="flex items-center gap-1.5 transition-transform active:scale-95">
+                                          <StatusBadge status={booking.paymentStatus} type="payment" size="sm" />
+                                          <ChevronDown className="h-3 w-3 text-gray-400" />
+                                      </div>
+                                  </div>
+                              ) : (
+                                  <StatusBadge status={booking.paymentStatus} type="payment" size="sm" />
+                              )}
                             </td>
 
                             <td className="py-3 px-4 text-[#6B7280] text-sm">

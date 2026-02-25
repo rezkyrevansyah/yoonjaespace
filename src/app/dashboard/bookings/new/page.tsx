@@ -1,8 +1,7 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
 import {
   ArrowLeft,
   Search,
@@ -66,16 +65,18 @@ type AddOnItem = {
 type DiscountType = "VOUCHER" | "MANUAL"
 type ManualDiscountMethod = "PERCENTAGE" | "FIXED"
 
+const STORAGE_KEY = "booking_form_draft"
+
 export default function NewBookingPage() {
   const router = useRouter()
   const { showToast } = useToast()
   const { user } = useAuth()
 
   // --- Master Data Hooks ---
-  const { packages, isLoading: isLoadingPackages } = usePackages()
-  const { backgrounds, isLoading: isLoadingBackgrounds } = useBackgrounds()
-  const { addOnTemplates, isLoading: isLoadingAddOns } = useAddOnTemplates()
-  const { staff, isLoading: isLoadingStaff } = useStaff()
+  const { packages } = usePackages()
+  const { backgrounds } = useBackgrounds()
+  const { addOnTemplates } = useAddOnTemplates()
+  const { staff } = useStaff()
   const { vouchers } = useVouchers()
   const { customFields } = useCustomFields()
   const { settings } = useStudioSettings()
@@ -277,6 +278,81 @@ export default function NewBookingPage() {
       }))
   }
 
+  // --- sessionStorage: Load draft on mount ---
+  const hasLoaded = useRef(false)
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(STORAGE_KEY)
+      if (saved) {
+        const draft = JSON.parse(saved)
+        if (draft.clientForm) setClientForm(draft.clientForm)
+        if (draft.clientMode) setClientMode(draft.clientMode)
+        if (draft.sessionDate) setSessionDate(draft.sessionDate)
+        if (draft.sessionTime) setSessionTime(draft.sessionTime)
+        if (draft.packageId) setPackageId(draft.packageId)
+        if (draft.backgroundId) setBackgroundId(draft.backgroundId)
+        if (draft.backgroundIds) setBackgroundIds(draft.backgroundIds)
+        if (draft.numPeople !== undefined) setNumPeople(draft.numPeople)
+        if (draft.photoFor) setPhotoFor(draft.photoFor)
+        if (draft.photoForCustom) setPhotoForCustom(draft.photoForCustom)
+        if (draft.notes) setNotes(draft.notes)
+        if (draft.addOns) setAddOns(draft.addOns)
+        if (draft.discountType) setDiscountType(draft.discountType)
+        if (draft.voucherCode) setVoucherCode(draft.voucherCode)
+        if (draft.appliedVoucher) setAppliedVoucher(draft.appliedVoucher)
+        if (draft.manualMethod) setManualMethod(draft.manualMethod)
+        if (draft.manualValue !== undefined) setManualValue(draft.manualValue)
+        if (draft.discountReason) setDiscountReason(draft.discountReason)
+        if (draft.staffId) setStaffId(draft.staffId)
+        if (draft.customFieldValues) setCustomFieldValues(draft.customFieldValues)
+        if (draft.bookingMode) setBookingMode(draft.bookingMode)
+        if (draft.customCreatedAt) setCustomCreatedAt(draft.customCreatedAt)
+        if (draft.customCreatedTime) setCustomCreatedTime(draft.customCreatedTime)
+      }
+    } catch { /* ignore parse errors */ }
+    // Mark load as done — auto-save effect will now be allowed to write
+    hasLoaded.current = true
+  }, [])
+
+  // saveTimer ref for debouncing sessionStorage writes
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // --- sessionStorage: Auto-save draft (debounced 400ms to prevent typing lag) ---
+  useEffect(() => {
+    // Skip the initial mount run — let the load effect finish first
+    if (!hasLoaded.current) return
+    // Clear any pending save
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    // Defer the write so keystrokes don't block the UI
+    saveTimer.current = setTimeout(() => {
+      try {
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+          clientForm, clientMode, sessionDate, sessionTime,
+          packageId, backgroundId, backgroundIds, numPeople,
+          photoFor, photoForCustom, notes, addOns,
+          discountType, voucherCode, appliedVoucher,
+          manualMethod, manualValue, discountReason,
+          staffId, customFieldValues, bookingMode,
+          customCreatedAt, customCreatedTime,
+        }))
+      } catch { /* ignore quota errors */ }
+    }, 400)
+    return () => { if (saveTimer.current) clearTimeout(saveTimer.current) }
+  }, [
+    clientForm, clientMode, sessionDate, sessionTime,
+    packageId, backgroundId, backgroundIds, numPeople,
+    photoFor, photoForCustom, notes, addOns,
+    discountType, voucherCode, appliedVoucher,
+    manualMethod, manualValue, discountReason,
+    staffId, customFieldValues, bookingMode,
+    customCreatedAt, customCreatedTime,
+  ])
+
+  // --- sessionStorage: Clear draft helper ---
+  const clearDraft = () => {
+    try { sessionStorage.removeItem(STORAGE_KEY) } catch {}
+  }
+
   // --- Calculations ---
   const selectedPackage = useMemo(() => packages.find((p: Package) => p.id === packageId), [packageId, packages])
   
@@ -419,6 +495,7 @@ export default function NewBookingPage() {
         }
 
         // res.data contains the booking object
+        clearDraft()
         showToast(`Booking berhasil dibuat! Order ID: ${res.data?.bookingCode}`, "success")
         router.push("/dashboard/bookings")
 
@@ -430,25 +507,18 @@ export default function NewBookingPage() {
     }
   }
 
-  if (isLoadingPackages || isLoadingBackgrounds || isLoadingStaff) {
-      return (
-          <div className="flex h-screen items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-gray-300" />
-          </div>
-      )
-  }
 
   // Return JSX (Same as before)
   return (
     <div className="min-h-screen pb-24 sm:pb-10 relative">
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
-        <Link
-          href="/dashboard/bookings"
+        <button
+          onClick={() => { clearDraft(); router.push("/dashboard/bookings") }}
           className="p-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
         >
           <ArrowLeft className="h-5 w-5" />
-        </Link>
+        </button>
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-gray-900">Create New Booking</h1>
           <p className="text-sm text-gray-500">Buat booking baru untuk client</p>
@@ -791,7 +861,7 @@ export default function NewBookingPage() {
               </label>
               <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
                 {(() => {
-                  const timeInterval = settings?.timeIntervalMinutes ? parseInt(settings.timeIntervalMinutes) : 30
+                  const timeInterval = settings?.timeIntervalMinutes ? parseInt(String(settings.timeIntervalMinutes)) : 30
                   const slotsPerHour = 60 / timeInterval
                   const totalSlots = (21 - 8) * slotsPerHour // 8:00 - 20:00
 

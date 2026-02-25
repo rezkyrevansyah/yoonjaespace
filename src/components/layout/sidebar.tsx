@@ -1,7 +1,7 @@
 "use client"
 
-import { useMemo } from "react"
-import Link from "next/link"
+import { useMemo, useEffect } from "react"
+import type { MenuPermission } from "@/lib/hooks/use-permissions"
 import Image from "next/image"
 import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -27,6 +27,7 @@ import {
   LogOut,
   X,
   Activity,
+  Briefcase,
 } from "lucide-react"
 
 const iconMap: Record<string, React.ElementType> = {
@@ -41,6 +42,7 @@ const iconMap: Record<string, React.ElementType> = {
   ShieldCheck,
   Shield,
   Activity,
+  Briefcase,
 }
 
 interface SidebarProps {
@@ -55,30 +57,44 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
   const { count: reminderCount } = useReminderCount()
   const { settings } = useSettings()
   const permissionsData = usePermissions()
-  const permissionsLoading = permissionsData?.isLoading ?? true
-  const getVisibleMenus = permissionsData?.getVisibleMenus ?? (() => [])
-
-  // Memoize visible menus to avoid calling getVisibleMenus() in filter loop
-  const visibleMenus = useMemo(() => getVisibleMenus(), [permissionsData])
-  console.log('[Sidebar] User:', user?.role, '| Permissions loading:', permissionsLoading, '| Visible menus:', visibleMenus.length)
-
-  // Memoize filtered menu items for performance
+  // Compute filtered menus — always available immediately (role-based fallback until permissions load)
   const filteredMenu = useMemo(() => {
+    const visibleMenus = permissionsData?.getVisibleMenus?.()
+    if (!visibleMenus || visibleMenus.length === 0) {
+      // Role-based fallback — instant, no waiting for permissions API
+      return SIDEBAR_MENU.filter((item) =>
+        user?.role && (item.roles as readonly string[]).includes(user.role)
+      )
+    }
     return SIDEBAR_MENU.filter((item) => {
-      // If no permissions loaded yet (API error or not configured), fallback to role-based
-      if (!visibleMenus || visibleMenus.length === 0) {
-        return user?.role && (item.roles as readonly string[]).includes(user.role)
-      }
-
       const menuName = item.href.replace('/dashboard/', '').replace('/dashboard', 'dashboard')
-      return visibleMenus.some((m: any) => m.menuName === menuName)
+      return visibleMenus.some((m: MenuPermission) => m.menuName === menuName)
     })
-  }, [visibleMenus, user?.role])
+  }, [permissionsData, user])
 
   const handleLogout = async () => {
     await logout()
     onClose?.()
     router.push("/login")
+  }
+
+  // --- Last Visited Page: save current path per section ---
+  useEffect(() => {
+    // Only save sub-pages (not the section root itself, as those are the defaults)
+    // E.g. /dashboard/bookings/new → saved under key "nav_last_/dashboard/bookings"
+    const sectionRoot = filteredMenu.find((item) =>
+      item.href !== "/dashboard" && pathname.startsWith(item.href)
+    )
+    if (sectionRoot) {
+      sessionStorage.setItem(`nav_last_${sectionRoot.href}`, pathname)
+    }
+  }, [pathname, filteredMenu])
+
+  // Helper: get the target URL for a sidebar item (last visited or default)
+  const getNavTarget = (href: string) => {
+    if (href === "/dashboard") return href // always go to dashboard root
+    const saved = sessionStorage.getItem(`nav_last_${href}`)
+    return saved || href
   }
 
   const handleLinkClick = () => {
@@ -142,10 +158,7 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-4 px-3">
           <ul className="space-y-1">
-            {permissionsLoading ? (
-              <li className="px-3 py-2 text-sm text-[#9CA3AF]">Loading menu...</li>
-            ) : (
-              filteredMenu.map((item) => {
+            {filteredMenu.map((item) => {
                 const Icon = iconMap[item.icon]
                 const isActive =
                   item.href === "/dashboard"
@@ -154,11 +167,13 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
 
                 return (
                   <li key={`${item.href}-${item.label}`}>
-                    <Link
-                      href={item.href}
-                      onClick={handleLinkClick}
+                    <button
+                      onClick={() => {
+                        handleLinkClick()
+                        router.push(getNavTarget(item.href))
+                      }}
                       className={cn(
-                        "relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                        "relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors w-full text-left",
                         isActive
                           ? "bg-[#F5ECEC] text-[#7A1F1F]"
                           : "text-[#6B7280] hover:bg-[#F9FAFB] hover:text-[#111827]"
@@ -186,11 +201,10 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
                           {reminderCount}
                         </span>
                       ) : null}
-                    </Link>
+                    </button>
                   </li>
                 )
-              })
-            )}
+              })}
           </ul>
         </nav>
 

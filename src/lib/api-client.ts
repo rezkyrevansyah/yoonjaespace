@@ -85,15 +85,15 @@ export async function apiDelete<T>(endpoint: string): Promise<ApiResponse<T>> {
  * Throws error if request fails, suitable for useSWR
  */
 export async function fetcher<T>(url: string): Promise<T> {
-  const res = await fetch(url)
+  const res = await fetch(url, { credentials: 'include' })
 
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}))
     const error = new Error(errorData.error || errorData.message || 'An error occurred while fetching the data.')
     // Attach extra info to the error object.
-    // @ts-ignore
+    // @ts-expect-error — attaching extra info to Error object
     error.info = errorData
-    // @ts-ignore
+    // @ts-expect-error — attaching extra info to Error object
     error.status = res.status
     throw error
   }

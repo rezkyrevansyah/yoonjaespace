@@ -13,7 +13,9 @@ import {
   Plus,
   Filter,
   Loader2,
-  AlertTriangle
+  AlertTriangle,
+  Link2,
+  Check,
 } from "lucide-react"
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, isToday, parseISO, startOfWeek, endOfWeek, addDays } from "date-fns"
 import { id as idLocale } from "date-fns/locale"
@@ -53,6 +55,24 @@ export default function CalendarPage() {
   // SESI 12: Quick jump navigation
   const [showJumpMenu, setShowJumpMenu] = useState(false)
   const [jumpMonth, setJumpMonth] = useState(format(new Date(), "yyyy-MM"))
+
+  const [copiedMua, setCopiedMua] = useState(false)
+
+  const handleCopyMuaLink = async () => {
+    const url = window.location.origin + "/mua"
+    try {
+      await navigator.clipboard.writeText(url)
+    } catch {
+      const el = document.createElement("textarea")
+      el.value = url
+      document.body.appendChild(el)
+      el.select()
+      document.execCommand("copy")
+      document.body.removeChild(el)
+    }
+    setCopiedMua(true)
+    setTimeout(() => setCopiedMua(false), 2000)
+  }
 
   // SESI 12: Modal editing state
   const [isEditingModal, setIsEditingModal] = useState(false)
@@ -236,8 +256,8 @@ export default function CalendarPage() {
                         key={option.value}
                         onClick={() => setView(option.value)}
                         className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                            view === option.value 
-                            ? "bg-white text-[#111827] shadow-sm" 
+                            view === option.value
+                            ? "bg-white text-[#111827] shadow-sm"
                             : "text-gray-500 hover:text-gray-700"
                         }`}
                     >
@@ -245,7 +265,28 @@ export default function CalendarPage() {
                     </button>
                 ))}
             </div>
-            <button 
+            <button
+                onClick={handleCopyMuaLink}
+                title="Salin link kalender MUA untuk dibagikan ke MUA artist"
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border transition-all ${
+                    copiedMua
+                        ? "bg-green-50 text-green-700 border-green-200"
+                        : "bg-white text-[#6B7280] border-gray-200 hover:text-[#7A1F1F] hover:border-[#7A1F1F]"
+                }`}
+            >
+                {copiedMua ? (
+                    <>
+                        <Check className="h-4 w-4" />
+                        <span className="hidden sm:inline">Link disalin!</span>
+                    </>
+                ) : (
+                    <>
+                        <Link2 className="h-4 w-4" />
+                        <span className="hidden sm:inline">Link MUA</span>
+                    </>
+                )}
+            </button>
+            <button
                 onClick={() => router.push('/dashboard/bookings/new')}
                 className="flex items-center gap-2 px-4 py-2 bg-[#7A1F1F] text-white rounded-lg text-sm font-medium hover:bg-[#9B3333] transition-colors"
             >

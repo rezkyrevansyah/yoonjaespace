@@ -23,7 +23,7 @@ export async function PATCH(
   }
 
   const body = await request.json()
-  const { description, amount, category, date, relatedBookingId, notes } = body
+  const { description, amount, category, date, relatedBookingId, notes, vendorId, vendorPaid } = body
 
   const updated = await prisma.expense.update({
     where: { id },
@@ -34,6 +34,11 @@ export async function PATCH(
       ...(date && { date: new Date(date) }),
       ...(relatedBookingId !== undefined && { relatedBookingId: relatedBookingId || null }),
       ...(notes !== undefined && { notes: notes || null }),
+      ...(vendorId !== undefined && { vendorId: vendorId || null }),
+      ...(vendorPaid !== undefined && { vendorPaid }),
+    },
+    include: {
+      vendor: { select: { id: true, name: true, category: true } },
     },
   })
 

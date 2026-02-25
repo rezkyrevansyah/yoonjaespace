@@ -101,9 +101,9 @@ export async function GET(
     invoice,
     studio: {
       name: settingsMap['studio_name'] || 'Yoonjaespace',
-      address: settingsMap['studio_address'] || '',
-      phone: settingsMap['studio_phone'] || '',
-      instagram: settingsMap['studio_instagram'] || '',
+      address: settingsMap['address'] || settingsMap['studio_address'] || '',
+      phone: settingsMap['phone_number'] || settingsMap['studio_phone'] || '',
+      instagram: settingsMap['instagram'] || settingsMap['studio_instagram'] || '',
     },
   })
 }

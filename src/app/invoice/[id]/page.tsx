@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useParams, notFound } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
@@ -8,41 +8,16 @@ import { ArrowLeft, Download, Copy, Check, Share2 } from "lucide-react"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { useToast } from "@/lib/hooks/use-toast"
 import { PAYMENT_STATUS_MAP } from "@/lib/constants"
+import { useInvoice } from "@/lib/hooks/use-invoice"
 
 export default function InvoicePage() {
   const params = useParams()
   const id = params?.id as string
   const { showToast } = useToast()
   const [copied, setCopied] = useState(false)
-  const [booking, setBooking] = useState<any>(null)
-  const [studio, setStudio] = useState<any>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState(false)
 
-  // Fetch booking data from API
-  useEffect(() => {
-    if (!id) return
-
-    const fetchInvoice = async () => {
-      try {
-        const res = await fetch(`/api/public/invoice/${id}`)
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}))
-          throw new Error(err.error || 'Failed to fetch invoice')
-        }
-        const data = await res.json()
-        setBooking(data.booking)
-        setStudio(data.studio)
-      } catch (err) {
-        console.error(err)
-        setError(true)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchInvoice()
-  }, [id])
+  // SWR hook — caches response so revisiting invoice is instant
+  const { booking, studio, isLoading, isError } = useInvoice(id)
 
   if (isLoading) {
     return (
@@ -52,7 +27,7 @@ export default function InvoicePage() {
     )
   }
 
-  if (error || !booking) {
+  if (isError || !booking) {
     notFound()
     return null
   }

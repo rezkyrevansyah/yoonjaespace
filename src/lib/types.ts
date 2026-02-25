@@ -190,12 +190,14 @@ export interface Expense {
   amount: number
   category: ExpenseCategory
   date: string
-  createdBy: StaffUser
-  receipt: string | null
   notes?: string | null
-  isPaid: boolean
+  vendorPaid: boolean
   vendorId?: string | null
-  vendor?: Vendor | null
+  vendor?: { id: string; name: string; category: string } | null
+  relatedBookingId?: string | null
+  relatedBooking?: { id: string; bookingCode: string; client: { name: string } } | null
+  createdAt: string
+  updatedAt: string
 }
 
 export interface PackageVariant {

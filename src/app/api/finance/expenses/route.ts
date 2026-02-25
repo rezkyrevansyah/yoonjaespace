@@ -38,6 +38,9 @@ export async function GET(request: NextRequest) {
     where.category = category
   }
 
+  const vendorId = searchParams.get('vendorId')
+  if (vendorId) where.vendorId = vendorId
+
   const [expenses, total] = await Promise.all([
     prisma.expense.findMany({
       where,
@@ -45,6 +48,7 @@ export async function GET(request: NextRequest) {
         relatedBooking: {
           select: { id: true, bookingCode: true, client: { select: { name: true } } },
         },
+        vendor: { select: { id: true, name: true, category: true } },
       },
       orderBy: { date: 'desc' },
       skip,
@@ -79,7 +83,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { description, amount, category, date, relatedBookingId, notes } = await request.json()
+  const { description, amount, category, date, relatedBookingId, notes, vendorId, vendorPaid } = await request.json()
 
   if (!description || amount === undefined || !category || !date) {
     return NextResponse.json(
@@ -117,6 +121,11 @@ export async function POST(request: NextRequest) {
       date: new Date(date),
       relatedBookingId: relatedBookingId || null,
       notes: notes || null,
+      vendorId: vendorId || null,
+      vendorPaid: vendorPaid === true,
+    },
+    include: {
+      vendor: { select: { id: true, name: true, category: true } },
     },
   })
 

@@ -18,7 +18,6 @@ import {
   ArrowDown,
   MessageSquare,
   Sparkles,
-  Upload,
   Image as ImageIcon,
   Box,
   Send,
@@ -92,11 +91,11 @@ export default function SettingsPage() {
   // --- Hooks ---
   const { settings, updateSettings, isSaving, isLoading: isSettingsLoading } = useSettings()
   
-  const { packages, mutate: mutatePackages, isLoading: isPackagesLoading } = usePackages(false) // fetch all
-  const { backgrounds, mutate: mutateBackgrounds, isLoading: isBackgroundsLoading } = useBackgrounds(false)
-  const { addOnTemplates: addons, mutate: mutateAddons, isLoading: isAddonsLoading } = useAddOnTemplates(false)
-  const { vouchers, mutate: mutateVouchers, isLoading: isVouchersLoading } = useVouchers(false)
-  const { customFields, mutate: mutateCustomFields, isLoading: isCustomFieldsLoading } = useCustomFields(false)
+  const { packages, mutate: mutatePackages, isLoading: isPackagesLoading } = usePackages(false, activeTab === 'packages') // lazy: only fetch when tab active
+  const { backgrounds, mutate: mutateBackgrounds, isLoading: isBackgroundsLoading } = useBackgrounds(false, activeTab === 'backgrounds')
+  const { addOnTemplates: addons, mutate: mutateAddons, isLoading: isAddonsLoading } = useAddOnTemplates(false, activeTab === 'addons')
+  const { vouchers, mutate: mutateVouchers, isLoading: isVouchersLoading } = useVouchers(false, activeTab === 'vouchers')
+  const { customFields, mutate: mutateCustomFields, isLoading: isCustomFieldsLoading } = useCustomFields(false, activeTab === 'customfields')
 
   // --- Modal States ---
   const [modalOpen, setModalOpen] = useState(false)
@@ -117,13 +116,15 @@ export default function SettingsPage() {
   // --- General Settings Handlers ---
   const handleSaveStudioInfo = async () => {
     if (!settings) return
-    console.log('💾 Saving settings:', studioInfoForm)
-    console.log('⏱️  timeIntervalMinutes:', studioInfoForm.timeIntervalMinutes)
-    const success = await updateSettings(studioInfoForm)
-    if (success) {
-      console.log('✅ Settings saved successfully')
-      // settings is updated via hook mutation
+    // Only save General tab fields (name/address/phone/logo/instagram are managed by Studio Info tab)
+    const generalFields = {
+      openTime: studioInfoForm.openTime,
+      closeTime: studioInfoForm.closeTime,
+      dayOff: studioInfoForm.dayOff,
+      defaultPaymentStatus: studioInfoForm.defaultPaymentStatus,
+      timeIntervalMinutes: studioInfoForm.timeIntervalMinutes,
     }
+    await updateSettings(generalFields)
   }
 
   const handleSaveReminderTemplate = async () => {
@@ -188,72 +189,6 @@ export default function SettingsPage() {
     setThankYouSessionError("")
   }
 
-  // Logo upload handlers
-  const handleLogoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    // Validate file type
-    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp']
-    if (!validTypes.includes(file.type)) {
-      showToast("File harus berformat PNG, JPG, atau WebP", "error")
-      return
-    }
-
-    // Validate file size (5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      showToast("Ukuran file maksimal 5MB", "error")
-      return
-    }
-
-    setLogoFile(file)
-    // Create preview URL
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      setLogoPreview(reader.result as string)
-    }
-    reader.readAsDataURL(file)
-  }
-
-  const handleUploadLogo = async () => {
-    if (!logoFile) {
-      showToast("Pilih file logo terlebih dahulu", "warning")
-      return
-    }
-
-    setIsUploadingLogo(true)
-    try {
-      const formData = new FormData()
-      formData.append('logo', logoFile)
-
-      const response = await fetch('/api/settings/logo', {
-        method: 'POST',
-        body: formData
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to upload logo')
-      }
-
-      showToast("Logo berhasil diupload!", "success")
-      // Reset form
-      setLogoFile(null)
-      setLogoPreview("")
-      // Refresh settings to get new logo URL
-      window.location.reload()
-    } catch (err: any) {
-      showToast(err.message || "Gagal upload logo", "error")
-    } finally {
-      setIsUploadingLogo(false)
-    }
-  }
-
-  const handleCancelLogoUpload = () => {
-    setLogoFile(null)
-    setLogoPreview("")
-  }
 
   // We need useEffect to sync settings to local form state
   const [studioInfoForm, setStudioInfoForm] = useState<any>({})
@@ -266,11 +201,6 @@ export default function SettingsPage() {
   const [showTemplatePreview, setShowTemplatePreview] = useState(false)
   const [showThankYouPaymentPreview, setShowThankYouPaymentPreview] = useState(false)
   const [showThankYouSessionPreview, setShowThankYouSessionPreview] = useState(false)
-
-  // Logo upload state
-  const [logoFile, setLogoFile] = useState<File | null>(null)
-  const [logoPreview, setLogoPreview] = useState<string>("")
-  const [isUploadingLogo, setIsUploadingLogo] = useState(false)
 
   useEffect(() => {
     if (settings && Object.keys(studioInfoForm).length === 0) {
@@ -582,7 +512,7 @@ export default function SettingsPage() {
       )}
       {activeTab === "general" && !isSettingsLoading && settings && (
         <div className="bg-white rounded-xl border border-[#E5E7EB] p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-[#111827] mb-6">Studio Information</h2>
+          <h2 className="text-lg font-semibold text-[#111827] mb-6">Pengaturan Umum</h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Bind inputs to studioInfoForm local state (which needs to be initialized) */}
@@ -594,9 +524,6 @@ export default function SettingsPage() {
              
              {/* I will implement a safe Controlled Input pattern here */}
              {[
-                 { label: "Studio Name", key: "name", type: "text" },
-                 { label: "Studio Phone", key: "phone", type: "tel" },
-                 { label: "Instagram", key: "instagram", type: "text", placeholder: "@username" },
                  { label: "Open Time", key: "openTime", type: "time" },
                  { label: "Close Time", key: "closeTime", type: "time" },
              ].map((field) => (
@@ -612,16 +539,6 @@ export default function SettingsPage() {
                  </div>
              ))}
 
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-[#111827] mb-1">Studio Address *</label>
-              <textarea
-                defaultValue={settings.address}
-                onChange={(e) => setStudioInfoForm((prev: any) => ({ ...prev, address: e.target.value }))}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-[#7A1F1F]"
-              />
-            </div>
-            
             <div>
               <label className="block text-sm font-medium text-[#111827] mb-2">Day Off (Multiple)</label>
               <div className="grid grid-cols-2 gap-2">
@@ -700,121 +617,6 @@ export default function SettingsPage() {
             >
               {isSaving ? "Saving..." : "Save Changes"}
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* Logo Upload Section */}
-      {activeTab === "general" && settings && (
-        <div className="bg-white rounded-xl border border-[#E5E7EB] p-6 shadow-sm">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2.5 bg-indigo-50 rounded-lg">
-              <ImageIcon className="h-5 w-5 text-indigo-600" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-[#111827]">Studio Logo</h2>
-              <p className="text-sm text-[#6B7280]">Upload logo studio untuk sidebar, invoice, dan halaman client</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Current Logo */}
-            <div>
-              <label className="block text-sm font-medium text-[#111827] mb-3">Current Logo</label>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 flex items-center justify-center bg-gray-50">
-                {settings.logoUrl && settings.logoUrl.trim() !== '' ? (
-                  <img
-                    src={settings.logoUrl}
-                    alt="Studio Logo"
-                    className="max-h-32 max-w-full object-contain"
-                  />
-                ) : (
-                  <div className="text-center text-gray-400">
-                    <ImageIcon className="h-12 w-12 mx-auto mb-2" />
-                    <p className="text-sm">No logo uploaded</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Upload New Logo */}
-            <div>
-              <label className="block text-sm font-medium text-[#111827] mb-3">Upload New Logo</label>
-
-              {!logoFile ? (
-                <label className="border-2 border-dashed border-gray-300 rounded-lg p-6 flex flex-col items-center justify-center bg-gray-50 cursor-pointer hover:border-[#7A1F1F] hover:bg-[#F5ECEC] transition-colors">
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/jpg,image/webp"
-                    onChange={handleLogoFileChange}
-                    className="hidden"
-                  />
-                  <Upload className="h-10 w-10 text-gray-400 mb-3" />
-                  <p className="text-sm font-medium text-gray-700 mb-1">Click to upload logo</p>
-                  <p className="text-xs text-gray-500">PNG, JPG, WebP (max 5MB)</p>
-                </label>
-              ) : (
-                <div className="space-y-4">
-                  {/* Preview */}
-                  <div className="border-2 border-gray-300 rounded-lg p-4 flex items-center justify-center bg-white">
-                    {logoPreview && (
-                      <img
-                        src={logoPreview}
-                        alt="Logo Preview"
-                        className="max-h-32 max-w-full object-contain"
-                      />
-                    )}
-                  </div>
-
-                  {/* File Info */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <p className="text-sm font-medium text-blue-900">{logoFile.name}</p>
-                    <p className="text-xs text-blue-700 mt-1">
-                      {(logoFile.size / 1024).toFixed(1)} KB
-                    </p>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleUploadLogo}
-                      disabled={isUploadingLogo}
-                      className="flex-1 px-4 py-2 bg-[#7A1F1F] text-white rounded-lg text-sm font-medium hover:bg-[#9B3333] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                      {isUploadingLogo ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-                          Uploading...
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="h-4 w-4" />
-                          Upload Logo
-                        </>
-                      )}
-                    </button>
-                    <button
-                      onClick={handleCancelLogoUpload}
-                      disabled={isUploadingLogo}
-                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Guidelines */}
-              <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                <p className="text-xs text-amber-900 font-medium mb-1">Guidelines:</p>
-                <ul className="text-xs text-amber-800 space-y-0.5 list-disc list-inside">
-                  <li>Format: PNG, JPG, atau WebP</li>
-                  <li>Ukuran maksimal: 5MB</li>
-                  <li>Rekomendasi: Square atau landscape ratio</li>
-                  <li>Background transparan lebih baik (PNG)</li>
-                </ul>
-              </div>
-            </div>
           </div>
         </div>
       )}

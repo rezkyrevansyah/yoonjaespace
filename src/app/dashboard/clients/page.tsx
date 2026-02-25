@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import {
   Plus,
@@ -16,7 +16,8 @@ import {
   Loader2,
   AlertCircle,
   Download,
-  FileSpreadsheet
+  FileSpreadsheet,
+  ChevronDown
 } from "lucide-react"
 import * as XLSX from 'xlsx'
 import { formatCurrency, formatDate, getInitials } from "@/lib/utils"
@@ -43,6 +44,8 @@ type ClientFormData = {
   email: string | null
   instagram: string | null
   address: string | null
+  domisili: string | null
+  leads: string | null
   notes: string | null
 }
 
@@ -74,6 +77,20 @@ export default function ClientsPage() {
       limit: ITEMS_PER_PAGE
   })
 
+  // Export dropdown
+  const [exportOpen, setExportOpen] = useState(false)
+  const exportRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (exportRef.current && !exportRef.current.contains(e.target as Node)) {
+        setExportOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
+
   // Modals
   const [addModalOpen, setAddModalOpen] = useState(false)
   const [editModalOpen, setEditModalOpen] = useState(false)
@@ -88,6 +105,8 @@ export default function ClientsPage() {
     email: "",
     instagram: "",
     address: "",
+    domisili: "",
+    leads: "",
     notes: ""
   })
 
@@ -134,6 +153,8 @@ export default function ClientsPage() {
       email: "",
       instagram: "",
       address: "",
+      domisili: "",
+      leads: "",
       notes: ""
     })
     setAddModalOpen(true)
@@ -148,6 +169,8 @@ export default function ClientsPage() {
       email: client.email || "",
       instagram: client.instagram || "",
       address: client.address || "",
+      domisili: client.domisili || "",
+      leads: client.leads || "",
       notes: client.notes || ""
     })
     setEditModalOpen(true)
@@ -222,6 +245,8 @@ export default function ClientsPage() {
       'Email': client.email || '-',
       'Instagram': client.instagram || '-',
       'Alamat': client.address || '-',
+      'Domisili': client.domisili || '-',
+      'Leads (Sumber)': client.leads || '-',
       'Total Bookings': client.totalBookings || 0,
       'Total Spent': client.totalSpent || 0,
       'Last Visit': client.lastVisit ? formatDate(client.lastVisit) : '-',
@@ -258,6 +283,8 @@ export default function ClientsPage() {
       'Email': client.email || '-',
       'Instagram': client.instagram || '-',
       'Alamat': client.address || '-',
+      'Domisili': client.domisili || '-',
+      'Leads (Sumber)': client.leads || '-',
       'Total Bookings': client.totalBookings || 0,
       'Total Spent': client.totalSpent || 0,
       'Last Visit': client.lastVisit ? formatDate(client.lastVisit) : '-',
@@ -276,6 +303,8 @@ export default function ClientsPage() {
       { wch: 25 }, // Email
       { wch: 15 }, // Instagram
       { wch: 30 }, // Alamat
+      { wch: 20 }, // Domisili
+      { wch: 20 }, // Leads
       { wch: 12 }, // Total Bookings
       { wch: 15 }, // Total Spent
       { wch: 12 }, // Last Visit
@@ -300,32 +329,35 @@ export default function ClientsPage() {
         </div>
         <div className="flex items-center gap-3">
           {/* Export Dropdown */}
-          <div className="relative group">
+          <div className="relative" ref={exportRef}>
             <button
+              onClick={() => setExportOpen((prev) => !prev)}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#E5E7EB] bg-white text-[#6B7280] text-sm font-semibold hover:bg-[#F9FAFB] hover:border-[#7A1F1F]/20 transition-colors"
             >
               <Download className="h-4 w-4" />
               Export
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${exportOpen ? "rotate-180" : ""}`} />
             </button>
-            {/* Dropdown Menu */}
-            <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl border border-[#E5E7EB] shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
-              <button
-                onClick={handleExportCSV}
-                disabled={!clients || clients.length === 0}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-[#111827] hover:bg-[#F9FAFB] transition-colors disabled:opacity-50 disabled:cursor-not-allowed rounded-t-xl"
-              >
-                <FileSpreadsheet className="h-4 w-4 text-[#10B981]" />
-                <span>Export sebagai CSV</span>
-              </button>
-              <button
-                onClick={handleExportExcel}
-                disabled={!clients || clients.length === 0}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-[#111827] hover:bg-[#F9FAFB] transition-colors disabled:opacity-50 disabled:cursor-not-allowed rounded-b-xl"
-              >
-                <FileSpreadsheet className="h-4 w-4 text-[#059669]" />
-                <span>Export sebagai Excel</span>
-              </button>
-            </div>
+            {exportOpen && (
+              <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl border border-[#E5E7EB] shadow-lg z-10">
+                <button
+                  onClick={() => { handleExportCSV(); setExportOpen(false) }}
+                  disabled={!clients || clients.length === 0}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm text-[#111827] hover:bg-[#F9FAFB] transition-colors disabled:opacity-50 disabled:cursor-not-allowed rounded-t-xl"
+                >
+                  <FileSpreadsheet className="h-4 w-4 text-[#10B981]" />
+                  <span>Export sebagai CSV</span>
+                </button>
+                <button
+                  onClick={() => { handleExportExcel(); setExportOpen(false) }}
+                  disabled={!clients || clients.length === 0}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm text-[#111827] hover:bg-[#F9FAFB] transition-colors disabled:opacity-50 disabled:cursor-not-allowed rounded-b-xl"
+                >
+                  <FileSpreadsheet className="h-4 w-4 text-[#059669]" />
+                  <span>Export sebagai Excel</span>
+                </button>
+              </div>
+            )}
           </div>
 
           <button
@@ -385,6 +417,7 @@ export default function ClientsPage() {
                         <tr
                             key={client.id}
                             onClick={() => router.push(`/dashboard/clients/${client.id}`)}
+                            onMouseEnter={() => router.prefetch(`/dashboard/clients/${client.id}`)}
                             className="border-b border-[#E5E7EB] last:border-0 hover:bg-[#F9FAFB] cursor-pointer transition-colors"
                         >
                             <td className="py-3 px-4">
@@ -481,6 +514,7 @@ export default function ClientsPage() {
                     <div
                     key={client.id}
                     onClick={() => router.push(`/dashboard/clients/${client.id}`)}
+                    onMouseEnter={() => router.prefetch(`/dashboard/clients/${client.id}`)}
                     className="p-4 rounded-xl border border-[#E5E7EB] bg-white hover:shadow-sm transition-shadow"
                     >
                     {/* Header */}
@@ -642,6 +676,28 @@ export default function ClientsPage() {
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
               className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all resize-none placeholder:text-gray-400"
               placeholder="Alamat lengkap client"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-gray-700">Domisili</label>
+            <input
+              type="text"
+              value={formData.domisili || ""}
+              onChange={(e) => setFormData({ ...formData, domisili: e.target.value })}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all placeholder:text-gray-400"
+              placeholder="Kota/Kabupaten"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-gray-700">Leads (Sumber)</label>
+            <input
+              type="text"
+              value={formData.leads || ""}
+              onChange={(e) => setFormData({ ...formData, leads: e.target.value })}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-[#7A1F1F]/20 focus:border-[#7A1F1F] outline-none transition-all placeholder:text-gray-400"
+              placeholder="Instagram, TikTok, Referral, dll"
             />
           </div>
 

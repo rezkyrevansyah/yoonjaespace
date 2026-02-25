@@ -61,14 +61,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ email, password }),
       })
 
-      const data = await response.json()
+      const text = await response.text()
+      let data: { error?: string; dbUser?: { id: string; name: string; email: string; role: string; phone: string } } = {}
+      try {
+        data = text ? JSON.parse(text) : {}
+      } catch {
+        // server returned non-JSON body
+      }
 
       if (!response.ok) {
         return { success: false, error: data.error || "Login gagal" }
       }
 
-      // Fetch full user data after successful login
-      await checkAuth()
+      // Set user state directly from login response — NO extra /api/auth/me round-trip needed
+      if (data.dbUser) {
+        setUser({
+          id: data.dbUser.id,
+          name: data.dbUser.name,
+          email: data.dbUser.email,
+          phone: data.dbUser.phone ?? "",
+          role: data.dbUser.role as UserRole,
+          isActive: true,
+          createdAt: new Date().toISOString(),
+        })
+      } else {
+        // Fallback: fetch user data if dbUser not in response
+        await checkAuth()
+      }
 
       return { success: true }
     } catch (error) {

@@ -4,35 +4,33 @@ import { SWRConfiguration } from 'swr'
  * Global SWR Configuration for REAL-TIME Performance
  *
  * Key optimizations:
- * 1. Optimistic UI updates - instant feedback
- * 2. Background revalidation - no blocking
- * 3. Smart caching - reduce network requests
- * 4. Fast error recovery
+ * 1. keepPreviousData — show stale data instantly while revalidating in background
+ * 2. revalidateOnMount — always fetch fresh on mount, but show cache first
+ * 3. Deduplication — prevent concurrent duplicate requests (5s window)
  */
 export const swrConfig: SWRConfiguration = {
   // Aggressive deduping for instant navigation
-  dedupingInterval: 5000, // 5 seconds - prevent duplicate requests
+  dedupingInterval: 5000, // 5 seconds — prevent duplicate requests
+
+  // CRITICAL: Keep previous data while revalidating → zero loading flash
+  keepPreviousData: true,
+
+  // Always fetch fresh data on mount, but show cached data immediately
+  revalidateOnMount: true,
 
   // Focus/reconnect behavior
   revalidateOnFocus: false, // Don't refetch when window regains focus
   revalidateOnReconnect: true, // Refetch when internet reconnects
 
-  // CRITICAL: Keep previous data while revalidating (enables optimistic updates)
-  keepPreviousData: true,
-
   // Faster error handling
-  errorRetryCount: 2, // Fail faster (reduced from 3)
-  errorRetryInterval: 2000, // 2 seconds (faster retry)
+  errorRetryCount: 2,
+  errorRetryInterval: 2000,
 
   // Loading timeout
-  loadingTimeout: 5000, // 5 seconds (faster timeout)
+  loadingTimeout: 5000,
 
-  // Revalidation - OPTIMIZED for instant feel with cache
-  revalidateIfStale: false, // Use cache immediately, no auto-refetch
-  revalidateOnMount: false, // Use cache first! Don't block UI with refetch on mount
-
-  // Use default SWR comparison (referential equality) - much faster than JSON.stringify
-  // If deep comparison needed in specific cases, use fast-deep-equal library instead
+  // Don't block UI — show stale data from cache immediately
+  revalidateIfStale: true,
 }
 
 /**
@@ -49,8 +47,9 @@ export const fastRefreshConfig: SWRConfiguration = {
  */
 export const staticDataConfig: SWRConfiguration = {
   ...swrConfig,
-  dedupingInterval: 60000, // 1 minute
+  dedupingInterval: 300000, // 5 minutes — very aggressive dedup for static data
   revalidateOnFocus: false,
   revalidateOnReconnect: false,
-  revalidateIfStale: false,
+  revalidateIfStale: false,   // Trust cache for static data — don't re-fetch stale
+  revalidateOnMount: true,    // Always fetch on mount if no cached data
 }

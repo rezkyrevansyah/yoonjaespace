@@ -14,13 +14,8 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const activeOnly = searchParams.get('active') === 'true'
 
-  const where: any = {}
-  if (activeOnly) {
-    where.isActive = true
-  }
-
   const packages = await prisma.package.findMany({
-    where,
+    where: activeOnly ? { isActive: true } : undefined,
     orderBy: { name: 'asc' },
   })
 
@@ -36,31 +31,35 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
+  try {
+    const body = await request.json()
+    const { name, description, price, duration, maxPeople, allPhotos, editedPhotos, extraTimeBefore, isActive } = body
 
-  if (!dbUser || !['OWNER', 'ADMIN'].includes(dbUser.role)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!name || price === undefined || !duration) {
+      return NextResponse.json(
+        { error: 'Nama, harga, dan durasi harus diisi' },
+        { status: 400 }
+      )
+    }
+
+    const pkg = await prisma.package.create({
+      data: {
+        name,
+        description: description || null,
+        price: Number(price),
+        duration: Number(duration),
+        maxPeople: maxPeople ? Number(maxPeople) : 1,
+        allPhotos: allPhotos || false,
+        editedPhotos: editedPhotos ? Number(editedPhotos) : 0,
+        extraTimeBefore: extraTimeBefore ? Number(extraTimeBefore) : 0,
+        isActive: isActive !== undefined ? isActive : true,
+      },
+    })
+
+    return NextResponse.json(pkg, { status: 201 })
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error)
+    console.error('Package POST error:', error)
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
-
-  const { name, description, price, duration, maxPeople, category } = await request.json()
-
-  if (!name || price === undefined || !duration) {
-    return NextResponse.json(
-      { error: 'Nama, harga, dan durasi harus diisi' },
-      { status: 400 }
-    )
-  }
-
-  const pkg = await prisma.package.create({
-    data: {
-      name,
-      description: description || null,
-      price,
-      duration,
-      maxPeople: maxPeople || 1,
-      category: category || 'MAIN', // SESI 11
-    },
-  })
-
-  return NextResponse.json(pkg, { status: 201 })
 }

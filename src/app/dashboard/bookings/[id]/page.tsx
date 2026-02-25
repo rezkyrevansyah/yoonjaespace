@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, SVGProps } from "react"
 import Link from "next/link"
 import { useRouter, useParams } from "next/navigation"
 import {
@@ -22,6 +22,7 @@ import { useAddOnTemplates } from "@/lib/hooks/use-master-data"
 import { useAuth } from "@/lib/hooks/use-auth"
 import {
     BookingStatus,
+    Booking,
     PrintOrderStatus,
 } from "@/lib/types"
 
@@ -64,25 +65,34 @@ export default function BookingDetailPage() {
   const [selectedPhotosValue, setSelectedPhotosValue] = useState("")
   const [selectedPrintStatus, setSelectedPrintStatus] = useState<PrintOrderStatus | "">("")
   const [selectedBookingStatus, setSelectedBookingStatus] = useState<BookingStatus | "">("")
-  const [muaOverlapInfo, setMuaOverlapInfo] = useState<any>(null)
+  const [muaOverlapInfo, setMuaOverlapInfo] = useState<{ hasOverlap?: boolean; muaOverlapsMySession?: { id: string; bookingCode: string; clientName: string }[] } | null>(null)
   
   // Tab navigation state
   const [activeTab, setActiveTab] = useState<"overview" | "progress" | "pricing">("overview")
 
   const actions = useBookingActions(id, mutate, booking, addOnTemplates)
 
-  useEffect(() => {
-    if (booking) {
-      if (booking.photoLink) setPhotoLinkValue(booking.photoLink)
-      if (booking.printOrder?.selectedPhotos) setSelectedPhotosValue(booking.printOrder.selectedPhotos)
+  const router = useRouter()
 
-      // Fetch MUA overlap info
-      fetch(`/api/bookings/${booking.id}/overlap`)
-        .then(res => res.json())
-        .then(data => setMuaOverlapInfo(data))
-        .catch(err => console.error('Failed to fetch overlap info:', err))
-    }
-  }, [booking])
+  // Sync booking fields to local state (runs once when booking first loads)
+  useEffect(() => {
+    if (!booking) return
+    setPhotoLinkValue(booking.photoLink ?? "")
+    setSelectedPhotosValue(booking.printOrder?.selectedPhotos ?? "")
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [booking?.id]) // only re-sync when booking ID changes, not on every mutation
+
+  // Side-effects that don't set state synchronously: prefetch + overlap fetch
+  useEffect(() => {
+    if (!booking) return
+    router.prefetch(`/invoice/${booking.id}`)
+    router.prefetch(`/dashboard/clients/${booking.client?.id}`)
+    fetch(`/api/bookings/${booking.id}/overlap`)
+      .then(res => res.json())
+      .then(data => setMuaOverlapInfo(data))
+      .catch(err => console.error('Failed to fetch overlap info:', err))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [booking?.id, router]) // intentional: only re-run when booking ID changes
 
   if (isLoading) return (
     <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3 text-gray-400">
@@ -97,7 +107,7 @@ export default function BookingDetailPage() {
     </div>
   )
 
-  const calculateDuration = (b: any) => {
+  const calculateDuration = (b: Pick<Booking, 'startTime' | 'endTime'>) => {
     if (!b?.startTime || !b?.endTime) return 0;
     const start = new Date(b.startTime);
     const end = new Date(b.endTime);
@@ -268,11 +278,11 @@ export default function BookingDetailPage() {
                 ⚠️ Tumpang Tindih Jadwal MUA Terdeteksi
               </h3>
               <div className="text-sm text-yellow-700 space-y-2">
-                {muaOverlapInfo.muaOverlapsMySession?.length > 0 && (
+                {(muaOverlapInfo.muaOverlapsMySession?.length ?? 0) > 0 && (
                   <div>
                     <p className="font-medium mb-1">Booking lain dengan MUA bertabrakan dengan sesi ini:</p>
                     <ul className="list-disc list-inside ml-2 space-y-1">
-                      {muaOverlapInfo.muaOverlapsMySession.map((overlap: any) => (
+                      {muaOverlapInfo.muaOverlapsMySession?.map((overlap) => (
                         <li key={overlap.id}>
                           <strong>{overlap.bookingCode}</strong> ({overlap.clientName})
                         </li>
@@ -319,7 +329,7 @@ export default function BookingDetailPage() {
             handleUpdatePrintOrder={actions.handleUpdatePrintOrder}
             STEP_LABELS={STEP_LABELS}
             PRINT_STATUS_STEPS={PRINT_STATUS_STEPS}
-            showToast={(msg, type) => {}} // dummy func for isolated errors
+            showToast={() => {}} // dummy func, prop required by ProgressTab
             user={user}
           />
         </div>
@@ -344,6 +354,6 @@ export default function BookingDetailPage() {
   )
 }
 
-function ChevronRight(props: any) {
+function ChevronRight(props: SVGProps<SVGSVGElement>) {
   return <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
 }

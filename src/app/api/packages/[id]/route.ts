@@ -22,22 +22,30 @@ export async function PATCH(
   }
 
   const body = await request.json()
-  const { name, description, price, duration, maxPeople, isActive, category } = body
+  const { name, description, price, duration, maxPeople, isActive, allPhotos, editedPhotos, extraTimeBefore } = body
 
-  const updated = await prisma.package.update({
-    where: { id },
-    data: {
-      ...(name && { name }),
-      ...(description !== undefined && { description: description || null }),
-      ...(price !== undefined && { price }),
-      ...(duration !== undefined && { duration }),
-      ...(maxPeople !== undefined && { maxPeople }),
-      ...(isActive !== undefined && { isActive }),
-      ...(category !== undefined && { category }), // SESI 11
-    },
-  })
+  try {
+    const updated = await prisma.package.update({
+      where: { id },
+      data: {
+        ...(name && { name }),
+        ...(description !== undefined && { description: description || null }),
+        ...(price !== undefined && { price: Number(price) }),
+        ...(duration !== undefined && { duration: Number(duration) }),
+        ...(maxPeople !== undefined && { maxPeople: Number(maxPeople) }),
+        ...(isActive !== undefined && { isActive }),
+        ...(allPhotos !== undefined && { allPhotos }),
+        ...(editedPhotos !== undefined && { editedPhotos: Number(editedPhotos) }),
+        ...(extraTimeBefore !== undefined && { extraTimeBefore: Number(extraTimeBefore) }),
+      },
+    })
 
-  return NextResponse.json(updated)
+    return NextResponse.json(updated)
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error)
+    console.error('Package PATCH error:', error)
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
 }
 
 // DELETE — Delete package (soft delete via isActive)

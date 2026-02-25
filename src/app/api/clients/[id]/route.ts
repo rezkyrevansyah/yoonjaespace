@@ -77,7 +77,7 @@ export async function PATCH(
   }
 
   const body = await request.json()
-  const { name, phone, email, instagram, address, notes } = body
+  const { name, phone, email, instagram, address, domisili, leads, notes } = body
 
   const existing = await prisma.client.findUnique({ where: { id } })
 
@@ -93,6 +93,8 @@ export async function PATCH(
       ...(email !== undefined && { email: email || null }),
       ...(instagram !== undefined && { instagram: instagram || null }),
       ...(address !== undefined && { address: address || null }),
+      ...(domisili !== undefined && { domisili: domisili || null }),
+      ...(leads !== undefined && { leads: leads || null }),
       ...(notes !== undefined && { notes: notes || null }),
     },
   })

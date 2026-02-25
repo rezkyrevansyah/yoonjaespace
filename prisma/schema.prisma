@@ -12,20 +12,21 @@ model User {
   id              String        @id
   name            String
   email           String        @unique
-  role            Role          @default(ADMIN) // Kept for backward compatibility, will be deprecated
-  customRoleId    String?
-  customRole      CustomRole?   @relation(fields: [customRoleId], references: [id])
+  role            Role          @default(ADMIN)
   isActive        Boolean       @default(true)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   phone           String?
+  customRoleId    String?
+  activities      ActivityLog[]
   handledBookings Booking[]     @relation("HandledBy")
   commissions     Commission[]
-  activities      ActivityLog[]
+  customRole      CustomRole?   @relation(fields: [customRoleId], references: [id])
 
   @@index([role])
-  @@index([isActive])
-  @@index([createdAt])
+  @@index([customRoleId], map: "users_custom_role_id_idx")
+  @@index([email])
+  @@index([isActive], map: "users_is_active_idx")
   @@map("users")
 }
 
@@ -35,39 +36,35 @@ model Client {
   phone     String
   email     String?
   address   String?
-  domisili  String?   // Tambahan SESI 10
   notes     String?
-  leads     String?   // Tambahan SESI 10 (source of lead)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   instagram String?
+  domisili  String?
+  leads     String?
   bookings  Booking[]
 
   @@index([phone])
   @@index([name])
   @@index([email])
-  @@index([createdAt])
   @@map("clients")
 }
 
 model Package {
-  id              String          @id @default(cuid())
+  id              String    @id @default(cuid())
   name            String
   description     String?
   price           Float
   duration        Int
-  maxPeople       Int             @default(1)
-  isActive        Boolean         @default(true)
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  allPhotos       Boolean         @default(false)
-  editedPhotos    Int             @default(0)
-  extraTimeBefore Int             @default(0) // Extra time before session (in minutes)
-  category        PackageCategory @default(MAIN) // SESI 11
+  maxPeople       Int       @default(1)
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  allPhotos       Boolean   @default(false)
+  editedPhotos    Int       @default(0)
+  extraTimeBefore Int       @default(0)
   bookings        Booking[]
 
-  @@index([isActive])
-  @@index([name])
   @@map("packages")
 }
 
@@ -79,8 +76,6 @@ model Background {
   description        String?
   bookingBackgrounds BookingBackground[]
 
-  @@index([isActive])
-  @@index([name])
   @@map("backgrounds")
 }
 
@@ -112,7 +107,7 @@ model Booking {
   paidAt             DateTime?
   paymentProof       String?
   remindedAt         DateTime?
-  muaStartTime       DateTime? // MUA time (1 hour before session if MUA add-on exists)
+  muaStartTime       DateTime?
   addOns             BookingAddOn[]
   bookingBackgrounds BookingBackground[]
   customFields       BookingCustomField[]
@@ -126,17 +121,10 @@ model Booking {
 
   @@index([date])
   @@index([status])
-  @@index([paymentStatus])
-  @@index([handledById])
-  @@index([clientId])
-  @@index([packageId])
   @@index([date, status])
-  @@index([date, paymentStatus])
-  @@index([handledById, date, status])
-  @@index([bookingCode])
-  @@index([publicSlug])
-  @@index([date, startTime])
-  @@index([clientId, date])
+  @@index([bookingCode], map: "bookings_booking_code_idx")
+  @@index([clientId], map: "bookings_client_id_idx")
+  @@index([handledById], map: "bookings_handled_by_id_idx")
   @@map("bookings")
 }
 
@@ -148,7 +136,6 @@ model BookingBackground {
   booking      Booking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
   @@unique([bookingId, backgroundId])
-  @@index([bookingId])
   @@map("booking_backgrounds")
 }
 
@@ -158,10 +145,8 @@ model AddOnTemplate {
   defaultPrice    Float
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
-  extraTimeBefore Int      @default(0) // Extra time before session (in minutes)
+  extraTimeBefore Int      @default(0)
 
-  @@index([isActive])
-  @@index([name])
   @@map("addon_templates")
 }
 
@@ -169,16 +154,12 @@ model BookingAddOn {
   id        String   @id @default(cuid())
   bookingId String
   itemName  String
-  quantity      Int           @default(1)
-  unitPrice     Float
-  subtotal      Float
-  paymentStatus PaymentStatus @default(UNPAID)
-  createdAt     DateTime      @default(now())
-  booking       Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  quantity  Int      @default(1)
+  unitPrice Float
+  subtotal  Float
+  createdAt DateTime @default(now())
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
-  @@index([bookingId])
-  @@index([itemName])
-  @@index([paymentStatus])
   @@map("booking_addons")
 }
 
@@ -198,6 +179,7 @@ model PrintOrder {
   booking         Booking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
   @@index([status])
+  @@index([bookingId], map: "print_orders_booking_id_idx")
   @@map("print_orders")
 }
 
@@ -209,7 +191,6 @@ model Invoice {
   pdfUrl        String?
   booking       Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
-  @@index([invoiceNumber])
   @@map("invoices")
 }
 
@@ -224,8 +205,6 @@ model CustomFieldDefinition {
   createdAt  DateTime             @default(now())
   values     BookingCustomField[]
 
-  @@index([isActive])
-  @@index([sortOrder])
   @@map("custom_field_definitions")
 }
 
@@ -238,9 +217,25 @@ model BookingCustomField {
   field     CustomFieldDefinition @relation(fields: [fieldId], references: [id])
 
   @@unique([bookingId, fieldId])
-  @@index([bookingId])
-  @@index([fieldId])
   @@map("booking_custom_fields")
+}
+
+model Vendor {
+  id        String    @id @default(cuid())
+  name      String
+  category  String
+  phone     String?
+  email     String?
+  address   String?
+  notes     String?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  expenses  Expense[]
+
+  @@index([category])
+  @@index([isActive])
+  @@map("vendors")
 }
 
 model Expense {
@@ -251,14 +246,16 @@ model Expense {
   date             DateTime
   relatedBookingId String?
   notes            String?
+  vendorId         String?
+  vendorPaid       Boolean         @default(false)
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
   relatedBooking   Booking?        @relation(fields: [relatedBookingId], references: [id])
+  vendor           Vendor?         @relation(fields: [vendorId], references: [id], onDelete: SetNull)
 
   @@index([date])
   @@index([category])
-  @@index([date, category])
-  @@index([relatedBookingId])
+  @@index([vendorId])
   @@map("expenses")
 }
 
@@ -273,7 +270,6 @@ model BookingHistory {
   createdAt DateTime @default(now())
   booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
-  @@index([bookingId, createdAt])
   @@map("booking_history")
 }
 
@@ -285,13 +281,15 @@ model Commission {
   totalBookings Int
   amount        Float
   notes         String?
-  paidAt        DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  paidAt        DateTime?
   user          User      @relation(fields: [userId], references: [id])
 
   @@unique([userId, month, year])
-  @@index([userId, year, month])
+  @@index([month, year])
+  @@index([userId], map: "commissions_user_id_idx")
+  @@index([userId, month, year], map: "commissions_user_month_year_idx")
   @@map("commissions")
 }
 
@@ -309,9 +307,6 @@ model Voucher {
   validUntil    DateTime?
   createdAt     DateTime  @default(now())
 
-  @@index([code])
-  @@index([isActive])
-  @@index([createdAt])
   @@map("vouchers")
 }
 
@@ -321,8 +316,62 @@ model StudioSetting {
   value     String
   updatedAt DateTime @updatedAt
 
-  @@index([key])
   @@map("studio_settings")
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  details   String?
+  type      String   @default("SYSTEM")
+  timestamp DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([timestamp(sort: Desc)])
+  @@index([type])
+  @@index([userId], map: "activity_logs_user_id_idx")
+  @@map("activity_logs")
+}
+
+model CustomRole {
+  id          String           @id @default(cuid())
+  name        String           @unique
+  description String?
+  isSystem    Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  permissions RolePermission[]
+  users       User[]
+
+  @@map("custom_roles")
+}
+
+model Menu {
+  id          String           @id @default(cuid())
+  name        String           @unique
+  label       String
+  sortOrder   Int              @default(0)
+  createdAt   DateTime         @default(now())
+  permissions RolePermission[]
+
+  @@map("menus")
+}
+
+model RolePermission {
+  id        String     @id @default(cuid())
+  roleId    String
+  menuId    String
+  canView   Boolean    @default(true)
+  canEdit   Boolean    @default(false)
+  canDelete Boolean    @default(false)
+  menu      Menu       @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  role      CustomRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, menuId])
+  @@index([menuId], map: "role_permissions_menu_id_idx")
+  @@index([roleId], map: "role_permissions_role_id_idx")
+  @@map("role_permissions")
 }
 
 enum Role {
@@ -344,6 +393,7 @@ enum BookingStatus {
 enum PaymentStatus {
   UNPAID
   PAID
+  PARTIALLY_PAID
 }
 
 enum PhotoFor {
@@ -354,15 +404,6 @@ enum PhotoFor {
   LINKEDIN
   PAS_PHOTO
   STUDIO_ONLY
-  OTHER
-}
-
-enum PackageCategory {
-  MAIN
-  BIRTHDAY_SMASH
-  PROFESSIONAL
-  STUDIO_ONLY
-  ADDON
   OTHER
 }
 
@@ -388,61 +429,4 @@ enum ExpenseCategory {
   UTILITIES
   MARKETING
   SALARY
-}
-
-model ActivityLog {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  action    String // Login, Create Booking, Update Status, etc.
-  details   String?
-  type      String   @default("SYSTEM") // SYSTEM, CREATE, UPDATE, DELETE
-  timestamp DateTime @default(now())
-
-  @@index([timestamp])
-  @@index([userId, timestamp])
-  @@index([type])
-  @@map("activity_logs")
-}
-
-model CustomRole {
-  id          String           @id @default(cuid())
-  name        String           @unique
-  description String?
-  isSystem    Boolean          @default(false) // true for OWNER, ADMIN, etc. (can't be deleted)
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  users       User[]
-  permissions RolePermission[]
-
-  @@index([isSystem, name])
-  @@map("custom_roles")
-}
-
-model Menu {
-  id          String           @id @default(cuid())
-  name        String           @unique // dashboard, bookings, clients, calendar, etc.
-  label       String // Display name
-  sortOrder   Int              @default(0)
-  createdAt   DateTime         @default(now())
-  permissions RolePermission[]
-
-  @@index([sortOrder])
-  @@map("menus")
-}
-
-model RolePermission {
-  id        String     @id @default(cuid())
-  roleId    String
-  menuId    String
-  canView   Boolean    @default(true)
-  canEdit   Boolean    @default(false)
-  canDelete Boolean    @default(false)
-  role      CustomRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  menu      Menu       @relation(fields: [menuId], references: [id], onDelete: Cascade)
-
-  @@unique([roleId, menuId])
-  @@index([roleId])
-  @@index([menuId])
-  @@map("role_permissions")
 }
