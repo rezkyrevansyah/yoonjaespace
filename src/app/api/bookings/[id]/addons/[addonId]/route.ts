@@ -40,15 +40,18 @@ export async function PATCH(
 
   const updatedAddOn = await prisma.bookingAddOn.update({
     where: { id: addonId },
-    data: { paymentStatus: paymentStatus as any },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    data: { paymentStatus } as any,
   })
 
   // Log activity
-  if (existingAddOn.paymentStatus !== paymentStatus) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const prevStatus = (existingAddOn as any).paymentStatus
+  if (prevStatus !== paymentStatus) {
     await logActivity({
       userId: user.id,
       action: `Mengubah pembayaran Add-on`,
-      details: `Add-on ${existingAddOn.itemName} untuk booking ${existingAddOn.booking.bookingCode} (${existingAddOn.booking.client.name}): ${existingAddOn.paymentStatus} → ${paymentStatus}`,
+      details: `Add-on ${existingAddOn.itemName} untuk booking ${existingAddOn.booking.bookingCode} (${existingAddOn.booking.client.name}): ${prevStatus ?? '-'} → ${paymentStatus}`,
       type: 'UPDATE',
     })
   }

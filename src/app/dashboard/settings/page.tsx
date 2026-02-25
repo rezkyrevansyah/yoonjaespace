@@ -532,7 +532,6 @@ export default function SettingsPage() {
                     <input
                         type={field.type}
                         defaultValue={(settings as any)[field.key]}
-                        placeholder={field.placeholder}
                         onChange={(e) => setStudioInfoForm((prev: any) => ({ ...prev, [field.key]: e.target.value }))}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-[#7A1F1F]"
                     />

@@ -5,7 +5,7 @@
  * making the app feel real-time and snappy.
  */
 
-type MutateFn<T> = (data?: T | Promise<T> | undefined, shouldRevalidate?: boolean) => Promise<void>
+type MutateFn<T> = (data?: T | Promise<T> | undefined, shouldRevalidate?: boolean) => Promise<void | T | undefined>
 
 /**
  * Optimistically add an item to a list
