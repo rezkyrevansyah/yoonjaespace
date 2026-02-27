@@ -36,7 +36,9 @@ export async function GET(request: NextRequest) {
       ]
     })
 
-    return NextResponse.json({ roles })
+    return NextResponse.json({ roles }, {
+      headers: { 'Cache-Control': 'private, max-age=0, stale-while-revalidate=60' },
+    })
   } catch (error: any) {
     console.error('Error fetching roles:', error)
     return NextResponse.json(

@@ -103,6 +103,8 @@ export async function GET(request: NextRequest) {
       total,
       totalPages: Math.ceil(total / limit),
     },
+  }, {
+    headers: { 'Cache-Control': 'private, max-age=0, stale-while-revalidate=30' },
   })
 }
 
@@ -126,6 +128,14 @@ export async function POST(request: NextRequest) {
   if (!name || !phone) {
     return NextResponse.json(
       { error: 'Nama dan nomor WA harus diisi' },
+      { status: 400 }
+    )
+  }
+
+  const phoneExists = await prisma.client.findFirst({ where: { phone } })
+  if (phoneExists) {
+    return NextResponse.json(
+      { error: `Nomor WA ${phone} sudah digunakan oleh client "${phoneExists.name}". Gunakan nomor yang berbeda.` },
       { status: 400 }
     )
   }

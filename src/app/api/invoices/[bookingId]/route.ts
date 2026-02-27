@@ -105,5 +105,7 @@ export async function GET(
       phone: settingsMap['phone_number'] || settingsMap['studio_phone'] || '',
       instagram: settingsMap['instagram'] || settingsMap['studio_instagram'] || '',
     },
+  }, {
+    headers: { 'Cache-Control': 'private, max-age=0, stale-while-revalidate=60' },
   })
 }

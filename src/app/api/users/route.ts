@@ -31,7 +31,9 @@ export async function GET() {
     }
   })
 
-  return NextResponse.json(users)
+  return NextResponse.json(users, {
+    headers: { 'Cache-Control': 'private, max-age=0, stale-while-revalidate=60' },
+  })
 }
 
 // POST — Create new user

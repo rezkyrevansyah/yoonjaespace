@@ -13,7 +13,6 @@ import {
   Trash2,
   MoreHorizontal,
   Users,
-  Loader2,
   AlertCircle,
   Download,
   FileSpreadsheet,
@@ -212,22 +211,26 @@ export default function ClientsPage() {
   }
 
   const confirmDelete = async () => {
-    if (selectedClient) {
-      setIsSubmitting(true)
-      try {
-          const res = await apiDelete(`/api/clients/${selectedClient.id}`)
-          if (res.error) throw new Error(res.error)
-          
-          showToast(`Client ${selectedClient.name} berhasil dihapus`, "success")
-          setDeleteModalOpen(false)
-          setSelectedClient(null)
-          mutate() // Refresh list
-      } catch (error: any) {
-          console.error(error)
-          showToast(error.message || "Gagal menghapus client", "error")
-      } finally {
-          setIsSubmitting(false)
-      }
+    if (!selectedClient) return
+    const { id, name } = selectedClient
+    // Optimistic: remove from cache immediately
+    setDeleteModalOpen(false)
+    setSelectedClient(null)
+    mutate(
+      (current: any) => current ? {
+        ...current,
+        data: current.data.filter((c: any) => c.id !== id)
+      } : current,
+      false
+    )
+    try {
+        const res = await apiDelete(`/api/clients/${id}`)
+        if (res.error) throw new Error(res.error)
+        showToast(`Client ${name} berhasil dihapus`, "success")
+        // No mutate() — optimistic update already removed it from cache
+    } catch (error: any) {
+        mutate() // rollback: re-fetch to restore the item
+        showToast(error.message || "Gagal menghapus client", "error")
     }
   }
 
@@ -390,10 +393,36 @@ export default function ClientsPage() {
         )}
       </div>
 
-      {!clients ? (
-          <div className="flex justify-center py-20">
-              <Loader2 className="h-8 w-8 animate-spin text-gray-300" />
-          </div>
+      {isLoading && clients.length === 0 ? (
+        <div className="rounded-xl border border-[#E5E7EB] bg-white overflow-hidden shadow-sm animate-pulse">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB]">
+                {["Name", "Phone", "Email", "Total Bookings", "Total Spent", "Last Visit", ""].map((h) => (
+                  <th key={h} className="py-3 px-4"><div className="h-3 bg-gray-200 rounded w-16" /></th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 8 }).map((_, i) => (
+                <tr key={i} className="border-b border-[#E5E7EB] last:border-0">
+                  <td className="py-3 px-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-gray-200 shrink-0" />
+                      <div className="h-3 bg-gray-200 rounded w-28" />
+                    </div>
+                  </td>
+                  <td className="py-3 px-4"><div className="h-3 bg-gray-200 rounded w-24" /></td>
+                  <td className="py-3 px-4"><div className="h-3 bg-gray-200 rounded w-36" /></td>
+                  <td className="py-3 px-4 text-center"><div className="h-6 bg-gray-200 rounded-full w-8 mx-auto" /></td>
+                  <td className="py-3 px-4"><div className="h-3 bg-gray-200 rounded w-24 ml-auto" /></td>
+                  <td className="py-3 px-4"><div className="h-3 bg-gray-200 rounded w-20" /></td>
+                  <td className="py-3 px-4"><div className="h-7 bg-gray-200 rounded w-16 mx-auto" /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
           <>
             {/* Desktop Table */}

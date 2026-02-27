@@ -54,6 +54,8 @@ export async function GET(
       totalSpent,
       lastVisit,
     },
+  }, {
+    headers: { 'Cache-Control': 'private, max-age=0, stale-while-revalidate=30' },
   })
 }
 
@@ -83,6 +85,16 @@ export async function PATCH(
 
   if (!existing) {
     return NextResponse.json({ error: 'Client tidak ditemukan' }, { status: 404 })
+  }
+
+  if (phone && phone !== existing.phone) {
+    const phoneExists = await prisma.client.findFirst({ where: { phone } })
+    if (phoneExists) {
+      return NextResponse.json(
+        { error: `Nomor WA ${phone} sudah digunakan oleh client "${phoneExists.name}". Gunakan nomor yang berbeda.` },
+        { status: 400 }
+      )
+    }
   }
 
   const updated = await prisma.client.update({

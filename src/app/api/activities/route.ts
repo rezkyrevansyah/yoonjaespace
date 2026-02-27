@@ -49,7 +49,9 @@ export async function GET(request: NextRequest) {
       details: a.details,
       type: a.type,
       timestamp: a.timestamp,
-    })))
+    })), {
+      headers: { 'Cache-Control': 'private, max-age=0, stale-while-revalidate=30' },
+    })
   } catch (error) {
     console.error('Failed to fetch activities:', error)
     return NextResponse.json({ error: 'Failed to fetch activities' }, { status: 500 })

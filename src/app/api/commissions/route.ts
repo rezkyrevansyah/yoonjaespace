@@ -99,6 +99,8 @@ export async function GET(request: NextRequest) {
     month,
     year,
     data: result,
+  }, {
+    headers: { 'Cache-Control': 'private, max-age=0, stale-while-revalidate=30' },
   })
 }
 

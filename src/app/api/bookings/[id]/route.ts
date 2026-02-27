@@ -48,7 +48,9 @@ export async function GET(
     background: booking.bookingBackgrounds?.[0]?.background || null
   }
 
-  return NextResponse.json(responseData)
+  return NextResponse.json(responseData, {
+    headers: { 'Cache-Control': 'private, max-age=0, stale-while-revalidate=30' },
+  })
 }
 
 // PATCH — Update booking

@@ -41,7 +41,7 @@ export async function GET(
 
   // Hanya return data yang aman untuk publik
   return NextResponse.json({
-    id: booking.id, // Needed for Invoice link construction if client side wants it, though we verify it here
+    id: booking.id,
     bookingCode: booking.bookingCode,
     clientName: booking.client.name,
     date: booking.date,
@@ -74,5 +74,7 @@ export async function GET(
       studioPhotoUrl: settingsMap['studio_photo_url'] || '',
       footerText: settingsMap['studio_footer_text'] || settingsMap['footer_text'] || 'Thank you for choosing Yoonjaespace Studio!',
     },
+  }, {
+    headers: { 'Cache-Control': 'private, max-age=0, stale-while-revalidate=30' },
   })
 }

@@ -108,16 +108,24 @@ export default function BookingsPage() {
   }
 
   const confirmDelete = async () => {
+    const { id, code } = deleteModal
+    // Close modal and optimistically remove row immediately
+    setDeleteModal({ isOpen: false, id: "", code: "" })
+    mutate(
+      (current: any) => current ? {
+        ...current,
+        data: current.data.filter((b: any) => b.id !== id)
+      } : current,
+      false // don't revalidate yet
+    )
     try {
-        const res = await apiDelete(`/api/bookings/${deleteModal.id}`)
+        const res = await apiDelete(`/api/bookings/${id}`)
         if (res.error) throw new Error(res.error)
-        
-        showToast(`Booking ${deleteModal.code} has been deleted.`, "success")
-        mutate() // Refresh data
+        showToast(`Booking ${code} has been deleted.`, "success")
+        // No mutate() — optimistic update already removed it from cache
     } catch (error: any) {
+        mutate() // rollback: re-fetch to restore the item
         showToast(error.message || "Failed to delete booking", "error")
-    } finally {
-        setDeleteModal({ isOpen: false, id: "", code: "" })
     }
   }
 

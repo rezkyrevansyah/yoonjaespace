@@ -163,10 +163,30 @@ export default function CommissionsPage() {
     })
   }
 
-  if (isLoading) {
+  if (isLoading && staffStats.length === 0) {
     return (
-      <div className="flex h-[50vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+      <div className="space-y-6 animate-pulse">
+        <div className="h-8 bg-gray-200 rounded w-48" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="bg-white rounded-xl border border-[#E5E7EB] p-5">
+              <div className="h-3 bg-gray-200 rounded w-24 mb-3" />
+              <div className="h-7 bg-gray-200 rounded w-36" />
+            </div>
+          ))}
+        </div>
+        <div className="bg-white rounded-xl border border-[#E5E7EB] overflow-hidden">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 px-5 py-4 border-b border-[#E5E7EB] last:border-0">
+              <div className="w-9 h-9 rounded-full bg-gray-200 shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3 bg-gray-200 rounded w-1/4" />
+                <div className="h-3 bg-gray-200 rounded w-1/3" />
+              </div>
+              <div className="h-8 bg-gray-200 rounded w-24" />
+            </div>
+          ))}
+        </div>
       </div>
     )
   }

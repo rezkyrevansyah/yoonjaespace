@@ -2,16 +2,33 @@
 
 import { useActivities } from "@/lib/hooks/use-activities"
 import { ActivityLogItem } from "@/components/shared/activity-log-item"
-import { CalendarDays, Loader2, AlertCircle } from "lucide-react"
+import { CalendarDays, AlertCircle } from "lucide-react"
 import { formatDate } from "@/lib/utils"
 
 export default function ActivitiesPage() {
   const { activities, isLoading, isError } = useActivities(50)
 
-  if (isLoading) {
+  if (isLoading && activities.length === 0) {
     return (
-      <div className="flex h-[50vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold text-[#111827]">Aktivitas Hari Ini</h1>
+          <p className="text-sm text-[#6B7280] mt-1">{formatDate(new Date(), "EEEE, dd MMMM yyyy")}</p>
+        </div>
+        <div className="bg-white rounded-xl border border-[#E5E7EB] overflow-hidden">
+          <div className="divide-y divide-[#E5E7EB] animate-pulse">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="px-6 py-4 flex items-center gap-4">
+                <div className="w-8 h-8 rounded-full bg-gray-200 shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 bg-gray-200 rounded w-3/4" />
+                  <div className="h-3 bg-gray-200 rounded w-1/2" />
+                </div>
+                <div className="h-3 bg-gray-200 rounded w-20" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     )
   }

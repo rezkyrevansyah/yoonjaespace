@@ -11,7 +11,6 @@ import {
   AlertCircle,
   Clock,
   CheckCircle,
-  Loader2,
   Check,
   RotateCcw,
   Heart,
@@ -105,10 +104,30 @@ export default function RemindersPage() {
 
   // No filteredBookings useMemo needed, handled by hook and data shape
 
-  if (isLoading) {
+  if (isLoading && reminders.length === 0) {
     return (
-      <div className="flex h-[50vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-[#F5ECEC] flex items-center justify-center">
+            <Bell className="h-5 w-5 text-[#7A1F1F]" />
+          </div>
+          <h1 className="text-2xl font-semibold text-[#111827]">Reminders</h1>
+        </div>
+        <div className="animate-pulse space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="bg-white rounded-xl border border-[#E5E7EB] p-5">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-full bg-gray-200 shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-gray-200 rounded w-1/3" />
+                  <div className="h-3 bg-gray-200 rounded w-1/2" />
+                  <div className="h-3 bg-gray-200 rounded w-1/4" />
+                </div>
+                <div className="h-8 bg-gray-200 rounded-lg w-24" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     )
   }

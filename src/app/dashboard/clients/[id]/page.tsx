@@ -27,7 +27,7 @@ import { Modal } from "@/components/shared/modal"
 import { useClient } from "@/lib/hooks/use-client"
 import { useAuth } from "@/lib/hooks/use-auth"
 import { apiPatch, apiDelete } from "@/lib/api-client"
-import { Loader2, AlertCircle } from "lucide-react"
+import { AlertCircle } from "lucide-react"
 import type { Client } from "@/lib/types"
 
 type ClientFormData = {
@@ -65,10 +65,39 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
     leads: ""
   })
 
-  if (isLoading) {
+  if (isLoading && !client) {
     return (
-      <div className="flex h-[50vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+      <div className="space-y-6 animate-pulse">
+        {/* Header */}
+        <div className="flex items-center gap-4">
+          <div className="w-8 h-8 bg-gray-200 rounded-lg shrink-0" />
+          <div className="flex items-center gap-4 flex-1">
+            <div className="w-16 h-16 rounded-full bg-gray-200 shrink-0" />
+            <div className="space-y-2">
+              <div className="h-5 bg-gray-200 rounded w-40" />
+              <div className="h-3 bg-gray-200 rounded w-28" />
+            </div>
+          </div>
+        </div>
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="bg-white rounded-xl border border-[#E5E7EB] p-4">
+              <div className="h-3 bg-gray-200 rounded w-20 mb-2" />
+              <div className="h-6 bg-gray-200 rounded w-16" />
+            </div>
+          ))}
+        </div>
+        {/* Booking list */}
+        <div className="bg-white rounded-xl border border-[#E5E7EB] overflow-hidden">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 px-5 py-4 border-b border-[#E5E7EB] last:border-0">
+              <div className="h-3 bg-gray-200 rounded w-24" />
+              <div className="h-3 bg-gray-200 rounded w-32 flex-1" />
+              <div className="h-5 bg-gray-200 rounded-full w-16" />
+            </div>
+          ))}
+        </div>
       </div>
     )
   }

@@ -347,9 +347,26 @@ export default function VendorsPage() {
       )}
 
       {/* Vendor Grid */}
-      {isLoading ? (
-        <div className="flex justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-300" />
+      {isLoading && vendors.length === 0 ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 animate-pulse">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="bg-white border border-gray-200 rounded-xl p-5">
+              <div className="flex items-start justify-between mb-3">
+                <div className="space-y-2 flex-1">
+                  <div className="h-4 bg-gray-200 rounded w-2/3" />
+                  <div className="h-5 bg-gray-200 rounded-full w-20" />
+                </div>
+              </div>
+              <div className="pt-3 border-t border-gray-100 grid grid-cols-3 gap-2">
+                {Array.from({ length: 3 }).map((_, j) => (
+                  <div key={j} className="space-y-1">
+                    <div className="h-5 bg-gray-200 rounded mx-auto w-8" />
+                    <div className="h-3 bg-gray-200 rounded w-12 mx-auto" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       ) : filteredVendors.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
