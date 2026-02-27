@@ -253,9 +253,9 @@ export default function VendorsPage() {
         if (res.error) throw new Error(res.error)
         mutate(cur => cur?.map(v => v.id === editingVendor.id ? { ...v, ...vendorForm } : v) ?? [], false)
       } else {
-        const res = await apiPost("/api/vendors", vendorForm)
+        const res = await apiPost<VendorWithStats>("/api/vendors", vendorForm)
         if (res.error) throw new Error(res.error)
-        const newVendor: VendorWithStats = { ...res.data, transactionCount: 0, totalExpenses: 0, unpaidExpenses: 0 }
+        const newVendor: VendorWithStats = { ...res.data!, transactionCount: 0, totalExpenses: 0, unpaidExpenses: 0 }
         mutate(cur => cur ? [...cur, newVendor] : [newVendor], false)
       }
 
