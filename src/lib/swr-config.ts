@@ -10,7 +10,7 @@ import { SWRConfiguration } from 'swr'
  */
 export const swrConfig: SWRConfiguration = {
   // Aggressive deduping for instant navigation
-  dedupingInterval: 5000, // 5 seconds — prevent duplicate requests
+  dedupingInterval: 30000, // 30 seconds — navigasi balik ke halaman yang sama pakai cache langsung
 
   // CRITICAL: Keep previous data while revalidating → zero loading flash
   keepPreviousData: true,

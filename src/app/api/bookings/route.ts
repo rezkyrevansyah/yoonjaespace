@@ -97,6 +97,7 @@ export async function GET(request: NextRequest) {
         photoFor: true,
         bts: true,
         muaStartTime: true,
+        photoLink: true,
         createdAt: true,
         client: {
           select: {

@@ -9,9 +9,7 @@ import {
   Clock,
   User,
   MapPin,
-  MoreHorizontal,
   Plus,
-  Filter,
   Loader2,
   AlertTriangle,
   Link2,
@@ -83,7 +81,7 @@ export default function CalendarPage() {
   // Format month for API query (YYYY-MM)
   const queryMonth = useMemo(() => format(currentDate, "yyyy-MM"), [currentDate])
 
-  const { bookings } = useBookings({ month: queryMonth })
+  const { bookings, mutate: mutateBookings } = useBookings({ month: queryMonth })
 
   // Navigation
   const nextDate = () => {
@@ -168,6 +166,22 @@ export default function CalendarPage() {
 
     setIsSaving(true)
     try {
+      // Optimistic update — perbarui cache lokal langsung tanpa menunggu API
+      await mutateBookings(
+        (current) => {
+          if (!current) return current
+          return {
+            ...current,
+            data: current.data.map(b =>
+              b.id === selectedBooking.id
+                ? { ...b, status: editStatus, photoLink: editPhotoLink }
+                : b
+            ),
+          }
+        },
+        { revalidate: false }
+      )
+
       const { error } = await apiPatch(`/api/bookings/${selectedBooking.id}/status`, {
         status: editStatus,
         photoLink: editPhotoLink
@@ -176,11 +190,13 @@ export default function CalendarPage() {
       if (error) throw new Error(error)
 
       showToast("Status dan link foto berhasil diupdate", "success")
-
-      // Refresh bookings to get updated data
-      window.location.reload()
-    } catch (err: any) {
-      showToast(err.message || "Gagal menyimpan perubahan", "error")
+      closeModal()
+      // Revalidate di background untuk sinkron dengan server
+      mutateBookings()
+    } catch (err: unknown) {
+      // Rollback cache ke data server jika API gagal
+      mutateBookings()
+      showToast((err as Error).message || "Gagal menyimpan perubahan", "error")
     } finally {
       setIsSaving(false)
     }
@@ -322,9 +338,9 @@ export default function CalendarPage() {
                             const isTodayDate = isToday(day)
 
                             return (
-                                <div 
-                                    key={day.toISOString()} 
-                                    className={`min-h-[120px] border-b border-r border-[#E5E7EB] p-2 transition-colors hover:bg-gray-50
+                                <div
+                                    key={day.toISOString()}
+                                    className={`min-h-[60px] sm:min-h-[120px] border-b border-r border-[#E5E7EB] p-1 sm:p-2 overflow-hidden transition-colors hover:bg-gray-50
                                         ${!isSelectedMonth ? "bg-gray-50/50" : "bg-white"}
                                         ${(dayIdx + 1) % 7 === 0 ? "border-r-0" : ""}
                                     `}
@@ -333,16 +349,16 @@ export default function CalendarPage() {
                                         setView('day')
                                     }}
                                 >
-                                    <div className="flex justify-between items-start mb-1">
+                                    <div className="flex justify-between items-start mb-0.5 sm:mb-1">
                                         <span className={`
-                                            text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full
+                                            text-xs sm:text-sm font-medium w-5 h-5 sm:w-7 sm:h-7 flex items-center justify-center rounded-full
                                             ${isTodayDate ? "bg-[#7A1F1F] text-white" : isSelectedMonth ? "text-[#111827]" : "text-gray-400"}
                                         `}>
                                             {format(day, "d")}
                                         </span>
                                     </div>
-                                    
-                                    <div className="space-y-1">
+
+                                    <div className="space-y-0.5 sm:space-y-1">
                                         {dayBookings.slice(0, 3).map(booking => {
                                             const statusStyle = STATUS_COLORS[booking.status] || STATUS_COLORS.BOOKED
                                             return (
@@ -352,21 +368,22 @@ export default function CalendarPage() {
                                                         e.stopPropagation()
                                                         handleBookingClick(booking, e)
                                                     }}
-                                                    className={`w-full text-left px-2 py-1 rounded text-xs font-medium border ${statusStyle.bg} ${statusStyle.text} ${statusStyle.border} hover:brightness-95 transition-all`}
+                                                    className={`w-full text-left px-1 py-0.5 sm:px-2 sm:py-1 rounded text-[10px] sm:text-xs font-medium border ${statusStyle.bg} ${statusStyle.text} ${statusStyle.border} hover:brightness-95 transition-all`}
                                                 >
-                                                    {/* SESI 12: Show start and end time */}
-                                                    <div className="flex items-center gap-1">
-                                                        <span className="font-semibold">{format(parseISO(booking.startTime), "HH:mm")}</span>
-                                                        <span className="text-[10px]">-</span>
-                                                        <span className="text-[10px]">{format(parseISO(booking.endTime), "HH:mm")}</span>
+                                                    {/* Mobile: jam mulai saja. Desktop: jam mulai-selesai + nama */}
+                                                    <div className="truncate font-semibold leading-tight">
+                                                        {format(parseISO(booking.startTime), "HH:mm")}
+                                                        <span className="hidden sm:inline text-[10px] font-normal">
+                                                            {" "}-{" "}{format(parseISO(booking.endTime), "HH:mm")}
+                                                        </span>
                                                     </div>
-                                                    <div className="truncate">{booking.client.name}</div>
+                                                    <div className="truncate hidden sm:block leading-tight">{booking.client.name}</div>
                                                 </button>
                                             )
                                         })}
                                         {dayBookings.length > 3 && (
-                                            <div className="text-xs text-gray-500 pl-1">
-                                                + {dayBookings.length - 3} more
+                                            <div className="text-[10px] sm:text-xs text-gray-500 pl-0.5 sm:pl-1">
+                                                +{dayBookings.length - 3}
                                             </div>
                                         )}
                                     </div>
@@ -380,7 +397,7 @@ export default function CalendarPage() {
                 {view === "week" && (
                      <div className="flex-1 overflow-y-auto">
                         <div className="grid grid-cols-7 min-h-full">
-                            {weekDays.map((day, i) => {
+                            {weekDays.map((day) => {
                                 const dayBookings = getBookingsForDate(day)
                                 const isTodayDate = isToday(day)
                                 return (
@@ -502,7 +519,7 @@ export default function CalendarPage() {
                                               )}
                                               {booking.notes && (
                                                   <p className="text-sm text-gray-500 italic bg-gray-50 p-2 rounded-lg">
-                                                      "{booking.notes}"
+                                                      &quot;{booking.notes}&quot;
                                                   </p>
                                               )}
                                           </div>
@@ -608,18 +625,23 @@ export default function CalendarPage() {
                 </div>
 
                 {/* Background */}
-                {(selectedBooking as any).bookingBackgrounds && (selectedBooking as any).bookingBackgrounds.length > 0 && (
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Background</p>
-                    <div className="flex flex-wrap gap-2">
-                      {(selectedBooking as any).bookingBackgrounds.map((bg: any) => (
-                        <span key={bg.id} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-md">
-                          {bg.background?.name || 'Background'}
-                        </span>
-                      ))}
+                {(() => {
+                  type BgEntry = { id: string; background?: { name: string } }
+                  const bgs = (selectedBooking as { bookingBackgrounds?: BgEntry[] }).bookingBackgrounds
+                  if (!bgs || bgs.length === 0) return null
+                  return (
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Background</p>
+                      <div className="flex flex-wrap gap-2">
+                        {bgs.map((bg) => (
+                          <span key={bg.id} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-md">
+                            {bg.background?.name || 'Background'}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )
+                })()}
 
                 {/* Add-ons */}
                 {selectedBooking.addOns && selectedBooking.addOns.length > 0 && (
@@ -646,7 +668,7 @@ export default function CalendarPage() {
                 {selectedBooking.notes && (
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Catatan</p>
-                    <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg italic">"{selectedBooking.notes}"</p>
+                    <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg italic">&quot;{selectedBooking.notes}&quot;</p>
                   </div>
                 )}
 

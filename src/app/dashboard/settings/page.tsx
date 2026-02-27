@@ -19,8 +19,6 @@ import {
   MessageSquare,
   Sparkles,
   Image as ImageIcon,
-  Box,
-  Send,
   Loader2
 } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
@@ -213,7 +211,7 @@ export default function SettingsPage() {
   }, [settings, studioInfoForm])
 
   // --- CRUD Helpers ---
-  const handleCreate = async (url: string, data: any, mutateFn: Function, name: string) => {
+  const handleCreate = async (url: string, data: any, mutateFn: () => Promise<unknown>, name: string) => {
     setIsSubmitting(true)
     try {
       const { error } = await apiPost(url, data)
@@ -229,7 +227,7 @@ export default function SettingsPage() {
     }
   }
 
-  const handleUpdate = async (url: string, data: any, mutateFn: Function, name: string) => {
+  const handleUpdate = async (url: string, data: any, mutateFn: () => Promise<unknown>, name: string) => {
     setIsSubmitting(true)
     try {
       const { error } = await apiPatch(url, data)
@@ -246,7 +244,7 @@ export default function SettingsPage() {
     }
   }
 
-  const handleDelete = async (url: string, mutateFn: Function, name: string) => {
+  const handleDelete = async (url: string, mutateFn: () => Promise<unknown>, name: string) => {
     setIsSubmitting(true)
     try {
       const { error } = await apiDelete(url)
@@ -437,7 +435,7 @@ export default function SettingsPage() {
           await apiPatch(`/api/custom-fields/${newFields[index].id}`, { sortOrder: newFields[index].sortOrder })
           await apiPatch(`/api/custom-fields/${newFields[targetIndex].id}`, { sortOrder: newFields[targetIndex].sortOrder })
           await mutateCustomFields()
-      } catch (e) {
+      } catch {
           showToast("Failed to reorder fields", "error")
       }
   }

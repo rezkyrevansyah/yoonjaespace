@@ -212,7 +212,7 @@ export function OverviewTab({ booking, calculateDuration, actions }: OverviewTab
                 <div>
                   <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Catatan Client</p>
                   <p className="text-sm text-amber-900 bg-amber-50 border border-amber-100 p-3.5 rounded-xl italic font-medium leading-relaxed shadow-sm">
-                    "{booking.notes}"
+                    &quot;{booking.notes}&quot;
                   </p>
                 </div>
               )}
@@ -220,7 +220,7 @@ export function OverviewTab({ booking, calculateDuration, actions }: OverviewTab
                 <div>
                   <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Internal Notes</p>
                   <p className="text-sm text-blue-900 bg-blue-50 border border-blue-100 p-3.5 rounded-xl italic font-medium leading-relaxed shadow-sm">
-                    "{booking.internalNotes}"
+                    &quot;{booking.internalNotes}&quot;
                   </p>
                 </div>
               )}

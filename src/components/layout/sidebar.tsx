@@ -168,6 +168,7 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
                 return (
                   <li key={`${item.href}-${item.label}`}>
                     <button
+                      onMouseEnter={() => router.prefetch(item.href)}
                       onClick={() => {
                         handleLinkClick()
                         router.push(getNavTarget(item.href))

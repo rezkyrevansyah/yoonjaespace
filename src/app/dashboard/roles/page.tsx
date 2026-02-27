@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Shield, Plus, Edit2, Trash2, Check, X, Loader2, AlertTriangle } from "lucide-react"
+import { Shield, Plus, Edit2, Trash2, Loader2, AlertTriangle } from "lucide-react"
 import { useRoles, useMenus, type Role, type MenuPermission } from "@/lib/hooks/use-roles"
 import { Modal } from "@/components/shared/modal"
 import { useAuth } from "@/lib/hooks/use-auth"
@@ -22,12 +22,6 @@ export default function RolesPage() {
   // Debug logging
   console.log('[RolesPage] Roles:', roles.length, '| Menus:', menus.length)
 
-  // Redirect if not OWNER
-  if (user && user.role !== 'OWNER') {
-    router.push('/dashboard')
-    return null
-  }
-
   // Modal states
   const [addModalOpen, setAddModalOpen] = useState(false)
   const [editModalOpen, setEditModalOpen] = useState(false)
@@ -41,6 +35,12 @@ export default function RolesPage() {
     description: "",
     menuPermissions: {}
   })
+
+  // Redirect if not OWNER
+  if (user && user.role !== 'OWNER') {
+    router.push('/dashboard')
+    return null
+  }
 
   // Open modals
   const handleAdd = () => {
@@ -486,7 +486,7 @@ export default function RolesPage() {
             <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
             <div>
               <p className="text-sm text-red-800 font-medium">
-                Apakah Anda yakin ingin menghapus role "{selectedRole?.name}"?
+                Apakah Anda yakin ingin menghapus role &quot;{selectedRole?.name}&quot;?
               </p>
               <p className="text-xs text-red-600 mt-1">
                 Tindakan ini tidak dapat dibatalkan.
