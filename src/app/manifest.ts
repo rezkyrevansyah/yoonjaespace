@@ -15,7 +15,13 @@ export default function manifest(): MetadataRoute.Manifest {
         src: '/logo_yoonjae.png',
         sizes: 'any',
         type: 'image/png',
-        purpose: 'any maskable',
+        purpose: 'any',
+      },
+      {
+        src: '/logo_yoonjae.png',
+        sizes: 'any',
+        type: 'image/png',
+        purpose: 'maskable',
       },
     ],
   }
