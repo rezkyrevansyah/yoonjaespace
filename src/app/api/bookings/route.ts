@@ -171,22 +171,18 @@ export async function GET(request: NextRequest) {
   ])
 
   return NextResponse.json({
-    bookings, // No need for 'data' wrapper if the hook expects { bookings, pagination }? Wait, let's check hook response type.
-    // Hook expects { bookings: data?.bookings || [] ... } based on typical SWR usage?
-    // Let's check hook implementation. Hook says: bookings: data?.data || []
-    // But API was returning: { bookings, pagination }
-    // There is a mismatch! The hook expects `data.data`, API returns `bookings`.
-    // Let's fix API to return `data: bookings` to match standard or fix hook.
-    // Actually the hook usually adapts. Let's look at `use-bookings.ts` again.
-    // It says `bookings: data?.data || []`. 
-    // And uses `interface BookingsResponse { data: Booking[], ... }`
-    // So API should return `data`.
-    data: bookings, 
+    data: bookings,
     pagination: {
       page,
       limit,
       total,
       totalPages: Math.ceil(total / limit),
+    },
+  }, {
+    headers: {
+      // Browser cache: buka tab baru → data tampil instan dari cache HTTP,
+      // fetch fresh di background
+      'Cache-Control': 'private, max-age=0, stale-while-revalidate=30',
     },
   })
 }

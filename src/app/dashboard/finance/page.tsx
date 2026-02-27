@@ -11,10 +11,9 @@ import {
   Plus,
   Edit2,
   Trash2,
-  Loader2
 } from "lucide-react"
 import { formatCurrency, formatDate } from "@/lib/utils"
-// import { useMobile } from "@/lib/hooks/use-mobile"
+import { useMobile } from "@/lib/hooks/use-mobile"
 import { useToast } from "@/lib/hooks/use-toast"
 import { Modal } from "@/components/shared/modal"
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts"
@@ -57,15 +56,7 @@ const CHART_COLORS: Record<string, string> = {
 
 export default function FinancePage() {
   const { showToast } = useToast()
-  
-  // Mobile check
-  const [isMobile, setIsMobile] = useState(false)
-  useMemo(() => {
-    if (typeof window !== 'undefined') {
-        setIsMobile(window.innerWidth < 768)
-        window.addEventListener('resize', () => setIsMobile(window.innerWidth < 768))
-    }
-  }, [])
+  const isMobile = useMobile()
 
 
   // Current month (for filtering)
@@ -345,8 +336,29 @@ export default function FinancePage() {
           </div>
         </div>
         
-        {bookingsLoading ? (
-            <div className="p-8 flex justify-center"><Loader2 className="animate-spin text-gray-300" /></div>
+        {bookingsLoading && paidBookings.length === 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB]">
+                    {["Booking ID","Client","Date","Package","Total","Payment"].map(h => (
+                      <th key={h} className="text-left py-3 px-4 font-medium text-[#6B7280]">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...Array(5)].map((_, i) => (
+                    <tr key={i} className="border-b border-[#E5E7EB] last:border-0">
+                      {[90, 130, 80, 140, 80, 60].map((w, j) => (
+                        <td key={j} className="py-3.5 px-4">
+                          <div className="h-4 bg-[#E5E7EB] rounded animate-pulse" style={{ width: w }} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
         ) : (
         <>
             {/* Desktop Table */}
@@ -459,8 +471,29 @@ export default function FinancePage() {
           </div>
         </div>
 
-        {expensesLoading ? (
-            <div className="p-8 flex justify-center"><Loader2 className="animate-spin text-gray-300"/></div>
+        {expensesLoading && expenses.length === 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB]">
+                    {["Date","Description","Category","Vendor","Amount","Actions"].map(h => (
+                      <th key={h} className="text-left py-3 px-4 font-medium text-[#6B7280]">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...Array(6)].map((_, i) => (
+                    <tr key={i} className="border-b border-[#E5E7EB] last:border-0">
+                      {[80, 200, 90, 100, 80, 60].map((w, j) => (
+                        <td key={j} className="py-3.5 px-4">
+                          <div className="h-4 bg-[#E5E7EB] rounded animate-pulse" style={{ width: w }} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
         ) : (
             <>
             {/* Desktop Table */}

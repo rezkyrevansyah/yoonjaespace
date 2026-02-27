@@ -87,6 +87,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       month,
       stats: enrichedStats
+    }, {
+      headers: { 'Cache-Control': 'private, max-age=0, stale-while-revalidate=60' },
     })
   } catch (error: any) {
     console.error('Error fetching package stats:', error)

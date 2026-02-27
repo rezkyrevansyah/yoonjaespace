@@ -25,7 +25,6 @@ import {
   Trash2,
   Eye,
   ChevronDown,
-  Loader2,
   AlertCircle
 } from "lucide-react"
 import type { Booking, BookingStatus, PaymentStatus } from "@/lib/types"
@@ -87,7 +86,7 @@ export default function BookingsPage() {
   }, [router])
 
   // Fetch Data using SWR hook
-  const { bookings, pagination, isError, mutate } = useBookings({
+  const { bookings, pagination, isLoading, isError, mutate } = useBookings({
     page: currentPage,
     limit: ITEMS_PER_PAGE,
     search: debouncedSearch || undefined,
@@ -334,9 +333,31 @@ export default function BookingsPage() {
         </div>
       </div>
 
-      {!bookings ? (
-          <div className="flex justify-center py-20">
-              <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      {isLoading && bookings.length === 0 ? (
+          /* Skeleton table — tampil instan saat cold start, bukan spinner */
+          <div className="rounded-xl border border-[#E5E7EB] bg-white overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB]">
+                    {["Booking ID","Client","Date","Time","Package","Status","Payment","Handled By","Dibuat Pada","Total","Actions"].map((h) => (
+                      <th key={h} className="py-3 px-4 text-left font-medium text-[#6B7280] whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...Array(ITEMS_PER_PAGE)].map((_, i) => (
+                    <tr key={i} className="border-b border-[#E5E7EB] last:border-0">
+                      {[100, 140, 80, 50, 120, 70, 60, 90, 100, 70, 60].map((w, j) => (
+                        <td key={j} className="py-3.5 px-4">
+                          <div className={`h-4 bg-[#E5E7EB] rounded animate-pulse`} style={{ width: w }} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
       ) : (
           <>

@@ -97,6 +97,12 @@ export async function GET() {
         revenue: monthlyRevenue._sum.totalAmount || 0,
         unpaidBookings,
       },
+    }, {
+      headers: {
+        // Browser menyimpan response — buka tab baru langsung tampil dari cache,
+        // server fetch fresh di background (stale-while-revalidate)
+        'Cache-Control': 'private, max-age=0, stale-while-revalidate=60',
+      },
     })
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error)

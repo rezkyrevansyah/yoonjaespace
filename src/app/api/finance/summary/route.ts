@@ -96,5 +96,7 @@ export async function GET(request: NextRequest) {
       cancelled: cancelledBookings,
     },
     incomeByMonth: [] // Optional: implement if needed for charts
+  }, {
+    headers: { 'Cache-Control': 'private, max-age=0, stale-while-revalidate=30' },
   })
 }
