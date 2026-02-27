@@ -12,6 +12,15 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Yoonjaespace — Studio Management",
   description: "Sistem manajemen studio foto Yoonjaespace. Kelola booking, keuangan, dan klien dengan mudah.",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Yoonjaespace",
+  },
+  icons: {
+    apple: "/logo_yoonjae.png",
+  },
 };
 
 export default function RootLayout({
@@ -21,6 +30,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id">
+      <head>
+        <meta name="theme-color" content="#7A1F1F" />
+        <meta name="mobile-web-app-capable" content="yes" />
+      </head>
       <body className={`${inter.variable} font-sans antialiased`}>
         <ClientProviders>
           {children}

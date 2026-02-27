@@ -58,7 +58,7 @@ export function useRoles() {
       })
       if (error) throw new Error(error)
 
-      await mutate()
+      mutate(cur => ({ roles: [...(cur?.roles || []), role] }), false)
       showToast('Role berhasil dibuat', 'success')
       return { success: true, role }
     } catch (err: any) {
@@ -79,7 +79,7 @@ export function useRoles() {
       })
       if (error) throw new Error(error)
 
-      await mutate()
+      mutate(cur => ({ roles: (cur?.roles || []).map(r => r.id === id ? role : r) }), false)
       showToast('Role berhasil diupdate', 'success')
       return { success: true, role }
     } catch (err: any) {
@@ -96,7 +96,7 @@ export function useRoles() {
       const { error } = await apiDelete(`/api/roles/${id}`)
       if (error) throw new Error(error)
 
-      await mutate()
+      mutate(cur => ({ roles: (cur?.roles || []).filter(r => r.id !== id) }), false)
       showToast('Role berhasil dihapus', 'success')
       return { success: true }
     } catch (err: any) {

@@ -211,12 +211,12 @@ export default function SettingsPage() {
   }, [settings, studioInfoForm])
 
   // --- CRUD Helpers ---
-  const handleCreate = async (url: string, data: any, mutateFn: () => Promise<unknown>, name: string) => {
+  const handleCreate = async (url: string, data: any, onSuccess: (newItem: any) => void, name: string) => {
     setIsSubmitting(true)
     try {
-      const { error } = await apiPost(url, data)
+      const { data: newItem, error } = await apiPost(url, data)
       if (error) throw new Error(error)
-      await mutateFn()
+      onSuccess(newItem)
       showToast(`${name} berhasil ditambahkan`, "success")
       setModalOpen(false)
       resetForms()
@@ -227,12 +227,12 @@ export default function SettingsPage() {
     }
   }
 
-  const handleUpdate = async (url: string, data: any, mutateFn: () => Promise<unknown>, name: string) => {
+  const handleUpdate = async (url: string, data: any, onSuccess: (updated: any) => void, name: string) => {
     setIsSubmitting(true)
     try {
-      const { error } = await apiPatch(url, data)
+      const { data: updated, error } = await apiPatch(url, data)
       if (error) throw new Error(error)
-      await mutateFn()
+      onSuccess(updated)
       showToast(`${name} berhasil diupdate`, "success")
       setModalOpen(false)
       setEditingItem(null)
@@ -244,12 +244,12 @@ export default function SettingsPage() {
     }
   }
 
-  const handleDelete = async (url: string, mutateFn: () => Promise<unknown>, name: string) => {
+  const handleDelete = async (url: string, onSuccess: () => void, name: string) => {
     setIsSubmitting(true)
     try {
       const { error } = await apiDelete(url)
       if (error) throw new Error(error)
-      await mutateFn()
+      onSuccess()
       showToast(`${name} berhasil dihapus`, "success")
       setDeleteModalOpen(false)
       setItemToDelete(null)
@@ -285,15 +285,15 @@ export default function SettingsPage() {
     }
 
     if (editingItem) {
-      handleUpdate(`/api/packages/${editingItem.id}`, payload, mutatePackages, "Package")
+      handleUpdate(`/api/packages/${editingItem.id}`, payload, (item) => mutatePackages(cur => cur?.map(p => p.id === item.id ? item : p) ?? [], false), "Package")
     } else {
-      handleCreate('/api/packages', payload, mutatePackages, "Package")
+      handleCreate('/api/packages', payload, (item) => mutatePackages(cur => [...(cur || []), item], false), "Package")
     }
   }
 
   const handleDeletePackage = () => {
     if (!itemToDelete) return
-    handleDelete(`/api/packages/${itemToDelete.id}`, mutatePackages, "Package")
+    handleDelete(`/api/packages/${itemToDelete.id}`, () => mutatePackages(cur => cur?.filter(p => p.id !== itemToDelete!.id) ?? [], false), "Package")
   }
 
   // Backgrounds
@@ -309,15 +309,15 @@ export default function SettingsPage() {
     }
 
     if (editingItem) {
-      handleUpdate(`/api/backgrounds/${editingItem.id}`, payload, mutateBackgrounds, "Background")
+      handleUpdate(`/api/backgrounds/${editingItem.id}`, payload, (item) => mutateBackgrounds(cur => cur?.map(b => b.id === item.id ? item : b) ?? [], false), "Background")
     } else {
-      handleCreate('/api/backgrounds', payload, mutateBackgrounds, "Background")
+      handleCreate('/api/backgrounds', payload, (item) => mutateBackgrounds(cur => [...(cur || []), item], false), "Background")
     }
   }
-  
+
   const handleDeleteBackground = () => {
      if (!itemToDelete) return
-     handleDelete(`/api/backgrounds/${itemToDelete.id}`, mutateBackgrounds, "Background")
+     handleDelete(`/api/backgrounds/${itemToDelete.id}`, () => mutateBackgrounds(cur => cur?.filter(b => b.id !== itemToDelete!.id) ?? [], false), "Background")
   }
 
   // Addons
@@ -333,15 +333,15 @@ export default function SettingsPage() {
     }
 
     if (editingItem) {
-      handleUpdate(`/api/addon-templates/${editingItem.id}`, payload, mutateAddons, "Add-on") // Note: API route might be different, strictly following use-master-data path
+      handleUpdate(`/api/addon-templates/${editingItem.id}`, payload, (item) => mutateAddons(cur => cur?.map(a => a.id === item.id ? item : a) ?? [], false), "Add-on")
     } else {
-      handleCreate('/api/addon-templates', payload, mutateAddons, "Add-on")
+      handleCreate('/api/addon-templates', payload, (item) => mutateAddons(cur => [...(cur || []), item], false), "Add-on")
     }
   }
 
   const handleDeleteAddon = () => {
       if (!itemToDelete) return
-      handleDelete(`/api/addon-templates/${itemToDelete.id}`, mutateAddons, "Add-on")
+      handleDelete(`/api/addon-templates/${itemToDelete.id}`, () => mutateAddons(cur => cur?.filter(a => a.id !== itemToDelete!.id) ?? [], false), "Add-on")
   }
 
   // Vouchers
@@ -365,15 +365,15 @@ export default function SettingsPage() {
     }
 
     if (editingItem) {
-      handleUpdate(`/api/vouchers/${editingItem.id}`, payload, mutateVouchers, "Voucher")
+      handleUpdate(`/api/vouchers/${editingItem.id}`, payload, (item) => mutateVouchers(cur => cur?.map(v => v.id === item.id ? item : v) ?? [], false), "Voucher")
     } else {
-      handleCreate('/api/vouchers', payload, mutateVouchers, "Voucher")
+      handleCreate('/api/vouchers', payload, (item) => mutateVouchers(cur => [...(cur || []), item], false), "Voucher")
     }
   }
 
   const handleDeleteVoucher = () => {
       if (!itemToDelete) return
-      handleDelete(`/api/vouchers/${itemToDelete.id}`, mutateVouchers, "Voucher")
+      handleDelete(`/api/vouchers/${itemToDelete.id}`, () => mutateVouchers(cur => cur?.filter(v => v.id !== itemToDelete!.id) ?? [], false), "Voucher")
   }
   
   // Custom Fields
@@ -403,15 +403,15 @@ export default function SettingsPage() {
     }
 
     if (editingItem) {
-      handleUpdate(`/api/custom-fields/${editingItem.id}`, payload, mutateCustomFields, "Custom Field")
+      handleUpdate(`/api/custom-fields/${editingItem.id}`, payload, (item) => mutateCustomFields(cur => cur?.map(c => c.id === item.id ? item : c) ?? [], false), "Custom Field")
     } else {
-      handleCreate('/api/custom-fields', payload, mutateCustomFields, "Custom Field")
+      handleCreate('/api/custom-fields', payload, (item) => mutateCustomFields(cur => [...(cur || []), item], false), "Custom Field")
     }
   }
 
   const handleDeleteCustomField = () => {
       if (!itemToDelete) return
-      handleDelete(`/api/custom-fields/${itemToDelete.id}`, mutateCustomFields, "Custom Field")
+      handleDelete(`/api/custom-fields/${itemToDelete.id}`, () => mutateCustomFields(cur => cur?.filter(c => c.id !== itemToDelete!.id) ?? [], false), "Custom Field")
   }
   
   const moveField = async (index: number, direction: 'up' | 'down') => {

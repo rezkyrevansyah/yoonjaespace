@@ -251,15 +251,17 @@ export default function VendorsPage() {
       if (editingVendor) {
         const res = await apiPatch(`/api/vendors/${editingVendor.id}`, vendorForm)
         if (res.error) throw new Error(res.error)
+        mutate(cur => cur?.map(v => v.id === editingVendor.id ? { ...v, ...vendorForm } : v) ?? [], false)
       } else {
         const res = await apiPost("/api/vendors", vendorForm)
         if (res.error) throw new Error(res.error)
+        const newVendor: VendorWithStats = { ...res.data, transactionCount: 0, totalExpenses: 0, unpaidExpenses: 0 }
+        mutate(cur => cur ? [...cur, newVendor] : [newVendor], false)
       }
 
       showToast(`Vendor berhasil ${editingVendor ? "diupdate" : "ditambahkan"}`, "success")
       setIsModalOpen(false)
       resetForm()
-      mutate()
     } catch (err: any) {
       showToast(err.message || "Gagal menyimpan vendor", "error")
     } finally {
@@ -270,19 +272,17 @@ export default function VendorsPage() {
   const handleDeleteVendor = async () => {
     if (!vendorToDelete) return
 
-    setIsSubmitting(true)
+    const { id } = vendorToDelete
+    setIsDeleteModalOpen(false)
+    setVendorToDelete(null)
+    mutate(cur => cur?.filter(v => v.id !== id) ?? [], false)
     try {
-      const res = await apiDelete(`/api/vendors/${vendorToDelete.id}`)
+      const res = await apiDelete(`/api/vendors/${id}`)
       if (res.error) throw new Error(res.error)
-
       showToast("Vendor berhasil dihapus", "success")
-      setIsDeleteModalOpen(false)
-      setVendorToDelete(null)
-      mutate()
     } catch (err: any) {
+      mutate()
       showToast(err.message || "Gagal menghapus vendor", "error")
-    } finally {
-      setIsSubmitting(false)
     }
   }
 
