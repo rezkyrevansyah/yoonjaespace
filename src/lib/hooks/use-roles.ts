@@ -58,7 +58,7 @@ export function useRoles() {
       })
       if (error) throw new Error(error)
 
-      mutate(cur => ({ roles: [...(cur?.roles || []), role] }), false)
+      mutate(cur => ({ roles: [...(cur?.roles || []), role as Role] }), false)
       showToast('Role berhasil dibuat', 'success')
       return { success: true, role }
     } catch (err: any) {
@@ -79,7 +79,7 @@ export function useRoles() {
       })
       if (error) throw new Error(error)
 
-      mutate(cur => ({ roles: (cur?.roles || []).map(r => r.id === id ? role : r) }), false)
+      mutate(cur => ({ roles: (cur?.roles || []).map(r => r.id === id ? role as Role : r) }), false)
       showToast('Role berhasil diupdate', 'success')
       return { success: true, role }
     } catch (err: any) {
