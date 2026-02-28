@@ -15,6 +15,7 @@ const API_CACHE_ROUTES = [
   '/api/permissions',
   '/api/settings',
   '/api/reminders',
+  '/api/activities',
   '/api/dashboard',
   '/api/bookings',
   '/api/calendar',
