@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/hooks/use-auth"
 import { useActivities } from "@/lib/hooks/use-activities"
 import { USER_ROLE_MAP } from "@/lib/constants"
 import { Breadcrumb } from "./breadcrumb"
-import { Bell, Search, Menu, X, Loader2 } from "lucide-react"
+import { Bell, Menu, X, Loader2 } from "lucide-react"
 import { ActivityLogItem } from "@/components/shared/activity-log-item"
 
 interface HeaderProps {
@@ -80,11 +80,6 @@ export function Header({ onMenuClick }: HeaderProps) {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-2">
-          {/* Search */}
-          <button className="p-2 rounded-lg text-[#6B7280] hover:bg-[#F9FAFB] hover:text-[#111827] transition-colors">
-            <Search className="h-5 w-5" />
-          </button>
-
           {/* Notifications / Activity Log */}
           <div className="relative" ref={activityRef}>
             <button 

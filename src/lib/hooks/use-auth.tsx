@@ -1,6 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react"
+import { useSWRConfig } from "swr"
 import { StaffUser, UserRole } from "@/lib/types"
 import { clearSWRCache } from "@/lib/swr-cache-provider"
 
@@ -17,6 +18,8 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const { mutate } = useSWRConfig()
+
   // Inisialisasi dari localStorage cache → UI langsung render tanpa loading
   const [user, setUser] = useState<StaffUser | null>(() => {
     if (typeof window === 'undefined') return null
@@ -51,23 +54,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const checkAuth = async () => {
     try {
-      const response = await fetch("/api/auth/me", {
+      // Fetch /api/initial — 1 API call untuk auth + settings + permissions + reminders
+      const response = await fetch("/api/initial", {
         credentials: "include",
       })
 
       if (response.ok) {
-        const userData = await response.json()
+        const data = await response.json()
         const staffUser: StaffUser = {
-          id: userData.id,
-          name: userData.name,
-          email: userData.email,
-          phone: userData.phone || "",
-          role: userData.role as UserRole,
+          id: data.user.id,
+          name: data.user.name,
+          email: data.user.email,
+          phone: data.user.phone || "",
+          role: data.user.role as UserRole,
           isActive: true,
           createdAt: new Date().toISOString(),
         }
         setUser(staffUser)
         saveAuthCache(staffUser)
+
+        // Populate SWR caches → useSettings, usePermissions, useReminderCount langsung dapat data
+        mutate('/api/settings', data.settings, false)
+        mutate('/api/permissions', data.permissions, false)
+        mutate('/api/reminders/count', data.reminderCount, false)
       } else {
         // Auth gagal (session expired) → clear cache
         setUser(null)
