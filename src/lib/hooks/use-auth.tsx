@@ -2,6 +2,9 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react"
 import { StaffUser, UserRole } from "@/lib/types"
+import { clearSWRCache } from "@/lib/swr-cache-provider"
+
+const AUTH_CACHE_KEY = 'yjs-auth-user'
 
 interface AuthContextType {
   user: StaffUser | null
@@ -14,13 +17,37 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<StaffUser | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  // Inisialisasi dari localStorage cache → UI langsung render tanpa loading
+  const [user, setUser] = useState<StaffUser | null>(() => {
+    if (typeof window === 'undefined') return null
+    try {
+      const cached = localStorage.getItem(AUTH_CACHE_KEY)
+      return cached ? JSON.parse(cached) : null
+    } catch {
+      return null
+    }
+  })
+  const [isLoading, setIsLoading] = useState(() => {
+    if (typeof window === 'undefined') return true
+    return !localStorage.getItem(AUTH_CACHE_KEY)
+  })
 
   // Check if user is already logged in on mount
   useEffect(() => {
     checkAuth()
   }, [])
+
+  const saveAuthCache = (userData: StaffUser) => {
+    try {
+      localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(userData))
+    } catch { /* ignore */ }
+  }
+
+  const clearAuthCache = () => {
+    try {
+      localStorage.removeItem(AUTH_CACHE_KEY)
+    } catch { /* ignore */ }
+  }
 
   const checkAuth = async () => {
     try {
@@ -30,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (response.ok) {
         const userData = await response.json()
-        setUser({
+        const staffUser: StaffUser = {
           id: userData.id,
           name: userData.name,
           email: userData.email,
@@ -38,10 +65,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: userData.role as UserRole,
           isActive: true,
           createdAt: new Date().toISOString(),
-        })
+        }
+        setUser(staffUser)
+        saveAuthCache(staffUser)
+      } else {
+        // Auth gagal (session expired) → clear cache
+        setUser(null)
+        clearAuthCache()
       }
     } catch (error) {
       console.error("Auth check failed:", error)
+      // Network error → keep cached user (offline support)
     } finally {
       setIsLoading(false)
     }
@@ -75,7 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Set user state directly from login response — NO extra /api/auth/me round-trip needed
       if (data.dbUser) {
-        setUser({
+        const staffUser: StaffUser = {
           id: data.dbUser.id,
           name: data.dbUser.name,
           email: data.dbUser.email,
@@ -83,7 +117,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: data.dbUser.role as UserRole,
           isActive: true,
           createdAt: new Date().toISOString(),
-        })
+        }
+        setUser(staffUser)
+        saveAuthCache(staffUser)
       } else {
         // Fallback: fetch user data if dbUser not in response
         await checkAuth()
@@ -102,12 +138,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         method: "POST",
         credentials: "include",
       })
-
-      setUser(null)
     } catch (error) {
       console.error("Logout error:", error)
-      // Still clear user even if API call fails
+    } finally {
+      // Always clear user + all cached data (security)
       setUser(null)
+      clearAuthCache()
+      clearSWRCache()
     }
   }
 

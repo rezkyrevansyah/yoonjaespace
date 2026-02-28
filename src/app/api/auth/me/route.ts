@@ -35,5 +35,9 @@ export async function GET() {
     name: dbUser.name,
     email: dbUser.email,
     role: dbUser.role,
+  }, {
+    headers: {
+      'Cache-Control': 'private, max-age=30, stale-while-revalidate=60',
+    },
   })
 }

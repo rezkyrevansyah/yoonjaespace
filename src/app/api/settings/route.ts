@@ -47,7 +47,11 @@ export async function GET() {
     timeIntervalMinutes: raw.timeIntervalMinutes || '30',  // SESI 10
   }
 
-  return NextResponse.json(result)
+  return NextResponse.json(result, {
+    headers: {
+      'Cache-Control': 'private, max-age=60, stale-while-revalidate=300',
+    },
+  })
 }
 
 // PATCH — Update settings (bulk)

@@ -131,6 +131,10 @@ export async function GET(request: NextRequest) {
         role: dbUser.role,
         customRoleName: dbUser.customRole?.name,
       }
+    }, {
+      headers: {
+        'Cache-Control': 'private, max-age=30, stale-while-revalidate=300',
+      },
     })
   } catch (error: any) {
     console.error('Error fetching permissions:', error)
