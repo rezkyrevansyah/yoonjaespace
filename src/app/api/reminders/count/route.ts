@@ -42,7 +42,9 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    return NextResponse.json({ count })
+    return NextResponse.json({ count }, {
+      headers: { 'Cache-Control': 'private, max-age=0, stale-while-revalidate=30' },
+    })
   } catch (error: any) {
     console.error('Error fetching reminder count:', error)
     return NextResponse.json(

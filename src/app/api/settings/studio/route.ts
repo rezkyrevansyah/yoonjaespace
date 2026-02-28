@@ -42,7 +42,9 @@ export async function GET(request: NextRequest) {
       footerText: await getSetting('footer_text', 'Thank you for choosing Yoonjaespace Studio!'),
     }
 
-    return NextResponse.json(settings)
+    return NextResponse.json(settings, {
+      headers: { 'Cache-Control': 'private, max-age=60, stale-while-revalidate=300' },
+    })
   } catch (error) {
     console.error('Failed to fetch studio settings:', error)
     return NextResponse.json({ error: 'Failed to fetch settings' }, { status: 500 })

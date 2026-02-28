@@ -19,7 +19,9 @@ export async function GET(request: NextRequest) {
     orderBy: { name: 'asc' },
   })
 
-  return NextResponse.json(packages)
+  return NextResponse.json(packages, {
+    headers: { 'Cache-Control': 'private, max-age=60, stale-while-revalidate=300' },
+  })
 }
 
 // POST — Create package

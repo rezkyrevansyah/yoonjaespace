@@ -33,7 +33,10 @@ const PERSIST_PATTERNS = [
   '/api/packages',
   '/api/backgrounds',
   '/api/custom-fields',
+  '/api/addon-templates',
+  '/api/vouchers',
   '/api/roles',
+  '/api/initial',
 ]
 
 function shouldPersist(key: string): boolean {

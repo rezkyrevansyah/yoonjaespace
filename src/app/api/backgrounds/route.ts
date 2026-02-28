@@ -24,7 +24,9 @@ export async function GET(request: NextRequest) {
     orderBy: { name: 'asc' },
   })
 
-  return NextResponse.json(backgrounds)
+  return NextResponse.json(backgrounds, {
+    headers: { 'Cache-Control': 'private, max-age=60, stale-while-revalidate=300' },
+  })
 }
 
 // POST — Create background

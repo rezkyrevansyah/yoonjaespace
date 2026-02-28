@@ -36,7 +36,9 @@ export async function GET(request: NextRequest) {
     discountType: v.discountType.toUpperCase()
   }))
 
-  return NextResponse.json(result)
+  return NextResponse.json(result, {
+    headers: { 'Cache-Control': 'private, max-age=60, stale-while-revalidate=300' },
+  })
 }
 
 // POST — Create voucher

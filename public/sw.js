@@ -27,7 +27,10 @@ const API_CACHE_ROUTES = [
   '/api/packages',
   '/api/backgrounds',
   '/api/custom-fields',
+  '/api/addon-templates',
+  '/api/vouchers',
   '/api/roles',
+  '/api/initial',
 ]
 
 self.addEventListener('install', () => {
