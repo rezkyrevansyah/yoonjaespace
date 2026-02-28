@@ -76,5 +76,7 @@ export async function GET(
     }))
   )
 
-  return NextResponse.json(overlapInfo)
+  return NextResponse.json(overlapInfo, {
+    headers: { 'Cache-Control': 'private, max-age=0, stale-while-revalidate=30' },
+  })
 }

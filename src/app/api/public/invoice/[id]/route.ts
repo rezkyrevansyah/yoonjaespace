@@ -48,6 +48,8 @@ export async function GET(
         logoUrl: settingsMap['logo_url'] || '',
         footerText: settingsMap['footer_text'] || 'Thank you for choosing Yoonjaespace Studio!',
       },
+    }, {
+      headers: { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=60' },
     })
   } catch (error: any) {
     console.error('Error fetching invoice:', error)

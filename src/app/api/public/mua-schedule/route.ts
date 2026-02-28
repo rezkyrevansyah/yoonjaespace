@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
       month: month || `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}`,
       schedule,
     }, {
-      headers: { 'Cache-Control': 'private, max-age=0, stale-while-revalidate=60' },
+      headers: { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' },
     })
   } catch (error: any) {
     console.error('Error fetching MUA schedule:', error)
